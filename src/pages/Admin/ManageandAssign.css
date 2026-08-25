@@ -102,26 +102,53 @@
   height:48px;
   padding:0 21px;
   background:var(--hover-bg);
-  color:var(--text-secondary);
-  font-size:var(--font-table);
+  color:var(--success);
+  font-size:11px;
   font-weight:700;
   text-transform:uppercase;
-  letter-spacing:.02em;
+  letter-spacing:.05em;
 }
 
-.maa-table-card td { padding:15px 21px; border-top:1px solid var(--border-color); vertical-align:middle; }
+.maa-table-card td { padding:16px 21px; border-top:1px solid var(--border-color); vertical-align:middle; font-size:14px; }
 
-.maa-table-card td:first-child { color:var(--primary); font-weight:700; }
+.maa-table-card td:first-child { color:var(--text-heading); font-weight:700; }
 
-.maa-table-card td strong { display:block; color:var(--text-heading); font-weight:700; }
-.maa-table-card td small { color:var(--text-secondary); font-size:var(--font-secondary); }
+.maa-table-card td strong { display:block; color:var(--text-heading); font-size:14px; font-weight:700; }
+.maa-table-card td small { color:var(--text-secondary); font-size:13px; }
 
-.maa-assigned { color:var(--text-primary); font-weight:600; }
-.maa-unassigned { color:var(--text-muted); font-style:italic; }
+/* Severity shown as a dot + plain colored text (no pill background), matching the
+   All Incidents reference design. Status keeps its filled pill from the shared .tag styles. */
+.maa-table-card td .tag.high-tag,
+.maa-table-card td .tag.medium-tag,
+.maa-table-card td .tag.low-tag {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:0;
+  background:transparent;
+  font-size:14px;
+  font-weight:700;
+}
+.maa-table-card td .tag.high-tag::before,
+.maa-table-card td .tag.medium-tag::before,
+.maa-table-card td .tag.low-tag::before {
+  content:'';
+  width:7px;
+  height:7px;
+  flex:none;
+  border-radius:50%;
+  background:currentColor;
+}
+.maa-table-card td .tag.high-tag { color:var(--danger); }
+.maa-table-card td .tag.medium-tag { color:var(--warning); }
+.maa-table-card td .tag.low-tag { color:var(--success); }
+
+.maa-assigned { color:var(--text-primary); font-size:14px; font-weight:600; }
+.maa-unassigned { color:var(--text-muted); font-size:14px; font-style:italic; }
 
 .maa-empty { padding:40px 21px; color:var(--text-secondary); font-size:var(--font-body); text-align:center; }
 
-.maa-showing { margin:0; padding:14px 21px; color:var(--text-secondary); font-size:var(--font-secondary); border-top:1px solid var(--border-color); }
+.maa-showing { margin:0; padding:14px 21px; color:var(--text-secondary); font-size:13px; border-top:1px solid var(--border-color); }
 
 /* ---------- Row actions ---------- */
 
