@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import AppRouter from './routes/AppRouter'
 import { getAuthSession, getDefaultProfileAvatar } from './auth'
+import './styles/SystemRefresh.css'
 import './styles/AdminDashboardSystem.css'
 import './styles/AdminSidebarFit.css'
 import './styles/AdminReferenceFit.css'
@@ -9,6 +10,7 @@ import './styles/AllIncidentsReset.css'
 import './styles/AllIncidentsSidebarMatch.css'
 import './styles/NoBold.css'
 import './styles/StandardSizing.css'
+import './styles/PremiumSystem.css'
 
 function App() {
   useEffect(() => {

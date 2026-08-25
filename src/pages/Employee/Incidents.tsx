@@ -44,7 +44,7 @@ const THEME_STORAGE_KEY = 'batangai-theme'
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 function useTheme() {
@@ -77,7 +77,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
 
 function Incidents() {
   const navigate = useNavigate()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [incidents, setIncidents] = useState<EmployeeIncident[]>(() => {
     try {

@@ -598,12 +598,12 @@
 .incident-detail-modal{
   display:flex;
   flex-direction:column;
-  width:100%;
-  max-width:720px;
-  max-height:min(90vh,880px);
+  width:min(100%,680px);
+  max-height:calc(100vh - 40px);
   background:var(--card-bg);
-  border-radius:20px;
-  box-shadow:var(--shadow-hover);
+  border:1px solid var(--border-color);
+  border-radius:18px;
+  box-shadow:var(--card-shadow-hover);
   animation:modal-in .18s ease-out;
   overflow:hidden;
 }
@@ -613,16 +613,15 @@
   align-items:flex-start;
   justify-content:space-between;
   gap:16px;
-  padding:22px 24px 18px;
+  padding:20px 22px;
   border-bottom:1px solid var(--border-color);
 }
 
-.incident-detail-header h2{ margin:0 0 6px; color:var(--text-heading); font-size:var(--font-heading); font-weight:800; }
+.incident-detail-header h2{ margin:0 0 5px; color:var(--text-heading); font-size:var(--font-heading); font-weight:800; }
+.incident-detail-header .modal-close{ display:grid; place-items:center; }
+.incident-detail-header .modal-close .admin-icon{ width:18px; height:18px; }
 
 .incident-detail-header p{
-  display:flex;
-  align-items:center;
-  gap:10px;
   margin:0;
   color:var(--text-secondary);
   font-size:var(--font-secondary);
@@ -648,7 +647,7 @@
   flex-direction:column;
   gap:18px;
   overflow-y:auto;
-  padding:20px 24px 24px;
+  padding:20px 22px 22px;
 }
 
 .incident-detail-grid{
@@ -658,13 +657,13 @@
 }
 
 .incident-detail-field{
-  padding:14px 16px;
+  padding:13px 14px;
   background:#F3F4F7;
   border:1px solid #DDE1E8;
-  border-radius:12px;
+  border-radius:10px;
 }
 
-.incident-detail-field span{
+.incident-detail-field > span{
   display:block;
   margin-bottom:4px;
   color:var(--text-secondary);
@@ -676,8 +675,7 @@
   font-size:var(--font-body);
   font-weight:700;
 }
-
-.incident-detail-tags{ display:flex; gap:10px; }
+.incident-detail-field strong > .tag{ display:inline-block; margin:0; }
 
 .incident-detail-section h3{
   margin:0 0 6px;
@@ -695,82 +693,8 @@
   line-height:1.55;
 }
 
-.incident-detail-emphasis{ font-weight:700; font-size:var(--font-card-title); }
-
-.incident-ai-analysis{
-  padding:18px 20px;
-  background:#F3F4F7;
-  border:1px solid #DDE1E8;
-  border-radius:16px;
-}
-
-.incident-ai-analysis h3{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin:0 0 10px;
-  color:var(--text-heading);
-  font-size:var(--font-body);
-  font-weight:800;
-}
-
-.incident-ai-analysis h3 .admin-icon{ width:18px; height:18px; color:var(--success); }
-
-.incident-ai-analysis h4{ margin:0 0 6px; color:var(--text-heading); font-size:var(--font-card-title); font-weight:800; }
-
-.incident-ai-analysis > p{ margin:0 0 14px; color:var(--text-secondary); font-size:var(--font-body); line-height:1.5; }
-
-.incident-ai-steps{ list-style:none; margin:0; padding:0; display:grid; gap:11px; }
-
-.incident-ai-steps li{
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-  color:var(--text-heading);
-  font-size:var(--font-body);
-  line-height:1.5;
-}
-
-.incident-ai-step-num{
-  display:grid;
-  flex:0 0 auto;
-  place-items:center;
-  width:20px;
-  height:20px;
-  margin-top:1px;
-  color:#fff;
-  background:var(--success);
-  border-radius:50%;
-  font-size:11px;
-  font-weight:700;
-}
-
-.incident-detail-callout{ padding:16px 18px; background:#F3F4F7; border:1px solid #DDE1E8; border-radius:14px; }
-
-.incident-detail-callout h3{
-  margin:0 0 4px;
-  font-size:var(--font-secondary);
-  font-weight:800;
-  text-transform:uppercase;
-  letter-spacing:.03em;
-}
-
-.incident-detail-callout strong{ display:block; color:var(--text-heading); font-size:var(--font-card-title); font-weight:800; }
-
-.incident-detail-callout p{ margin:6px 0 0; font-size:var(--font-secondary); }
-
-.incident-detail-callout--secretary h3,
-.incident-detail-callout--assignment h3{ color:var(--text-secondary); }
-
-.incident-detail-callout--assignment p{ color:var(--text-primary); }
-.incident-detail-callout--assignment p.is-resolved{ color:var(--success); font-weight:700; }
-
-.incident-detail-unassigned{ margin:4px 0 0; color:var(--text-secondary); font-size:var(--font-body); }
-
 /* Detail/View modal uses the same quiet field palette as New Incident. */
-:root[data-theme="dark"] .incident-detail-field,
-:root[data-theme="dark"] .incident-ai-analysis,
-:root[data-theme="dark"] .incident-detail-callout{
+:root[data-theme="dark"] .incident-detail-field{
   background:var(--input-bg);
   border-color:var(--border-color);
 }

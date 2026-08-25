@@ -79,7 +79,7 @@ const severityDataByPeriod: Record<string, { high: number; medium: number; low: 
 }
 
 const CHART_MAX = 15
-const PLOT_HEIGHT = 184
+const PLOT_HEIGHT = 140
 
 /* ---------- Theme (light/dark) ---------- */
 
@@ -89,7 +89,7 @@ const THEME_STORAGE_KEY = 'batangai-theme'
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 function useTheme() {
@@ -171,7 +171,7 @@ function PeriodFilter({ value, onChange }: { value: string; onChange: (next: str
   )
 }
 
-function ProfileMenu({ name, role, avatarInitial: _avatarInitial, onLogout }: { name: string; role: string; avatarInitial: string; onLogout: () => void }) {
+function ProfileMenu({ name, role, onLogout }: { name: string; role: string; avatarInitial: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -229,7 +229,7 @@ function ProfileMenu({ name, role, avatarInitial: _avatarInitial, onLogout }: { 
 
 function Dashboard() {
   const navigate = useNavigate()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [chartPeriod, setChartPeriod] = useState('This Month')
   const [severityPeriod, setSeverityPeriod] = useState('This Month')

@@ -57,7 +57,7 @@ const THEME_STORAGE_KEY = 'batangai-theme'
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 function useTheme() {
@@ -97,7 +97,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   )
 }
 
-function ProfileMenu({ name, role, avatarInitial: _avatarInitial, onLogout, profilePath = '/admin/profile' }: { name: string; role: string; avatarInitial: string; onLogout: () => void; profilePath?: string }) {
+function ProfileMenu({ name, role, onLogout, profilePath = '/admin/profile' }: { name: string; role: string; avatarInitial: string; onLogout: () => void; profilePath?: string }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -383,7 +383,7 @@ function DeviceMonitoring({ audience = 'administrator' }: { audience?: 'administ
     ? navigation.filter(item => ['All Incidents', 'Manage & Assign', 'Device Monitoring', 'Profile'].includes(item.label)).map(item => ({ ...item, label: item.label === 'Manage & Assign' ? 'My Assignments' : item.label, path: item.label === 'Manage & Assign' ? '/it/my-assignments' : item.path.replace('/admin', '/it') }))
     : navigation
   const user = isIT ? { name: 'Juan dela Cruz', role: 'IT Personnel', initial: 'J', profilePath: '/it/profile' } : { name: 'Ricardo Mendoza', role: 'Administrator', initial: 'R', profilePath: '/admin/profile' }
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [deviceList, setDeviceList] = useState<Device[]>(initialDevices)
   const [showAddModal, setShowAddModal] = useState(false)

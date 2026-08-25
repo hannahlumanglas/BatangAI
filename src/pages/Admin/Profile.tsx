@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAuthSession, getDefaultProfileAvatar, signOut } from '../../auth'
 import logo from '../../assets/logo.png'
@@ -9,6 +10,7 @@ import './Profile.css'
 type Audience = 'administrator' | 'secretary' | 'it' | 'employee'
 type View = 'profile' | 'settings'
 type Account = { name: string; email: string; id: string; department: string; role: string; initial: string; profilePath: string; settingsPath: string }
+type NavIconName = 'dashboard' | 'incidents' | 'assign' | 'devices' | 'users' | 'reports' | 'profile' | 'settings'
 
 const accounts: Record<Audience, Account> = {
   administrator: { name: 'Ricardo Mendoza', email: 'ricardomendoza@batangascity.gov', id: 'ADM-001', department: 'City Information Technology Office', role: 'Administrator', initial: 'R', profilePath: '/admin/profile', settingsPath: '/admin/settings' },
@@ -19,6 +21,20 @@ const accounts: Record<Audience, Account> = {
 
 function accountKey() { return `batangai-account-${getAuthSession()?.username ?? 'guest'}` }
 function avatarKey() { return `batangai-avatar-${getAuthSession()?.username ?? 'guest'}` }
+
+function ProfileNavIcon({ name }: { name: NavIconName }) {
+  const paths: Record<NavIconName, JSX.Element> = {
+    dashboard: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
+    incidents: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4.5h6M9 10h6M9 14h6M9 18h3" /></>,
+    assign: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M18 8v6M15 11h6" /></>,
+    devices: <><rect x="3" y="4" width="18" height="13" rx="1.5" /><path d="M8 21h8M12 17v4" /></>,
+    users: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2" /><path d="M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M15 15c2.7.1 4.4 1.7 4.6 4.5" /></>,
+    reports: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></>,
+    profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21c.7-4.1 3.4-6.2 8-6.2s7.3 2.1 8 6.2" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4.7a7.6 7.6 0 0 0-2.6-1.5L14 2h-4l-.4 2.7a7.6 7.6 0 0 0-2.6 1.5l-2.4-.7-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-.7a7.6 7.6 0 0 0 2.6 1.5L10 22h4l.4-2.7a7.6 7.6 0 0 0 2.6-1.5l2.4.7 2-3.4Z" /></>,
+  }
+  return <svg className="admin-icon" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
+}
 
 function ProfileMenu({ account, avatar, onLogout }: { account: Account; avatar: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
@@ -55,13 +71,13 @@ function Profile({ audience = 'administrator', view = 'profile' }: { audience?: 
   const [password, setPassword] = useState({ next: '', confirm: '' })
   const fileRef = useRef<HTMLInputElement>(null)
   const info = useMemo(() => [['Full name', account.name], ['Email address', account.email], ['Employee ID', account.id], ['Department', account.department], ['Role', account.role]], [account])
-  const navigation = audience === 'administrator'
-    ? [['Dashboard', '/admin'], ['All Incidents', '/admin/incidents'], ['Manage & Assign', '/admin/manage-assign'], ['Device Monitoring', '/admin/device-monitoring'], ['User Management', '/admin/user-management'], ['Generate Reports', '/admin/generate-reports']]
+  const navigation: { label: string; path: string; icon: NavIconName }[] = audience === 'administrator'
+    ? [{ label: 'Dashboard', path: '/admin', icon: 'dashboard' }, { label: 'All Incidents', path: '/admin/incidents', icon: 'incidents' }, { label: 'Manage & Assign', path: '/admin/manage-assign', icon: 'assign' }, { label: 'Device Monitoring', path: '/admin/device-monitoring', icon: 'devices' }, { label: 'User Management', path: '/admin/user-management', icon: 'users' }, { label: 'Generate Reports', path: '/admin/generate-reports', icon: 'reports' }]
     : audience === 'secretary'
-      ? [['All Incidents', '/secretary/incidents'], ['Manage & Assign', '/secretary/manage-assign']]
+      ? [{ label: 'All Incidents', path: '/secretary/incidents', icon: 'incidents' }, { label: 'Manage & Assign', path: '/secretary/manage-assign', icon: 'assign' }]
       : audience === 'it'
-        ? [['All Incidents', '/it/incidents'], ['My Assignments', '/it/my-assignments'], ['Device Monitoring', '/it/device-monitoring']]
-        : [['Report Incident', '/employee/report-incident'], ['All Incidents', '/employee/incidents']]
+        ? [{ label: 'All Incidents', path: '/it/incidents', icon: 'incidents' }, { label: 'My Assignments', path: '/it/my-assignments', icon: 'assign' }, { label: 'Device Monitoring', path: '/it/device-monitoring', icon: 'devices' }]
+        : [{ label: 'Report Incident', path: '/employee/report-incident', icon: 'reports' }, { label: 'All Incidents', path: '/employee/incidents', icon: 'incidents' }]
 
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); localStorage.setItem('batangai-theme', theme) }, [theme])
   const saveAccount = () => { localStorage.setItem(accountKey(), JSON.stringify(account)); setEditing(false); setNotice('Your account information has been updated.') }
@@ -79,7 +95,7 @@ function Profile({ audience = 'administrator', view = 'profile' }: { audience?: 
   const toggle2FA = () => { const next = !twoFactor; setTwoFactor(next); localStorage.setItem('batangai-two-factor', String(next)); setNotice(next ? 'Two-factor authentication enabled.' : 'Two-factor authentication disabled.') }
   const handleLogout = () => { signOut(); navigate('/') }
 
-  return <div className="admin-shell profile-shell"><aside className="admin-sidebar"><div className="sidebar-brand"><img src={logo} alt="Batangas City seal" /><strong>Batang<span>AI</span></strong></div><nav className="sidebar-nav" aria-label={`${account.role} navigation`}>{navigation.map(([label, path]) => <button key={path} type="button" onClick={() => navigate(path)}><span aria-hidden="true">•</span><span>{label}</span></button>)}<button type="button" className={view === 'profile' ? 'is-active' : ''} onClick={() => navigate(account.profilePath)}><span aria-hidden="true">•</span><span>Profile</span></button><button type="button" className={view === 'settings' ? 'is-active' : ''} onClick={() => navigate(account.settingsPath)}><span aria-hidden="true">•</span><span>Settings</span></button></nav></aside>
+  return <div className="admin-shell profile-shell"><aside className="admin-sidebar"><div className="sidebar-brand"><img src={logo} alt="Batangas City seal" /><strong>Batang<span>AI</span></strong></div><nav className="sidebar-nav" aria-label={`${account.role} navigation`}>{navigation.map(item => <button key={item.path} type="button" onClick={() => navigate(item.path)}><ProfileNavIcon name={item.icon} /><span>{item.label}</span></button>)}<button type="button" className={view === 'profile' ? 'is-active' : ''} onClick={() => navigate(account.profilePath)}><ProfileNavIcon name="profile" /><span>Profile</span></button><button type="button" className={view === 'settings' ? 'is-active' : ''} onClick={() => navigate(account.settingsPath)}><ProfileNavIcon name="settings" /><span>Settings</span></button></nav></aside>
     <main className="admin-main"><header className="admin-topbar"><div className="topbar-title"><h1>{view === 'profile' ? 'My Profile' : 'Settings'}</h1><p>{view === 'profile' ? 'Review and update your account information.' : 'Manage appearance and account security.'}</p></div><AdminNotifications /><ProfileMenu account={account} avatar={avatar} onLogout={handleLogout} /></header>
       <div className="dashboard-content profile-page-content">{notice && <div className="profile-toast" role="status">{notice}<button type="button" onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
         {view === 'profile' ? <section className="profile-layout"><article className="dashboard-card profile-identity-card"><div className="profile-photo">{avatar ? <img src={avatar} alt="Profile" /> : account.name.split(/\s+/).map(part => part[0]).slice(0, 2).join('').toUpperCase()}</div><input ref={fileRef} type="file" accept="image/*" hidden onChange={e => uploadAvatar(e.target.files?.[0])} /><button type="button" className="profile-photo-button" onClick={() => fileRef.current?.click()}>Change photo</button><small>JPG, PNG, or WEBP. Your photo appears in the top bar.</small></article>

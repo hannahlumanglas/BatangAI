@@ -40,16 +40,17 @@ type EmployeeIncident = {
   issueCategory: string
   deviceType: string
   connectionType: string
+  severity: 'High' | 'Medium' | 'Low'
   affectedService: string
   description: string
   status: 'Pending'
   date: string
 }
 
-type IncidentFormValues = Omit<EmployeeIncident, 'id' | 'status' | 'date'>
+type IncidentFormValues = Omit<EmployeeIncident, 'id' | 'status' | 'date' | 'severity'> & { severity: '' | EmployeeIncident['severity'] }
 
 const initialValues: IncidentFormValues = {
-  department: 'City Engineering Office', location: '', issueCategory: '', deviceType: '', connectionType: '', affectedService: '', description: '',
+  department: 'City Engineering Office', location: '', issueCategory: '', deviceType: '', connectionType: '', severity: '', affectedService: '', description: '',
 }
 
 /* ---------- Theme (light/dark) — same pattern used across every admin page ---------- */
@@ -60,7 +61,7 @@ const THEME_STORAGE_KEY = 'batangai-theme'
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 function useTheme() {
@@ -93,7 +94,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
 
 function ReportIncident() {
   const navigate = useNavigate()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [submitted, setSubmitted] = useState(false)
   const [values, setValues] = useState<IncidentFormValues>(initialValues)
@@ -110,6 +111,7 @@ function ReportIncident() {
     const saved = JSON.parse(localStorage.getItem(EMPLOYEE_INCIDENTS_KEY) ?? '[]') as EmployeeIncident[]
     const incident: EmployeeIncident = {
       ...values,
+      severity: values.severity || 'Low',
       id: `INC-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`,
       status: 'Pending',
       date: new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date()),
@@ -119,6 +121,13 @@ function ReportIncident() {
     setValues(initialValues)
     setPhase('form')
     setResolutionStatus(null)
+  }
+
+  const closeReport = () => {
+    setValues(initialValues)
+    setPhase('form')
+    setResolutionStatus(null)
+    navigate('/employee/incidents')
   }
 
   return (
@@ -143,10 +152,16 @@ function ReportIncident() {
           <ProfileMenu name="Juan Dela Cruz" role="Employee" avatarInitial="J" onLogout={handleLogout} />
         </header>
 
-        <div className="dashboard-content">
-          <article className="dashboard-card employee-report-card">
-            <h2><Icon name="report" /> Report an Incident</h2>
-            <p className="employee-report-sub">Tell us what happened and the IT team will review your report.</p>
+        <div className="dashboard-content employee-report-page">
+          <article className="employee-report-dialog" role="region" aria-labelledby="employee-report-title">
+            <header className="employee-report-dialog-header">
+              <div>
+                <h2 id="employee-report-title">Report a Network Incident</h2>
+                <p>Fill out the form below. BatangAI will analyze and provide troubleshooting steps.</p>
+              </div>
+              <button className="modal-close" type="button" aria-label="Close report form" onClick={closeReport}>×</button>
+            </header>
+            <div className="employee-report-dialog-body">
             {phase === 'form' ? <form className="incident-form" onSubmit={analyze}>
               <fieldset className="incident-form-section">
                 <legend className="sr-only">Incident Details</legend>
@@ -157,6 +172,7 @@ function ReportIncident() {
                   <label className="incident-field"><span className="incident-field-label">Issue Category <em>*</em></span><select required value={values.issueCategory} onChange={e => setValues(v => ({ ...v, issueCategory: e.target.value }))}><option value="">Select a category</option>{ISSUE_CATEGORIES.map(item => <option key={item}>{item}</option>)}</select></label>
                   <label className="incident-field"><span className="incident-field-label">Device Type <em>*</em></span><select required value={values.deviceType} onChange={e => setValues(v => ({ ...v, deviceType: e.target.value }))}><option value="">Select a device type</option>{DEVICE_TYPES.map(item => <option key={item}>{item}</option>)}</select></label>
                   <label className="incident-field"><span className="incident-field-label">Connection Type <em>*</em></span><select required value={values.connectionType} onChange={e => setValues(v => ({ ...v, connectionType: e.target.value }))}><option value="">Select a connection type</option>{CONNECTION_TYPES.map(item => <option key={item}>{item}</option>)}</select></label>
+                  <label className="incident-field"><span className="incident-field-label">Severity <em>*</em></span><select required value={values.severity} onChange={e => setValues(v => ({ ...v, severity: e.target.value as IncidentFormValues['severity'] }))}><option value="">Select severity</option><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></label>
                 </div>
               </fieldset>
               <fieldset className="incident-form-section">
@@ -167,7 +183,10 @@ function ReportIncident() {
                   <label className="incident-field"><span className="incident-field-label">Detailed Problem Description <em>*</em></span><textarea required rows={4} placeholder="Describe what happened, when it started, and any error messages you saw." value={values.description} onChange={e => setValues(v => ({ ...v, description: e.target.value }))} /></label>
                 </div>
               </fieldset>
-              <button className="incident-new" type="submit"><Icon name="sparkle" /> Analyze with BatangAI</button>
+              <footer className="employee-report-footer">
+                <button className="btn-secondary" type="button" onClick={closeReport}>Cancel</button>
+                <button className="incident-new" type="submit"><Icon name="sparkle" /> Analyze with BatangAI</button>
+              </footer>
               {submitted && <p className="employee-report-success"><Icon name="check" /> Your incident report has been submitted.</p>}
             </form> : <section className="employee-ai-result" aria-live="polite">
               <div className="employee-ai-result-heading"><Icon name="sparkle" /><div><h3>BatangAI Analysis Result</h3><p>Review the analysis before submitting your incident.</p></div></div>
@@ -178,6 +197,7 @@ function ReportIncident() {
               <section className="employee-resolution-check"><h3>Were you able to resolve the issue?</h3><p>Using the steps above, did you fix the problem? Your answer determines how this report is handled.</p><div className="employee-resolution-options"><button type="button" className={`employee-resolution-option resolved${resolutionStatus === 'resolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('resolved')}><b>✓</b><strong>Yes, Resolved!</strong><span>Mark as resolved by user</span></button><button type="button" className={`employee-resolution-option unresolved${resolutionStatus === 'unresolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('unresolved')}><b>×</b><strong>Not Resolved</strong><span>Assign to IT personnel</span></button></div></section>
               <div className="employee-ai-actions"><button className="employee-ai-back" type="button" onClick={() => setPhase('form')}>Edit Report</button><button className="incident-new" type="button" onClick={submit} disabled={!resolutionStatus}><Icon name="check" /> Submit Incident</button></div>
             </section>}
+            </div>
           </article>
         </div>
       </main>

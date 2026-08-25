@@ -290,7 +290,7 @@ const THEME_STORAGE_KEY = 'batangai-theme'
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 function useTheme() {
@@ -330,7 +330,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   )
 }
 
-function ProfileMenu({ name, role, avatarInitial: _avatarInitial, onLogout }: { name: string; role: string; avatarInitial: string; onLogout: () => void }) {
+function ProfileMenu({ name, role, onLogout }: { name: string; role: string; avatarInitial: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -388,7 +388,7 @@ function ProfileMenu({ name, role, avatarInitial: _avatarInitial, onLogout }: { 
 
 function UserManagement() {
   const navigate = useNavigate()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [query, setQuery] = useState('')
   const [role, setRole] = useState('All Roles')

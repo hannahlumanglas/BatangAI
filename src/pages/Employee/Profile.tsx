@@ -7,7 +7,7 @@ function Profile() {
   return <AdminProfile audience="employee" />
 }
 
-export function ProfileMenu({ name, role, avatarInitial: _avatarInitial, onLogout }: { name: string; role: string; avatarInitial: string; onLogout: () => void }) {
+export function ProfileMenu({ name, role, onLogout }: { name: string; role: string; avatarInitial: string; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   return <div className="profile-menu-root">

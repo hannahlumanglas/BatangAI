@@ -2,11 +2,12 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import type { ChangeEvent, FormEvent, JSX, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
+import { PersonName } from '../../components/PersonName'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
 
-type IconName = 'dashboard' | 'incidents' | 'devices' | 'users' | 'reports' | 'profile' | 'logout' | 'menu' | 'bell' | 'search' | 'view' | 'more' | 'sparkle' | 'check-circle' | 'x-circle' | 'walk' | 'assign'
+type IconName = 'dashboard' | 'incidents' | 'devices' | 'users' | 'reports' | 'profile' | 'logout' | 'menu' | 'bell' | 'search' | 'view' | 'more' | 'sparkle' | 'check-circle' | 'x-circle' | 'walk' | 'assign' | 'close'
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, JSX.Element> = {
@@ -27,6 +28,7 @@ function Icon({ name }: { name: IconName }) {
     'x-circle': <><circle cx="12" cy="12" r="9" /><path d="m9.2 9.2 5.6 5.6M14.8 9.2l-5.6 5.6" /></>,
     walk: <><circle cx="13" cy="4.5" r="1.8" /><path d="M13 7.3 9.5 9l1 3.2-3 2.3M13 7.3l2.5 2.2-.8 3.3 2.8 3M9.5 9l3.5-.5 2 1.5" /></>,
     assign: <><circle cx="9" cy="8" r="3" /><path d="M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6" /><path d="M18 8v6M15 11h6" /></>,
+    close: <><path d="M6 6l12 12M18 6 6 18" /></>,
   }
   return <svg className="admin-icon" viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>
 }
@@ -403,7 +405,7 @@ const THEME_STORAGE_KEY = 'batangai-theme'
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY)
   if (stored === 'light' || stored === 'dark') return stored
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return 'light'
 }
 
 function useTheme() {
@@ -443,7 +445,7 @@ function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }
   )
 }
 
-function ProfileMenu({ name, role, avatarInitial: _avatarInitial, onLogout, profilePath = '/admin/profile' }: { name: string; role: string; avatarInitial: string; onLogout: () => void; profilePath?: string }) {
+function ProfileMenu({ name, role, onLogout, profilePath = '/admin/profile' }: { name: string; role: string; avatarInitial: string; onLogout: () => void; profilePath?: string }) {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const rootRef = useRef<HTMLDivElement>(null)
@@ -511,7 +513,7 @@ function Incidents({ audience = 'administrator' }: { audience?: 'administrator' 
   const user = isSecretary ? { name: 'Teresa Lopez', role: 'Secretary', initial: 'T', profilePath: '/secretary/profile' } : isIT ? { name: 'Juan dela Cruz', role: 'IT Personnel', initial: 'J', profilePath: '/it/profile' } : { name: 'Ricardo Mendoza', role: 'Administrator', initial: 'R', profilePath: '/admin/profile' }
   const { theme, toggleTheme } = useTheme()
   const handleLogout = () => { localStorage.removeItem('batangai-admin-auth'); navigate('/') }
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [incidents, setIncidents] = useState(initialIncidents)
 
   const [query, setQuery] = useState('')
@@ -528,7 +530,7 @@ function Incidents({ audience = 'administrator' }: { audience?: 'administrator' 
       const matchesDepartment = departmentFilter === 'All Departments' || department === departmentFilter
       return matchesQuery && matchesStatus && matchesSeverity && matchesDepartment
     })
-  }, [query, statusFilter, severityFilter, departmentFilter])
+  }, [incidents, query, statusFilter, severityFilter, departmentFilter])
 
   const [isNewIncidentOpen, setIsNewIncidentOpen] = useState(false)
   const [phase, setPhase] = useState<ModalPhase>('form')
@@ -698,7 +700,7 @@ function Incidents({ audience = 'administrator' }: { audience?: 'administrator' 
               {filteredIncidents.map(([id, reporter, , department, severity, status]) => (
                 <tr key={id}>
                   <td>{id}</td>
-                  <td>{reporter}</td>
+                  <td><PersonName name={reporter} compact /></td>
                   <td>{department}</td>
                   <td><span className={`tag ${severity.toLowerCase()}-tag`}>{severity}</span></td>
                   <td><span className={`tag status-${status.toLowerCase().replace(' ', '-')} ${status === 'Resolved' ? 'resolved-tag' : status === 'In Progress' ? 'progress-tag' : 'pending-tag'}`}>{status}</span></td>
@@ -949,65 +951,31 @@ function Incidents({ audience = 'administrator' }: { audience?: 'administrator' 
             <header className="incident-detail-header">
               <div>
                 <h2 id="incident-detail-title">{id}</h2>
-                <p><span>{date} at {time}</span></p>
+                <p>Reported {date} at {time}</p>
               </div>
-              <button className="modal-close" type="button" aria-label="Close dialog" onClick={closeViewing}>×</button>
+              <button className="modal-close" type="button" aria-label="Close dialog" onClick={closeViewing}><Icon name="close" /></button>
             </header>
 
             <div className="incident-detail-body">
               <div className="incident-detail-grid">
-                <div className="incident-detail-field"><span>Reporter</span><strong>{reporter}</strong></div>
+                <div className="incident-detail-field"><span>Reporter</span><strong><PersonName name={reporter} /></strong></div>
                 <div className="incident-detail-field"><span>Department</span><strong>{department}</strong></div>
-                <div className="incident-detail-field"><span>Location</span><strong>{detail.location}</strong></div>
+                <div className="incident-detail-field"><span>Location / Room</span><strong>{detail.location}</strong></div>
+                <div className="incident-detail-field"><span>Issue Category</span><strong>{detail.category}</strong></div>
                 <div className="incident-detail-field"><span>Device Type</span><strong>{detail.deviceType}</strong></div>
-                <div className="incident-detail-field"><span>Connection</span><strong>{detail.connectionType}</strong></div>
-                <div className="incident-detail-field"><span>Category</span><strong>{detail.category}</strong></div>
-              </div>
-
-              <div className="incident-detail-tags">
-                <span className={`tag ${severity.toLowerCase()}-tag`}>{severity} Severity</span>
-                <span className={`tag ${statusTagClass}`}>{status}</span>
+                <div className="incident-detail-field"><span>Connection Type</span><strong>{detail.connectionType}</strong></div>
+                <div className="incident-detail-field"><span>Severity</span><strong><span className={`tag ${severity.toLowerCase()}-tag`}>{severity}</span></strong></div>
+                <div className="incident-detail-field"><span>Status</span><strong><span className={`tag ${statusTagClass}`}>{status}</span></strong></div>
               </div>
 
               <section className="incident-detail-section">
-                <h3>Affected Issue</h3>
-                <p className="incident-detail-emphasis">{detail.affectedIssue}</p>
+                <h3>Affected Issue / Service</h3>
+                <p>{detail.affectedIssue}</p>
               </section>
 
               <section className="incident-detail-section">
-                <h3>Problem Description</h3>
+                <h3>Detailed Problem Description</h3>
                 <p>{detail.problemDescription}</p>
-              </section>
-
-              <section className="incident-ai-analysis">
-                <h3><Icon name="sparkle" /> BatangAI Analysis</h3>
-                <h4>{detail.aiAnalysis.title}</h4>
-                <p>{detail.aiAnalysis.summary}</p>
-                <ol className="incident-ai-steps">
-                  {detail.aiAnalysis.steps.map((step, index) => (
-                    <li key={step}><span className="incident-ai-step-num">{index + 1}</span>{step}</li>
-                  ))}
-                </ol>
-              </section>
-
-              <section className="incident-detail-callout incident-detail-callout--secretary">
-                <h3>Encoded by Secretary</h3>
-                <strong>{detail.encodedBy}</strong>
-              </section>
-
-              <section className="incident-detail-callout incident-detail-callout--assignment">
-                <h3>Assignment</h3>
-                {detail.assignedTo ? (
-                  <>
-                    <strong>{detail.assignedTo}</strong>
-                    <p>Assigned by: {detail.assignedBy}</p>
-                    {detail.assignedAt && <p>Assigned at: {detail.assignedAt}</p>}
-                    {detail.actionStarted && <p>Action started: {detail.actionStarted}</p>}
-                    {detail.resolvedAt && <p className="is-resolved">Resolved: {detail.resolvedAt}</p>}
-                  </>
-                ) : (
-                  <p className="incident-detail-unassigned">Not yet assigned. Awaiting review by the secretary.</p>
-                )}
               </section>
             </div>
           </div>
