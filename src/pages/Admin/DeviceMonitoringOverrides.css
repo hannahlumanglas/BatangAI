@@ -1,0 +1,45 @@
+/* Ensure the monitoring workspace stays light and fits the viewport. */
+.admin-shell,
+.admin-shell * {
+  box-sizing: border-box;
+}
+
+.admin-shell {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] .admin-shell {
+  color-scheme: dark;
+}
+
+.admin-main {
+  min-width: 0;
+}
+
+.incident-search input {
+  min-width: 0;
+  color: var(--text-heading);
+  background: var(--input-bg);
+  appearance: none;
+}
+
+.incident-search input::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
+
+.incident-search input:-webkit-autofill {
+  box-shadow: 0 0 0 1000px var(--input-bg) inset;
+  -webkit-text-fill-color: var(--text-heading);
+}
+
+/* Device rows must hug their own content. Dashboard.css sets min-height on
+   .dashboard-card for the bigger stat/incident cards used elsewhere, and
+   that was leaking into these device rows, padding every collapsed card
+   with empty space it didn't need. Force this grid's cards back to
+   content-driven height; only .dm-card-details' own max-height transition
+   (in DeviceMonitoring.css) should ever grow a row. */
+.dm-grid .dashboard-card.dm-card {
+  height: auto !important;
+  min-height: 0 !important;
+}

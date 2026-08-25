@@ -1,0 +1,87 @@
+/* Shared compact desktop scale, based on the supplied Classroom reference. */
+:root {
+  --font-page-title:24px;
+  --font-heading:18px;
+  --font-card-title:16px;
+  --font-body:14px;
+  --font-nav:16px;
+  --font-button:14px;
+  --font-input:14px;
+  --font-table:14px;
+  --font-secondary:12px;
+  --font-badge:12px;
+  --font-metric:18px;
+  --font-stat:30px;
+  --font-brand:24px;
+}
+
+/* Primary application frame */
+.admin-sidebar { width:248px; }
+.admin-main { width:calc(100% - 248px); margin-left:248px; }
+.sidebar-brand { height:84px; padding:0 20px; }
+.sidebar-brand img { width:40px; height:40px; }
+.sidebar-profile { padding:24px 20px; }
+.sidebar-nav { gap:6px; padding:16px 14px 0; }
+.sidebar-nav button { height:48px; padding:0 14px; gap:16px; }
+.admin-topbar { height:80px; padding:0 24px; }
+.menu-button { width:40px; height:44px; margin-right:16px; }
+.dashboard-content { padding:24px 28px 28px; }
+.incident-tools, .incident-filters { margin-bottom:14px; }
+.incident-search, .incident-new, .search-box { height:44px; }
+.incident-new { padding:0 16px; }
+.stat-card { min-height:130px; padding:18px; }
+.stat-icon { width:54px; height:54px; }
+.dashboard-card { padding:18px; }
+
+.sidebar-collapsed .admin-sidebar { width:72px; }
+.sidebar-collapsed .admin-main { width:calc(100% - 72px); margin-left:72px; }
+.sidebar-collapsed .sidebar-nav { padding:16px 10px 0; }
+
+/* The older shell variants follow the same desktop rhythm. */
+.dm-sidebar, .um-sidebar, .simple-sidebar, .incidents-sidebar { width:248px; }
+.dm-main, .um-main, .simple-main, .incidents-main { width:calc(100% - 248px); margin-left:248px; }
+.dm-brand, .um-brand, .simple-brand, .incidents-brand { height:84px; }
+.dm-header, .um-header, .simple-header, .incidents-header { height:80px; padding:0 24px; }
+.dm-content, .um-content, .incidents-content { padding:24px 28px; }
+
+@media (max-width:900px) {
+  .admin-sidebar, .dm-sidebar, .um-sidebar, .simple-sidebar, .incidents-sidebar { width:72px; }
+  .admin-main, .dm-main, .um-main, .simple-main, .incidents-main { width:calc(100% - 72px); margin-left:72px; }
+}
+
+@media (max-width:640px) {
+  :root { --font-page-title:21px; --font-card-title:15px; }
+  .admin-topbar { height:72px; padding:0 16px; }
+  .dashboard-content { padding:18px 16px 24px; }
+}
+
+/* Standard size for every report/detail view dialog. The dialog owns scrolling
+   so the dimmed page remains fixed behind it. */
+.modal-overlay,
+.maa-modal-overlay,
+.assignment-modal-backdrop { padding:48px; }
+
+.incident-detail-modal,
+.maa-modal--view,
+.assignment-report {
+  width:min(100%, 900px);
+  max-width:900px;
+  max-height:calc(100svh - 96px);
+}
+
+.assignment-report {
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+.assignment-report .report-body { overflow-y:auto; }
+
+@media (max-width:640px) {
+  .modal-overlay,
+  .maa-modal-overlay,
+  .assignment-modal-backdrop { padding:16px; }
+  .incident-detail-modal,
+  .maa-modal--view,
+  .assignment-report { max-height:calc(100svh - 32px); }
+}

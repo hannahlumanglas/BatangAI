@@ -1,0 +1,14 @@
+/* Compact sidebar only when viewport height would otherwise hide navigation. */
+@media (max-height: 760px) {
+  .dm-brand,.um-brand,.simple-brand,.incidents-brand { height:76px; padding-top:12px; padding-bottom:12px; }
+  .dm-brand img,.um-brand img,.simple-brand img,.incidents-brand img { width:38px; height:38px; }
+  .dm-brand strong,.um-brand strong,.simple-brand strong,.incidents-brand strong { font-size:21px; }
+  .dm-profile,.um-profile,.simple-person,.incidents-profile { padding:16px 20px; }
+  .dm-profile>b,.um-profile>b,.simple-person>b,.incidents-profile>b { width:34px; height:34px; font-size:12px; }
+  .dm-profile strong,.um-profile strong,.simple-person strong,.incidents-profile strong { font-size:11px; }
+  .dm-profile span,.um-profile span,.simple-person span,.incidents-profile span { margin-top:4px; padding:3px 7px; font-size:9px; }
+  .dm-sidebar nav,.um-sidebar nav,.simple-sidebar nav,.incidents-sidebar nav { gap:4px; }
+  .dm-sidebar nav button,.um-sidebar nav button,.simple-sidebar nav button,.incidents-sidebar nav button { height:42px; font-size:12px; }
+  .dm-logout,.um-logout,.simple-logout,.incidents-logout { height:58px; font-size:12px; }
+  .dm-sidebar nav i,.um-sidebar nav i,.simple-sidebar nav i,.incidents-sidebar nav span { font-size:17px; }
+}

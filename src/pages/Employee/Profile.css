@@ -1,0 +1,30 @@
+/* Profile — page-specific styles only.
+   Shell, sidebar, topbar, and the primary action button are shared from Dashboard.css.
+   Matches the admin Profile page's styling exactly. */
+
+.profile-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+.profile-card { padding:24px; }
+.profile-card h2 { display:flex; align-items:center; gap:12px; margin:0 0 18px; color:var(--text-heading); font-size:16px; }
+.profile-card h2 .admin-icon { color:var(--success); }
+
+.profile-info { display:grid; margin:0; }
+.profile-info div { display:grid; grid-template-columns:190px 1fr; align-items:center; min-height:48px; border-bottom:1px solid var(--card-border); transition:border-color .25s ease; }
+.profile-info div:last-child { border-bottom:0; }
+.profile-info dt { display:flex; align-items:center; gap:9px; margin:0; color:var(--text-secondary); font-size:13px; font-weight:400; }
+.profile-info dt .admin-icon { width:16px; height:16px; color:var(--success); }
+.profile-info dd { margin:0; color:var(--text-heading); font-size:14px; font-weight:700; }
+
+.profile-form { display:grid; gap:16px; margin-bottom:18px; }
+.profile-form label { display:grid; gap:8px; color:var(--text-heading); font-size:13px; font-weight:700; }
+.profile-form input { height:47px; padding:0 14px; color:var(--text-primary); font:inherit; font-size:13px; background:var(--input-bg); border:1px solid var(--border-color); border-radius:9px; transition:background-color .25s ease, border-color .25s ease, color .25s ease; }
+.profile-form input:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+
+.profile-notice { display:flex; align-items:center; gap:9px; margin:16px 0 0; color:var(--text-secondary); font-size:13px; }
+.profile-notice .admin-icon { width:17px; height:17px; flex:0 0 auto; }
+.profile-notice.success { color:var(--success); }
+.profile-notice.error { color:var(--danger); }
+
+@media(max-width:900px){ .profile-grid{grid-template-columns:1fr} }
+
+/* ---------- Dark mode: native form control chrome ---------- */
+:root[data-theme="dark"] .profile-form input{ color-scheme:dark; }

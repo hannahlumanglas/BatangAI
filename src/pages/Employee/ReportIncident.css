@@ -1,0 +1,76 @@
+/* Employee — Report Incident. Shell, sidebar, topbar, dashboard-card, and the
+   .incident-new primary button are inherited from Dashboard.css. The form
+   field styling below matches the admin "New Incident" form pattern exactly,
+   kept local here since it lives in the admin Incidents page's own CSS. */
+
+.employee-report-card { width:100%; max-width:920px; margin:0 auto; padding:28px; }
+.employee-report-card h2 { display:flex; align-items:center; gap:12px; margin:0 0 6px; color:var(--text-heading); font-size:var(--font-card-title); }
+.employee-report-card h2 .admin-icon { color:var(--success); }
+.employee-report-sub { margin:0 0 24px; color:var(--text-secondary); font-size:var(--font-body); }
+
+.incident-form { display:flex; flex-direction:column; gap:16px; }
+
+.incident-form-section { margin:0; padding:20px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:16px; }
+.incident-form-section-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+.incident-form-badge { display:inline-grid; width:24px; height:24px; place-items:center; color:#fff; background:var(--success); border-radius:50%; font-size:var(--font-badge); font-weight:700; }
+.incident-form-section-header h3 { margin:0; color:var(--text-heading); font-size:var(--font-card-title); font-weight:700; }
+
+.incident-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; }
+
+.incident-field { display:flex; flex-direction:column; gap:6px; }
+.incident-field-label { color:var(--text-heading); font-size:var(--font-secondary); font-weight:700; }
+.incident-field-label em { color:var(--danger); font-style:normal; margin-left:2px; }
+
+.incident-field input,
+.incident-field select,
+.incident-field textarea {
+  width:100%;
+  padding:11px 12px;
+  color:var(--text-heading);
+  font:inherit;
+  font-size:var(--font-input);
+  background:#F3F4F7;
+  border:1px solid #DDE1E8;
+  border-radius:10px;
+  transition:border-color .15s ease, box-shadow .15s ease;
+}
+
+.incident-field input::placeholder,
+.incident-field textarea::placeholder { color:var(--text-muted); }
+
+.incident-field textarea { min-height:125px; resize:vertical; font-family:inherit; }
+
+.incident-field input:focus,
+.incident-field select:focus,
+.incident-field textarea:focus {
+  outline:none;
+  border-color:var(--primary);
+  box-shadow:0 0 0 3px rgba(37,99,235,.14);
+}
+
+.employee-report-card .incident-new { align-self:flex-start; }
+
+.employee-report-success { display:flex; align-items:center; gap:8px; margin:0; color:var(--success); font-size:var(--font-body); font-weight:600; }
+.employee-report-success .admin-icon { width:18px; height:18px; }
+
+.employee-ai-result { display:grid; gap:16px; }
+.employee-ai-result-heading { display:flex; align-items:flex-start; gap:11px; padding:18px 20px; background:#F3F4F7; border:1px solid #DDE1E8; border-radius:14px; }
+.employee-ai-result-heading > .admin-icon { width:22px; height:22px; margin-top:1px; color:var(--success); }
+.employee-ai-result h3 { margin:0 0 4px; color:var(--text-heading); font-size:var(--font-card-title); }.employee-ai-result-heading p { margin:0; color:var(--text-secondary); font-size:var(--font-body); }
+.employee-ai-block { padding:16px 18px; background:#F3F4F7; border:1px solid #DDE1E8; border-radius:12px; }.employee-ai-block > span { display:block; margin-bottom:7px; color:var(--text-secondary); font-size:var(--font-secondary); font-weight:700; text-transform:uppercase; letter-spacing:.04em; }.employee-ai-block p, .employee-ai-block ol { margin:0; color:var(--text-primary); font-size:var(--font-body); line-height:1.55; }.employee-ai-block ol { padding-left:20px; }
+.employee-ai-actions { display:flex; justify-content:flex-end; gap:10px; }.employee-ai-back { height:46px; padding:0 18px; color:var(--text-primary); font:inherit; font-size:var(--font-button); font-weight:700; background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; cursor:pointer; }
+.employee-resolution-check{padding:20px;border:1px solid var(--border-color);border-radius:14px}.employee-resolution-check h3{margin:0 0 8px;color:var(--text-heading);font-size:18px}.employee-resolution-check>p{margin:0;color:var(--text-secondary);font-size:var(--font-body);line-height:1.5}.employee-resolution-options{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}.employee-resolution-option{display:grid;justify-items:center;gap:7px;min-height:142px;padding:16px;color:var(--text-primary);font:inherit;background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;cursor:pointer}.employee-resolution-option b{display:grid;width:28px;height:28px;place-items:center;border:2px solid currentColor;border-radius:50%;font-size:18px}.employee-resolution-option strong{font-size:15px}.employee-resolution-option span{color:var(--text-secondary);font-size:12px}.employee-resolution-option.resolved{color:var(--success)}.employee-resolution-option.unresolved{color:var(--warning)}.employee-resolution-option.selected{box-shadow:0 0 0 3px color-mix(in srgb,currentColor 18%,transparent);border-color:currentColor}
+
+:root[data-theme="dark"] .incident-form-section { background:var(--card-bg); border-color:var(--card-border); }
+:root[data-theme="dark"] .incident-field input, :root[data-theme="dark"] .incident-field select, :root[data-theme="dark"] .incident-field textarea { color:var(--text-primary); background:var(--input-bg); border-color:var(--border-color); }
+:root[data-theme="dark"] .incident-field input:disabled { background:var(--background); }
+:root[data-theme="dark"] .employee-ai-result-heading, :root[data-theme="dark"] .employee-ai-block { background:var(--input-bg); border-color:var(--border-color); }
+
+@media (max-width:650px) {
+  .employee-report-card { padding:20px; }
+  .incident-form-grid { grid-template-columns:1fr; }
+  .employee-report-card .incident-new { width:100%; justify-content:center; }
+  .employee-ai-actions { flex-direction:column-reverse; }
+  .employee-ai-back { width:100%; }
+  .employee-resolution-options { grid-template-columns:1fr; }
+}

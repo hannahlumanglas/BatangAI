@@ -1,0 +1,5 @@
+/* Keep the interface visually consistent: labels, navigation, and data use one regular weight. */
+#root,
+#root * {
+  font-weight: 400 !important;
+}

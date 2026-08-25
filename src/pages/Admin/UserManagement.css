@@ -1,0 +1,126 @@
+/* User Management — page-specific styles only.
+   Shell, sidebar, topbar, toolbar, filter bar, and stat cards are shared from Dashboard.css.
+   Sizing/typography below matches the scale used on Dashboard, Device Monitoring, and Incidents
+   (tags/pills ~11px, action buttons ~33px, cards 14px radius). */
+
+/* Compound selector (.statistics-grid.um-stats) so this always beats the shared
+   4-column Dashboard.css rule, regardless of CSS import/load order. */
+.statistics-grid.um-stats { grid-template-columns:repeat(5,minmax(0,1fr)); margin-bottom:16px; }
+@media(max-width:900px){ .statistics-grid.um-stats{ grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:640px){ .statistics-grid.um-stats{ grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
+.um-tools { display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.um-tools .incident-search { flex:1 1 auto; min-width:0; }
+.um-tools .um-filter-select { flex:0 0 auto; }
+@media(max-width:640px){ .um-tools{ flex-wrap:wrap; } .um-tools .incident-search{ flex-basis:100%; } }
+
+/* Role filter — same pill shape/scale as Device Monitoring's Type/Status dropdowns. */
+.um-filter-select { display:flex; flex:0 0 auto; align-items:center; gap:9px; height:47px; padding:0 14px; color:var(--text-secondary); font-size:var(--font-input); font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:var(--card-bg); border:1px solid var(--border-color); border-radius:9px; cursor:pointer; transition:border-color .15s ease, box-shadow .15s ease; }
+.um-filter-select:hover { border-color:var(--border-color); }
+.um-filter-select:focus-within { border-color:var(--primary); box-shadow:0 0 0 3px rgba(10,102,255,.12); }
+.um-filter-select select { height:100%; padding:0; color:var(--text-heading); font:inherit; font-size:var(--font-input); font-weight:700; text-transform:none; letter-spacing:normal; background:var(--card-bg); border:0; outline:0; appearance:auto; cursor:pointer; }
+
+/* ---------- Card grid ---------- */
+
+.um-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(272px,1fr)); gap:16px; margin-bottom:20px; }
+
+.um-empty { padding:40px 21px; margin-bottom:20px; color:var(--text-secondary); font-size:var(--font-body); text-align:center; background:var(--card-bg); border:1px solid var(--border-color); border-radius:14px; }
+
+.user-card { position:relative; padding:18px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:14px; cursor:pointer; transition:box-shadow .18s ease, border-color .18s ease, transform .15s ease; }
+.user-card:hover { border-color:var(--border-color); box-shadow:0 8px 20px rgba(12,96,243,.08); transform:translateY(-2px); }
+.user-card:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+.user-card.selected { border-color:var(--primary); box-shadow:0 0 0 3px rgba(10,102,255,.14), 0 10px 24px rgba(12,96,243,.16); }
+
+.user-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:14px; }
+
+.user-card-identity { display:flex; align-items:center; gap:12px; min-width:0; }
+.user-card-avatar { display:grid; flex:0 0 auto; width:42px; height:42px; place-items:center; color:var(--avatar-alt-color); background:var(--avatar-alt-bg); border-radius:50%; font-size:var(--font-card-title); font-weight:800; }
+.user-card-avatar,.um-account-avatar{overflow:hidden}.user-card-avatar img,.um-account-avatar img{width:100%;height:100%;object-fit:cover}
+.user-card-identity > div { display:grid; gap:3px; min-width:0; }
+.user-card-identity strong { display:block; overflow:hidden; color:var(--text-heading); font-size:var(--font-card-title); font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.user-card-identity small { color:var(--text-secondary); font-size:var(--font-secondary); }
+
+.user-card-menu-anchor { position:relative; flex:0 0 auto; }
+.user-card-menu-btn { display:grid; place-items:center; width:30px; height:30px; color:var(--text-secondary); background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:background .15s ease, color .15s ease, border-color .15s ease; }
+.user-card-menu-btn:hover { color:var(--primary); background:var(--hover-bg); border-color:var(--border-color); }
+
+.user-menu-backdrop { position:fixed; inset:0; z-index:20; }
+.user-menu { position:absolute; top:36px; right:0; z-index:21; display:grid; width:180px; padding:6px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; box-shadow:0 14px 32px rgba(11,26,71,.16); }
+.user-menu button { display:block; width:100%; padding:9px 10px; color:var(--text-primary); font:inherit; font-size:var(--font-button); font-weight:600; text-align:left; background:none; border:0; border-radius:6px; cursor:pointer; }
+.user-menu button:hover { background:var(--hover-bg); }
+.user-menu button.danger { color:var(--danger); }
+.user-menu button.danger:hover { background:var(--danger-bg); }
+
+.user-card-meta { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+
+.role { display:inline-block; min-width:96px; padding:5px 10px; border-radius:12px; font-size:var(--font-badge); font-weight:700; text-align:center; }
+.role--employee { color:var(--success); background:var(--success-bg); }
+.role--secretary { color:var(--info-purple); background:var(--info-purple-bg); }
+.role--it-personnel { color:var(--primary); background:var(--hover-bg); }
+.role--administrator { color:var(--warning); background:var(--warning-bg); }
+
+.status { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border-radius:12px; font-size:var(--font-badge); font-weight:700; }
+.status i { width:6px; height:6px; border-radius:50%; }
+.status--active { color:var(--success); background:var(--success-bg); }
+.status--active i { background:var(--success); }
+.status--inactive { color:var(--text-muted); background:var(--border-color); }
+.status--inactive i { background:var(--text-muted); }
+
+.user-card-details { display:grid; gap:8px; padding-top:14px; border-top:1px solid var(--border-color); }
+.user-card-details > div { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.user-card-details dt { color:var(--text-secondary); font-size:var(--font-secondary); font-weight:600; }
+.user-card-details dd { overflow:hidden; color:var(--text-primary); font-size:var(--font-table); font-weight:600; text-align:right; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ---------- Expandable details section ---------- */
+
+.um-details-wrap { display:grid; grid-template-rows:0fr; transition:grid-template-rows .35s ease; }
+.um-details-wrap.open { grid-template-rows:1fr; }
+.um-details-inner { min-height:0; overflow:hidden; }
+
+.um-details-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; padding-top:4px; }
+
+.um-account-card h2, .um-password-card h2 { margin:0 0 18px; color:var(--text-heading); font-size:var(--font-card-title); font-weight:700; }
+
+.um-account-profile { display:flex; align-items:center; gap:14px; padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--border-color); }
+.um-account-avatar { display:grid; flex:0 0 auto; width:56px; height:56px; place-items:center; color:var(--avatar-alt-color); background:var(--avatar-alt-bg); border-radius:50%; font-size:var(--font-metric); font-weight:800; }
+.um-account-profile > div { display:grid; gap:8px; }
+.um-account-profile strong { color:var(--text-heading); font-size:var(--font-card-title); font-weight:700; }
+
+.um-account-fields { display:grid; gap:14px; }
+.um-account-fields > div { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.um-account-fields dt { color:var(--text-secondary); font-size:var(--font-secondary); font-weight:600; }
+.um-account-fields dd { color:var(--text-primary); font-size:var(--font-table); font-weight:600; text-align:right; }
+
+.um-field { display:grid; gap:7px; margin-bottom:16px; }
+.um-field span { color:var(--text-secondary); font-size:var(--font-secondary); font-weight:600; }
+.um-field input { height:42px; padding:0 14px; color:var(--text-heading); font:inherit; font-size:var(--font-input); background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; outline:0; transition:border-color .15s ease, box-shadow .15s ease; }
+.um-field input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(10,102,255,.12); }
+
+.um-form-message { margin:-4px 0 16px; font-size:var(--font-secondary); font-weight:600; }
+.um-form-error { color:var(--danger); }
+.um-form-success { color:var(--success); }
+
+.um-password-actions { display:flex; gap:10px; margin-top:4px; }
+.um-btn-primary, .um-btn-secondary { height:40px; padding:0 18px; font:inherit; font-size:var(--font-button); font-weight:700; border-radius:8px; cursor:pointer; }
+.um-btn-primary { color:var(--card-bg); background:var(--primary); border:0; box-shadow:0 6px 14px rgba(12,96,243,.22); }
+.um-btn-primary:hover { box-shadow:0 8px 18px rgba(12,96,243,.3); }
+.um-btn-secondary { color:var(--text-secondary); background:var(--card-bg); border:1px solid var(--border-color); }
+.um-btn-secondary:hover { background:var(--hover-bg); }
+
+@media(max-width:900px){ .um-details-grid{ grid-template-columns:1fr; } }
+@media(max-width:560px){ .um-grid{ grid-template-columns:1fr; } }
+/* ---------- Dark mode ---------- */
+:root[data-theme="dark"] .um-filter-select { background:var(--card-bg); border-color:var(--card-border); color:var(--text-secondary); }
+:root[data-theme="dark"] .um-filter-select select { background:var(--card-bg); color:var(--text-primary); }
+:root[data-theme="dark"] .um-empty { background:var(--card-bg); border-color:var(--card-border); color:var(--text-muted); }
+:root[data-theme="dark"] .user-card { background:var(--card-bg); border-color:var(--card-border); }
+:root[data-theme="dark"] .user-card-menu-btn { background:var(--card-bg); border-color:var(--card-border); color:var(--text-secondary); }
+:root[data-theme="dark"] .user-menu { background:var(--card-bg); border-color:var(--card-border); box-shadow:0 16px 36px rgba(0,0,0,.5); }
+:root[data-theme="dark"] .user-menu button { color:var(--text-primary); }
+:root[data-theme="dark"] .user-menu button:hover { background:var(--hover-bg); }
+:root[data-theme="dark"] .user-card-details { border-top-color:var(--card-border); }
+:root[data-theme="dark"] .user-card-details dd { color:var(--text-primary); }
+:root[data-theme="dark"] .um-account-profile { border-bottom-color:var(--card-border); }
+:root[data-theme="dark"] .um-account-fields dd { color:var(--text-primary); }
+:root[data-theme="dark"] .um-field input { background:var(--input-bg); border-color:var(--border-color); color:var(--text-primary); }
+:root[data-theme="dark"] .um-btn-secondary { background:var(--card-bg); border-color:var(--border-color); color:var(--text-secondary); }

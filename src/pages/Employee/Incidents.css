@@ -1,0 +1,59 @@
+/* Employee — All Incidents. Shell, sidebar, topbar, dashboard-card, and the
+   shared .tag severity/status pills are all inherited from Dashboard.css so
+   this page matches the admin system exactly, including dark mode. */
+
+.employee-incidents-card { padding:0; overflow:hidden; }
+.employee-incidents-card h2 { display:flex; align-items:center; gap:12px; margin:0; padding:20px 21px; color:var(--text-heading); font-size:var(--font-card-title); border-bottom:1px solid var(--card-border); }
+.employee-incidents-card h2 .admin-icon { color:var(--primary); }
+
+.employee-table-wrap { overflow:auto; }
+
+.employee-incidents-card table { width:100%; min-width:980px; border-collapse:collapse; color:var(--text-primary); font-size:var(--font-table); text-align:left; table-layout:fixed; }
+.employee-incidents-card th:nth-child(1) { width:16%; }.employee-incidents-card th:nth-child(2) { width:25%; }.employee-incidents-card th:nth-child(3) { width:14%; }.employee-incidents-card th:nth-child(4) { width:14%; }.employee-incidents-card th:nth-child(5) { width:15%; }.employee-incidents-card th:nth-child(6) { width:16%; }
+
+.employee-incidents-card th {
+  height:48px;
+  padding:0 21px;
+  background:var(--hover-bg);
+  color:var(--text-secondary);
+  font-size:var(--font-table);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.02em;
+}
+
+/* Issue / Service column palette from the supplied reference. */
+.employee-incidents-card th:nth-child(2) { color:#57708E; }
+.employee-incidents-card td:nth-child(2) { color:#0F2850; font-size:var(--font-body); font-weight:500; }
+
+.employee-incidents-card td { padding:15px 21px; border-top:1px solid var(--border-color); vertical-align:middle; }
+.employee-incidents-card td:first-child { color:var(--primary); font-weight:700; }
+.employee-empty { padding:28px !important; color:var(--text-secondary) !important; font-weight:400 !important; text-align:center; }
+.employee-incidents-card th:last-child { text-align:center; }
+.employee-actions { position:relative; display:flex; align-items:center; justify-content:center; min-height:35px; padding-right:4px !important; white-space:nowrap; }
+.employee-view-button, .employee-more-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:34px; background:transparent; border:0; cursor:pointer; }
+.employee-view-button { padding:0; color:var(--text-heading); font:inherit; font-size:var(--font-body); font-weight:500; }
+.employee-view-button .admin-icon, .employee-more-button .admin-icon { width:16px; height:16px; }
+.employee-view-button .admin-icon { color:var(--primary); }
+.employee-more-wrap { position:absolute; right:4px; display:inline-block; }
+.employee-more-button { width:34px; padding:0; color:var(--text-secondary); border-radius:7px; }
+.employee-view-button:hover { color:var(--primary); }.employee-more-button:hover { background:var(--hover-bg); color:var(--primary); }
+.employee-action-menu { position:absolute; z-index:4; top:40px; right:0; display:grid; width:126px; padding:5px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:9px; box-shadow:var(--card-shadow-hover); }
+.employee-action-menu button { display:flex; align-items:center; gap:8px; height:33px; padding:0 8px; color:var(--text-primary); font:inherit; font-size:var(--font-secondary); background:transparent; border:0; border-radius:6px; cursor:pointer; text-align:left; }
+.employee-action-menu button:hover { background:var(--hover-bg); }.employee-action-menu button.danger { color:var(--danger); }.employee-action-menu .admin-icon { width:15px; height:15px; }
+
+.employee-modal-overlay { position:fixed; z-index:20; inset:0; display:grid; place-items:center; padding:20px; background:var(--overlay-bg); }
+.employee-incident-modal { width:min(100%,680px); max-height:calc(100vh - 40px); overflow:auto; padding:0; color:var(--text-primary); background:var(--card-bg); border:1px solid var(--border-color); border-radius:18px; box-shadow:var(--card-shadow-hover); }
+.employee-incident-modal > header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:20px 22px; border-bottom:1px solid var(--border-color); }
+.employee-incident-modal h2 { margin:0 0 5px; color:var(--text-heading); font-size:var(--font-heading); }.employee-incident-modal header p { margin:0; color:var(--text-secondary); font-size:var(--font-secondary); }
+.employee-incident-modal > header button { display:grid; width:34px; height:34px; place-items:center; color:var(--text-secondary); background:var(--hover-bg); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; }.employee-incident-modal > header button .admin-icon { width:18px; height:18px; }
+.employee-detail-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:20px 22px 0; }.employee-detail-grid > div { padding:13px 14px; background:#F3F4F7; border:1px solid #DDE1E8; border-radius:10px; }.employee-detail-grid span { display:block; margin-bottom:4px; color:var(--text-secondary); font-size:var(--font-secondary); }.employee-detail-grid strong { color:var(--text-heading); font-size:var(--font-body); }
+.employee-incident-modal > section { margin:18px 22px; }.employee-incident-modal > section h3 { margin:0 0 6px; color:var(--text-secondary); font-size:var(--font-secondary); text-transform:uppercase; }.employee-incident-modal > section p { margin:0; color:var(--text-heading); font-size:var(--font-body); line-height:1.55; }
+.employee-edit-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; padding:20px 22px; }.employee-edit-grid label { display:grid; gap:6px; color:var(--text-heading); font-size:var(--font-secondary); font-weight:700; }.employee-edit-grid label:nth-last-child(-n+2) { grid-column:1 / -1; }.employee-edit-grid input, .employee-edit-grid textarea { width:100%; padding:10px 11px; color:var(--text-heading); font:inherit; font-size:var(--font-input); background:#F3F4F7; border:1px solid #DDE1E8; border-radius:9px; }.employee-edit-grid textarea { min-height:100px; resize:vertical; }.employee-edit-modal footer { display:flex; justify-content:flex-end; gap:10px; padding:0 22px 20px; }.employee-cancel { height:42px; padding:0 14px; color:var(--text-primary); background:var(--card-bg); border:1px solid var(--border-color); border-radius:9px; cursor:pointer; }
+
+:root[data-theme="dark"] .employee-detail-grid > div, :root[data-theme="dark"] .employee-edit-grid input, :root[data-theme="dark"] .employee-edit-grid textarea { color:var(--text-primary); background:var(--input-bg); border-color:var(--border-color); }
+
+@media (max-width:650px) {
+  .employee-incidents-card h2 { padding-left:18px; padding-right:18px; }
+  .employee-detail-grid, .employee-edit-grid { grid-template-columns:1fr; }
+}

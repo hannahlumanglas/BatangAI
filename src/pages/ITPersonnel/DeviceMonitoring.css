@@ -1,0 +1,3 @@
+/* IT Personnel uses the established device-monitoring layout. */
+@import '../Admin/DeviceMonitoring.css';
+@import '../Admin/DeviceMonitoringOverrides.css';
