@@ -436,4 +436,21 @@
   .login-footer p {
     font-size: 11px;
   }
+
+  .register-link {
+    margin: 5px 0 0;
+    color: #687d99;
+    font-size: 13px;
+    text-align: center;
+  }
+
+  .register-link a {
+    color: #1360ba;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .register-link a:hover {
+    text-decoration: underline;
+  }
 }

@@ -1,3 +1,4 @@
+import Register from '../pages/Auth/Register'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { hasRole } from '../auth'
@@ -29,6 +30,7 @@ function AppRouter() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/admin" element={<ProtectedRoute role="Administrator"><Dashboard /></ProtectedRoute>} />
         <Route path="/admin/incidents" element={<ProtectedRoute role="Administrator"><Incidents /></ProtectedRoute>} />
         <Route path="/admin/device-monitoring" element={<ProtectedRoute role="Administrator"><DeviceMonitoring /></ProtectedRoute>} />

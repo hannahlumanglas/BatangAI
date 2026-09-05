@@ -4,6 +4,11 @@ import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { ProfileMenu } from './Profile'
+import {
+  getCurrentUserId,
+  getCurrentUserName,
+  getCurrentUserDepartment,
+} from '../../auth'
 import '../Admin/Dashboard.css'
 import './ReportIncident.css'
 
@@ -31,7 +36,6 @@ const navigation: { label: string; icon: IconName; path: string }[] = [
 const ISSUE_CATEGORIES = ['Network', 'Hardware', 'Software', 'Account Access', 'Other']
 const DEVICE_TYPES = ['Desktop Computer', 'Laptop', 'Printer', 'Router', 'Switch', 'Mobile Device', 'Other']
 const CONNECTION_TYPES = ['Wi-Fi', 'LAN / Ethernet', 'VPN', 'Mobile Data', 'Other']
-const EMPLOYEE_INCIDENTS_KEY = 'batangai-employee-incidents'
 
 type EmployeeIncident = {
   id: string
@@ -49,8 +53,17 @@ type EmployeeIncident = {
 
 type IncidentFormValues = Omit<EmployeeIncident, 'id' | 'status' | 'date' | 'severity'> & { severity: '' | EmployeeIncident['severity'] }
 
-const initialValues: IncidentFormValues = {
-  department: 'City Engineering Office', location: '', issueCategory: '', deviceType: '', connectionType: '', severity: '', affectedService: '', description: '',
+function getInitialValues(): IncidentFormValues {
+  return {
+    department: getCurrentUserDepartment(),
+    location: '',
+    issueCategory: '',
+    deviceType: '',
+    connectionType: '',
+    severity: '',
+    affectedService: '',
+    description: '',
+  }
 }
 
 /* ---------- Theme (light/dark) — same pattern used across every admin page ---------- */
@@ -97,7 +110,7 @@ function ReportIncident() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [submitted, setSubmitted] = useState(false)
-  const [values, setValues] = useState<IncidentFormValues>(initialValues)
+  const [values, setValues] = useState<IncidentFormValues>(getInitialValues)
   const [phase, setPhase] = useState<'form' | 'result'>('form')
   const [resolutionStatus, setResolutionStatus] = useState<'resolved' | 'unresolved' | null>(null)
   const handleLogout = () => { localStorage.removeItem('batangai-admin-auth'); navigate('/') }
@@ -107,24 +120,103 @@ function ReportIncident() {
     setPhase('result')
   }
 
-  const submit = () => {
-    const saved = JSON.parse(localStorage.getItem(EMPLOYEE_INCIDENTS_KEY) ?? '[]') as EmployeeIncident[]
-    const incident: EmployeeIncident = {
-      ...values,
-      severity: values.severity || 'Low',
-      id: `INC-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`,
-      status: 'Pending',
-      date: new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(new Date()),
+  const submit = async () => {
+    const userId = getCurrentUserId()
+    const employeeName = getCurrentUserName()
+    const department = getCurrentUserDepartment()
+
+    if (!userId) {
+      alert('Your login session has expired. Please log in again.')
+      navigate('/')
+      return
     }
-    localStorage.setItem(EMPLOYEE_INCIDENTS_KEY, JSON.stringify([incident, ...saved]))
-    setSubmitted(true)
-    setValues(initialValues)
-    setPhase('form')
-    setResolutionStatus(null)
+
+    if (!resolutionStatus) {
+      alert('Please select whether the issue was resolved.')
+      return
+    }
+
+    try {
+      const response = await fetch(
+        'http://localhost/BatangAI/api/create_incident.php',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            userId: userId,
+            employeeName: employeeName,
+            department: department || values.department,
+
+            affectedIssue: values.affectedService,
+            description: values.description,
+
+            issueCategory: values.issueCategory,
+            deviceType: values.deviceType,
+            connectionType: values.connectionType,
+            location: values.location,
+            severity: values.severity || 'Low',
+
+            classification: `${values.issueCategory} issue`,
+
+            summary: `${values.affectedService} — ${values.description}`,
+
+            troubleshooting:
+              '1. Check the device and its network connection.\n' +
+              '2. Restart the device, then try again.\n' +
+              '3. Record any error message and send the report to IT.',
+          }),
+        }
+      )
+
+      // Check the response before trying to parse JSON
+      const responseText = await response.text()
+
+      console.log('PHP Response:', responseText)
+
+      let data
+
+      try {
+        data = JSON.parse(responseText)
+      } catch (jsonError) {
+        console.error('Invalid JSON from PHP:', responseText)
+
+        alert(
+          'The server returned an invalid response. Please check your PHP API.'
+        )
+
+        return
+      }
+
+      if (!response.ok || !data.success) {
+        alert(data.message || 'Failed to submit incident.')
+        console.error('Create incident error:', data)
+        return
+      }
+
+      console.log('Incident created:', data)
+
+      setSubmitted(true)
+      setValues(getInitialValues())
+      setPhase('form')
+      setResolutionStatus(null)
+
+      alert(
+        `Incident submitted successfully!\nIncident ID: ${data.incidentID}`,
+      )
+
+    } catch (error) {
+      console.error('Submit incident error:', error)
+
+      alert(
+        'Unable to connect to the server. Please make sure XAMPP Apache and MySQL are running.',
+      )
+    }
   }
 
   const closeReport = () => {
-    setValues(initialValues)
+    setValues(getInitialValues())
     setPhase('form')
     setResolutionStatus(null)
     navigate('/employee/incidents')
@@ -204,5 +296,4 @@ function ReportIncident() {
     </div>
   )
 }
-
 export default ReportIncident

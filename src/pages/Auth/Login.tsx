@@ -1,34 +1,47 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { signIn } from '../../auth'
 import './Login.css'
 
 function Login() {
   const [showPassword, setShowPassword] = useState(false)
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
   const navigate = useNavigate()
 
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (!username.trim() || !password) {
-      setErrorMessage('Invalid username or password.')
-      return
-    }
-
-    const session = signIn(username.trim(), password)
-    if (!session) {
-      setErrorMessage('Invalid username or password.')
-      return
-    }
-
     setErrorMessage('')
-    navigate(session.role === 'Administrator' ? '/admin' : session.role === 'Secretary' ? '/secretary/incidents' : session.role === 'IT Personnel' ? '/it/incidents' : '/employee/report-incident')
+
+    if (!email.trim() || !password) {
+      setErrorMessage('Invalid email or password.')
+      return
+    }
+
+    const session = await signIn(email.trim(), password)
+
+    if (!session) {
+      setErrorMessage('Invalid email or password.')
+      return
+    }
+
+    const role = session.user.role
+
+    if (role === 'Administrator') {
+      navigate('/admin')
+    } else if (role === 'Secretary') {
+      navigate('/secretary/incidents')
+    } else if (role === 'IT Personnel') {
+      navigate('/it/incidents')
+    } else {
+      navigate('/employee/report-incident')
+    }
   }
+    
 
   return (
     <main className="login-page">
@@ -64,20 +77,20 @@ function Login() {
 
         <form className="login-form" onSubmit={handleLogin}>
           <div className="login-field">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="email">Email Address</label>
             <div className="input-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="8" r="3.25" />
                 <path d="M5.5 19c.6-3.3 3.04-5 6.5-5s5.9 1.7 6.5 5" />
               </svg>
               <input
-                id="username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                placeholder="Enter your username"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="Enter your email address"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
                 required
               />
             </div>
@@ -116,6 +129,7 @@ function Login() {
               <input type="checkbox" name="remember" />
               <span>Remember me</span>
             </label>
+
             <a href="#forgot-password">Forgot password?</a>
           </div>
 
@@ -126,6 +140,7 @@ function Login() {
             </svg>
             Login
           </button>
+
           {errorMessage && (
             <p
               role="alert"
@@ -135,6 +150,12 @@ function Login() {
               {errorMessage}
             </p>
           )}
+
+          <p className="register-link">
+            Don't have an account?{' '}
+            <Link to="/register">Register here</Link>
+          </p>
+          
         </form>
 
         <footer className="login-footer">
