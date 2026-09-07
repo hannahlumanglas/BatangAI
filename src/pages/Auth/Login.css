@@ -83,6 +83,7 @@
 }
 
 .login-card {
+  grid-column: 2;
   justify-self: end;
   box-sizing: border-box;
   width: min(100%, 503px);
@@ -405,6 +406,7 @@
   }
 
   .login-card {
+    grid-column: 1;
     justify-self: center;
   }
 }

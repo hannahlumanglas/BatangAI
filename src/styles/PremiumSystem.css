@@ -930,9 +930,7 @@ body {
 /* Login --------------------------------------------------------------- */
 
 .login-page {
-  background:
-    linear-gradient(115deg, rgba(237, 249, 244, .12), rgba(255, 255, 255, .06)),
-    url('../assets/background.png') center / cover no-repeat;
+  background: url('../assets/background.png') center / cover no-repeat;
 }
 
 .system-accent { background: linear-gradient(90deg, var(--primary), var(--primary-mint)); }
@@ -951,7 +949,7 @@ body {
 .system-promise svg { stroke: var(--primary); }
 
 .login-card {
-  width: min(100%, 480px);
+  width: min(100%, 580px);
   min-height: min(700px, calc(100svh - 52px));
   padding: 42px 38px 34px;
   background: rgba(255, 255, 255, .94);

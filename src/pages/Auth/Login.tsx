@@ -45,24 +45,6 @@ function Login() {
 
   return (
     <main className="login-page">
-      <section className="system-copy" aria-labelledby="system-title">
-        <div className="system-accent" aria-hidden="true" />
-        <h1 id="system-title">
-          Batang<span>AI</span>
-        </h1>
-        <p className="system-subtitle">
-          AI-Integrated Network Incident Reporting and Troubleshooting Support
-          System
-        </p>
-        <p className="system-promise">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3 20 6v5c0 5.15-3.42 8.57-8 10-4.58-1.43-8-4.85-8-10V6l8-3Z" />
-            <path d="m8.5 12 2.2 2.2 4.8-5" />
-          </svg>
-          <span>Empowering Batangas City through<br />Smart IT Solutions</span>
-        </p>
-      </section>
-
       <section className="login-card" aria-labelledby="login-heading">
         <header className="login-heading">
           <img className="login-logo" src={logo} alt="Batangas City seal" />
