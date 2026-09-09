@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { PersonName } from '../../components/PersonName'
 import { AdminNotifications } from './AdminNotifications'
+import { getCurrentUserId } from '../../auth'
 import './Dashboard.css'
 import './Incidents.css'
 
@@ -703,6 +704,10 @@ function Incidents({
 
   const isIT = audience === 'it'
 
+  // IT personnel should only ever see reports specifically assigned to them.
+  // Administrators and secretaries share the incoming-report queue.
+  const currentUserId = getCurrentUserId()
+
   const roleNavigation = isSecretary
     ? navigation
         .filter(item =>
@@ -862,6 +867,25 @@ function Incidents({
     fetchIncidents()
   }, [])
 
+  // Keep the role queues current when another user submits or assigns a report.
+  useEffect(() => {
+    const refreshInterval = window.setInterval(fetchIncidents, 15000)
+    return () => window.clearInterval(refreshInterval)
+  }, [])
+
+  const roleIncidents = useMemo(
+    () =>
+      isIT
+        ? incidents.filter(
+            incident =>
+              incident.assignedTo !== null &&
+              currentUserId !== null &&
+              String(incident.assignedTo) === String(currentUserId),
+          )
+        : incidents,
+    [incidents, isIT, currentUserId],
+  )
+
   /* FILTERS*/
   const [query, setQuery] =
     useState('')
@@ -878,7 +902,7 @@ function Incidents({
   const departmentOptions = useMemo(() => {
     const departments = Array.from(
       new Set(
-        incidents
+        roleIncidents
           .map(
             incident =>
               incident.department,
@@ -891,14 +915,14 @@ function Incidents({
       'All Departments',
       ...departments,
     ]
-  }, [incidents])
+  }, [roleIncidents])
 
   const filteredIncidents =
     useMemo(() => {
       const q =
         query.trim().toLowerCase()
 
-      return incidents.filter(
+      return roleIncidents.filter(
         incident => {
           const matchesQuery =
             q === '' ||
@@ -943,7 +967,7 @@ function Incidents({
         },
       )
     }, [
-      incidents,
+      roleIncidents,
       query,
       statusFilter,
       severityFilter,

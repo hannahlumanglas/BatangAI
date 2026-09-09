@@ -11,10 +11,11 @@ import './styles/AllIncidentsSidebarMatch.css'
 import './styles/NoBold.css'
 import './styles/StandardSizing.css'
 import './styles/PremiumSystem.css'
+import './styles/UiAuditFixes.css'
 
 function App() {
   useEffect(() => {
-    const avatar = localStorage.getItem(`batangai-avatar-${getAuthSession()?.username ?? 'guest'}`) || getDefaultProfileAvatar()
+    const avatar = localStorage.getItem(`batangai-avatar-${getAuthSession()?.user.email ?? 'guest'}`) || getDefaultProfileAvatar()
     document.documentElement.style.setProperty('--saved-profile-avatar', `url("${avatar}")`)
     document.documentElement.classList.add('has-profile-avatar')
   }, [])
@@ -22,7 +23,7 @@ function App() {
   useEffect(() => {
     const goHome = (event: MouseEvent) => {
       if (!(event.target instanceof Element) || !event.target.closest('.sidebar-brand')) return
-      const role = getAuthSession()?.role
+      const role = getAuthSession()?.user.role
       const home = role === 'Administrator' ? '/admin' : role === 'Secretary' ? '/secretary' : role === 'IT Personnel' ? '/it' : '/employee'
       window.location.assign(home)
     }

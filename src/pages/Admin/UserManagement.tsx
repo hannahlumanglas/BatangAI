@@ -22,7 +22,8 @@ type UserMenuAction =
   | 'edit'
   | 'reset'
   | 'disable'
-  | 'delete'
+
+type UserPanelMode = 'view' | 'edit' | 'reset'
 
 type User = {
   id: string
@@ -39,6 +40,7 @@ type User = {
 /* ---------- API ---------- */
 
 const USERS_API_URL = 'http://localhost/BatangAI/api/users.php'
+const UPDATE_USER_API_URL = 'http://localhost/BatangAI/api/update_user.php'
 
 /**
  * Converts the date from MySQL into a readable date.
@@ -74,9 +76,13 @@ function mapDatabaseUser(databaseUser: any): User {
     databaseUser.userID ?? '',
   )
 
-  const role = String(
+  const databaseRole = String(
     databaseUser.role ?? 'Employee',
-  ) as UserRole
+  )
+
+  const role: UserRole = databaseRole.toLowerCase() === 'admin'
+    ? 'Administrator'
+    : databaseRole as UserRole
 
   const status = String(
     databaseUser.status ?? 'Active',
@@ -138,6 +144,18 @@ async function fetchUsers(): Promise<User[]> {
   }
 
   return data.users.map(mapDatabaseUser)
+}
+
+async function updateUserOnServer(payload: Record<string, string>) {
+  const response = await fetch(UPDATE_USER_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const data = await response.json()
+  if (!response.ok || !data.success) {
+    throw new Error(data.message || 'Unable to update the user.')
+  }
 }
 
 /* ---------- Avatar ---------- */
@@ -569,11 +587,6 @@ function UserMenu({
           ? 'Disable Account'
           : 'Enable Account',
     },
-    {
-      key: 'delete',
-      label: 'Delete User',
-      danger: true,
-    },
   ]
 
   return (
@@ -605,7 +618,6 @@ function UserMenu({
             }
             onClick={() => {
               onAction(item.key)
-              onClose()
             }}
           >
             {item.label}
@@ -742,9 +754,13 @@ function UserCard({
 /* ---------- Change Password ---------- */
 
 function ChangePasswordCard({
-  userName,
+  user,
+  onSaved,
+  resetMode = false,
 }: {
-  userName: string
+  user: User
+  onSaved: () => Promise<void>
+  resetMode?: boolean
 }) {
   const [
     newPassword,
@@ -762,6 +778,8 @@ function ChangePasswordCard({
   const [success, setSuccess] =
     useState('')
 
+  const [saving, setSaving] = useState(false)
+
   const clearForm = () => {
     setNewPassword('')
     setConfirmPassword('')
@@ -769,7 +787,7 @@ function ChangePasswordCard({
     setSuccess('')
   }
 
-  const handleUpdate = () => {
+  const handleUpdate = async () => {
     setSuccess('')
 
     if (newPassword.length < 8) {
@@ -805,17 +823,29 @@ function ChangePasswordCard({
 
     setError('')
 
-    setSuccess(
-      `Password updated for ${userName}.`,
-    )
-
-    setNewPassword('')
-    setConfirmPassword('')
+    try {
+      setSaving(true)
+      await updateUserOnServer({ action: 'password', userID: user.id, password: newPassword })
+      setSuccess(`Password updated for ${user.name}.`)
+      setNewPassword('')
+      setConfirmPassword('')
+      await onSaved()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update password.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <article className="dashboard-card um-password-card">
-      <h2>Change Password</h2>
+    <article className={`dashboard-card um-password-card${resetMode ? ' is-reset-mode' : ''}`}>
+      <header className="um-panel-heading">
+        <div>
+          <p className="um-eyebrow">Security</p>
+          <h2>{resetMode ? 'Reset Password' : 'Password & Security'}</h2>
+          <span>{resetMode ? `Set a new password for ${user.name}.` : 'Update this account password when needed.'}</span>
+        </div>
+      </header>
 
       <label className="um-field">
         <span>
@@ -874,8 +904,9 @@ function ChangePasswordCard({
           onClick={
             handleUpdate
           }
+          disabled={saving}
         >
-          Update Password
+          {saving ? 'Updating...' : 'Update Password'}
         </button>
 
         <button
@@ -894,17 +925,31 @@ function ChangePasswordCard({
 
 /* ---------- Selected User Details ---------- */
 
-function UserDetails({
-  user,
-}: {
-  user: User
-}) {
+function EditUserCard({ user, onSaved, onCancel }: { user: User; onSaved: () => Promise<void>; onCancel: () => void }) {
+  const [values, setValues] = useState({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    if (!values.name.trim() || !values.employeeId.trim() || !values.department.trim() || !values.email.trim()) { setError('Complete all account fields before saving.'); return }
+    try {
+      setSaving(true); setError('')
+      await updateUserOnServer({ action: 'update', userID: user.id, fullName: values.name.trim(), employeeId: values.employeeId.trim(), email: values.email.trim(), department: values.department.trim(), role: values.role })
+      await onSaved()
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save user changes.') } finally { setSaving(false) }
+  }
+  return <article className="dashboard-card um-edit-card"><header><div><h2>Edit User</h2><p>Update account details and access role.</p></div><button className="um-text-button" type="button" onClick={onCancel}>Cancel</button></header><div className="um-edit-grid"><label className="um-field"><span>Full Name</span><input value={values.name} onChange={e => setValues(current => ({ ...current, name: e.target.value }))} /></label><label className="um-field"><span>Employee ID</span><input value={values.employeeId} onChange={e => setValues(current => ({ ...current, employeeId: e.target.value }))} /></label><label className="um-field"><span>Email Address</span><input type="email" value={values.email} onChange={e => setValues(current => ({ ...current, email: e.target.value }))} /></label><label className="um-field"><span>Department</span><input value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))} /></label><label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option>Secretary</option><option>IT Personnel</option><option>Administrator</option></select></label></div>{error && <p className="um-form-message um-form-error">{error}</p>}<footer><button className="um-btn-secondary" type="button" onClick={onCancel}>Cancel</button><button className="um-btn-primary" type="button" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer></article>
+}
+
+function UserDetails({ user, mode, onModeChange, onSaved }: { user: User; mode: UserPanelMode; onModeChange: (mode: UserPanelMode) => void; onSaved: () => Promise<void> }) {
+  if (mode === 'edit') return <EditUserCard user={user} onSaved={onSaved} onCancel={() => onModeChange('view')} />
+  if (mode === 'reset') return <ChangePasswordCard user={user} onSaved={onSaved} resetMode />
   return (
     <div className="um-details-grid">
       <article className="dashboard-card um-account-card">
-        <h2>
-          Account Information
-        </h2>
+        <header className="um-panel-heading um-account-heading">
+          <div><p className="um-eyebrow">User profile</p><h2>Account Information</h2><span>Identity, contact details, and access level.</span></div>
+          <button type="button" className="um-text-button" onClick={() => onModeChange('edit')}>Edit account</button>
+        </header>
 
         <div className="um-account-profile">
           <span className="um-account-avatar">
@@ -982,9 +1027,7 @@ function UserDetails({
         </dl>
       </article>
 
-      <ChangePasswordCard
-        userName={user.name}
-      />
+      <ChangePasswordCard user={user} onSaved={onSaved} />
     </div>
   )
 }
@@ -1349,6 +1392,8 @@ function UserManagement() {
     string | null
   >(null)
 
+  const [panelMode, setPanelMode] = useState<UserPanelMode>('view')
+
   const [
     loading,
     setLoading,
@@ -1426,6 +1471,20 @@ function UserManagement() {
   useEffect(() => {
     loadUsers()
   }, [])
+
+  useEffect(() => {
+    if (!selectedUserId) return
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedUserId(null)
+        setPanelMode('view')
+      }
+    }
+
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [selectedUserId])
 
   /* ---------- Search / Filter ---------- */
 
@@ -1515,6 +1574,7 @@ function UserManagement() {
         setSelectedUserId(
           user.id,
         )
+        setPanelMode('view')
         break
 
       case 'edit':
@@ -1522,9 +1582,7 @@ function UserManagement() {
           user.id,
         )
 
-        window.alert(
-          `Edit User: the editable profile form for ${user.name} will be connected to the database in the next step.`,
-        )
+        setPanelMode('edit')
         break
 
       case 'reset':
@@ -1532,9 +1590,7 @@ function UserManagement() {
           user.id,
         )
 
-        window.alert(
-          `Password reset for ${user.email} will be connected to the database in the next step.`,
-        )
+        setPanelMode('reset')
         break
 
       case 'disable': {
@@ -1555,65 +1611,14 @@ function UserManagement() {
             `Are you sure you want to ${verb} ${user.name}'s account?`,
           )
         ) {
-          /*
-           * NOTE:
-           * This only changes the frontend temporarily.
-           *
-           * We will connect this to
-           * update_user.php later.
-           */
-          setUsers(
-            current =>
-              current.map(
-                currentUser =>
-                  currentUser.id ===
-                  user.id
-                    ? {
-                        ...currentUser,
-                        status:
-                          nextStatus,
-                      }
-                    : currentUser,
-              ),
-          )
+          void updateUserOnServer({ action: 'status', userID: user.id, status: nextStatus })
+            .then(loadUsers)
+            .catch(err => window.alert(err instanceof Error ? err.message : 'Unable to update account status.'))
         }
 
         break
       }
 
-      case 'delete':
-        if (
-          window.confirm(
-            `Delete ${user.name}? This action cannot be undone.`,
-          )
-        ) {
-          /*
-           * NOTE:
-           * This only removes the user
-           * from the current screen.
-           *
-           * It does NOT delete the
-           * MySQL record yet.
-           */
-          setUsers(
-            current =>
-              current.filter(
-                currentUser =>
-                  currentUser.id !==
-                  user.id,
-              ),
-          )
-
-          setSelectedUserId(
-            current =>
-              current ===
-              user.id
-                ? null
-                : current,
-          )
-        }
-
-        break
     }
   }
 
@@ -1927,27 +1932,31 @@ function UserManagement() {
               </div>
             )}
 
-          {/* ---------- User Details ---------- */}
-
-          <div
-            className={`um-details-wrap${
-              selectedUser
-                ? ' open'
-                : ''
-            }`}
-          >
-            <div className="um-details-inner">
-              {selectedUser && (
-                <UserDetails
-                  user={
-                    selectedUser
-                  }
-                />
-              )}
-            </div>
-          </div>
         </div>
       </main>
+
+      {selectedUser && (
+        <div
+          className="um-modal-backdrop"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              setSelectedUserId(null)
+              setPanelMode('view')
+            }
+          }}
+        >
+          <section className="um-modal" role="dialog" aria-modal="true" aria-label={`${panelMode === 'edit' ? 'Edit' : panelMode === 'reset' ? 'Reset password for' : 'Profile for'} ${selectedUser.name}`}>
+            <button className="um-modal-close" type="button" onClick={() => { setSelectedUserId(null); setPanelMode('view') }} aria-label="Close">×</button>
+            <UserDetails
+              user={selectedUser}
+              mode={panelMode}
+              onModeChange={setPanelMode}
+              onSaved={async () => { await loadUsers(); setPanelMode('view') }}
+            />
+          </section>
+        </div>
+      )}
     </div>
   )
 }

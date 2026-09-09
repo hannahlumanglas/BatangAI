@@ -91,6 +91,29 @@ INSERT INTO `users` (`userID`, `dateCreated`, `department`, `email`, `employeeId
 (3, '2026-09-01 10:54:34', 'Information Technology Services Division', 'itpersonnel@batangascity.gov.ph', 'IT-001', 'IT Personnel', '$2y$10$N4t4Gd6XI1r3aTRMTiaq9uIBNcnwAWMXGKRxl4FtoZbQ0bhOGZPLW', NULL, 'IT Personnel', 'Active'),
 (4, '2026-09-01 10:57:21', 'Office of the City Accountant', 'employee@batangascity.gov.ph', 'EMP-001', 'Employee', '$2y$10$lsko7OG6g/PHox95QTHq/udHgWXd2g19Okk6ApI0HQPppBmWGj416', NULL, 'Employee', 'Active');
 
+-- --------------------------------------------------------
+--
+-- Table structure for table `devices`
+--
+
+CREATE TABLE `devices` (
+  `id` int(10) unsigned NOT NULL,
+  `deviceID` varchar(30) DEFAULT NULL,
+  `name` varchar(150) NOT NULL,
+  `deviceType` varchar(50) NOT NULL,
+  `status` enum('online','warning','offline') NOT NULL DEFAULT 'online',
+  `ipAddress` varchar(45) NOT NULL,
+  `macAddress` varchar(17) DEFAULT NULL,
+  `location` varchar(255) NOT NULL,
+  `department` varchar(150) NOT NULL,
+  `firmware` varchar(100) DEFAULT NULL,
+  `assignedUserId` int(11) DEFAULT NULL,
+  `throughput` tinyint(3) unsigned NOT NULL DEFAULT 0,
+  `devicesConnected` int(10) unsigned NOT NULL DEFAULT 0,
+  `createdAt` datetime NOT NULL DEFAULT current_timestamp(),
+  `lastSeen` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 --
 -- Indexes for dumped tables
 --
@@ -114,6 +137,13 @@ ALTER TABLE `users`
   ADD UNIQUE KEY `unique_email` (`email`),
   ADD UNIQUE KEY `unique_employeeId` (`employeeId`);
 
+ALTER TABLE `devices`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_device_id` (`deviceID`),
+  ADD UNIQUE KEY `unique_device_ip` (`ipAddress`),
+  ADD KEY `idx_devices_assigned_user` (`assignedUserId`),
+  ADD CONSTRAINT `fk_devices_assigned_user` FOREIGN KEY (`assignedUserId`) REFERENCES `users` (`userID`) ON DELETE SET NULL;
+
 --
 -- AUTO_INCREMENT for dumped tables
 --
@@ -123,6 +153,9 @@ ALTER TABLE `users`
 --
 ALTER TABLE `users`
   MODIFY `userID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+ALTER TABLE `devices`
+  MODIFY `id` int(10) unsigned NOT NULL AUTO_INCREMENT;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

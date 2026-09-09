@@ -1,0 +1,343 @@
+/*
+ * Final visual-consistency pass.
+ *
+ * Page styles in this project pre-date the shared system styles, so this file
+ * deliberately comes last in the cascade.  It only normalizes shared layout
+ * behavior (surfaces, stacking, overflow, and responsive constraints); page
+ * colours, content, and component structure remain owned by their pages.
+ */
+
+:root {
+  --layer-sidebar: 20;
+  --layer-topbar: 30;
+  --layer-menu: 60;
+  --layer-modal: 1000;
+}
+
+html {
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+body {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Keep fixed navigation from covering page content and make it usable on
+   shorter screens instead of allowing the final links to fall below the fold. */
+.admin-sidebar,
+.dm-sidebar,
+.um-sidebar,
+.simple-sidebar,
+.incidents-sidebar {
+  position: fixed;
+  inset-block: 0;
+  z-index: var(--layer-sidebar);
+  height: 100svh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.admin-main,
+.dm-main,
+.um-main,
+.simple-main,
+.incidents-main {
+  min-width: 0;
+}
+
+/* A solid, sticky header provides a reliable reference plane for menus. */
+.admin-topbar,
+.dm-header,
+.um-header,
+.simple-header,
+.incidents-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--layer-topbar);
+  min-width: 0;
+  background-color: var(--card-bg, #ffffff);
+}
+
+.topbar-title,
+.topbar-user,
+.profile-menu-trigger,
+.notification-menu-root,
+.profile-menu-root,
+.period-filter {
+  min-width: 0;
+}
+
+.notification-menu-root,
+.profile-menu-root,
+.period-filter,
+.incident-actions,
+.employee-more-wrap,
+.incident-more-menu {
+  position: relative;
+}
+
+/* Menus must be opaque and above nearby cards/tables, in both themes. */
+.profile-menu-dropdown,
+.notification-dropdown,
+.period-filter-dropdown,
+.user-menu,
+.incident-row-menu,
+.employee-action-menu,
+.department-dropdown {
+  z-index: var(--layer-menu);
+  background-color: var(--card-bg, #ffffff);
+  isolation: isolate;
+}
+
+.dashboard-card,
+.stat-card,
+.dm-stat,
+.um-stat,
+.maa-stat,
+.assignment-stat,
+.employee-report-card,
+.employee-incidents-card,
+.profile-card,
+.settings-card,
+.profile-identity-card,
+.ticket-card,
+.dm-card,
+.um-table,
+.simple-card,
+.incidents-table-card,
+.maa-toolbar-card,
+.maa-table-card,
+.incident-tools,
+.incident-filters,
+.um-tools,
+.dm-tools {
+  background-color: var(--card-bg, #ffffff);
+}
+
+.notification-dropdown,
+.profile-menu-dropdown,
+.period-filter-dropdown,
+.user-menu,
+.incident-row-menu,
+.employee-action-menu {
+  max-width: min(360px, calc(100vw - 24px));
+}
+
+.notification-item {
+  width: 100%;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.notification-item:hover,
+.notification-item:focus-visible {
+  background: var(--hover-bg);
+}
+
+.notification-item > span:last-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.notification-item strong,
+.notification-item > span:last-child > span,
+.notification-item time {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notification-item strong {
+  color: var(--text-heading);
+  font-size: var(--font-body);
+  line-height: 1.4;
+}
+
+.notification-item > span:last-child > span,
+.notification-item time,
+.notification-state {
+  color: var(--text-secondary);
+  font-size: var(--font-secondary);
+  line-height: 1.45;
+}
+
+.notification-state {
+  margin: 0;
+  padding: 18px;
+  text-align: center;
+}
+
+/* Avoid clipping an action menu on full-width desktop tables.  Narrow tables
+   keep their native horizontal scroller below. */
+@media (min-width: 901px) {
+  .incidents-table-card,
+  .employee-incidents-card,
+  .employee-table-wrap {
+    overflow: visible;
+  }
+}
+
+.incidents-table-card,
+.employee-incidents-card,
+.employee-table-wrap,
+.recent-card {
+  min-width: 0;
+}
+
+/* Dialogs share one guaranteed top layer and never exceed the viewport. */
+.modal-overlay,
+.employee-modal-overlay,
+.maa-modal-overlay,
+.assignment-modal-backdrop,
+.um-modal-backdrop {
+  z-index: var(--layer-modal);
+  padding: clamp(12px, 3vw, 32px);
+}
+
+.new-incident-modal,
+.incident-detail-modal,
+.employee-incident-modal,
+.maa-modal,
+.assignment-report,
+.add-device-modal,
+.um-modal {
+  max-width: 100%;
+  max-height: calc(100svh - clamp(24px, 6vw, 64px));
+  background-color: var(--card-bg, #ffffff);
+}
+
+.employee-incident-modal,
+.um-modal,
+.incident-detail-modal,
+.maa-modal--view,
+.assignment-report {
+  overscroll-behavior: contain;
+}
+
+/* The auth cards use blur for decoration, but their reading surfaces and the
+   searchable department menu must stay fully opaque. */
+.login-card,
+.register-card,
+.login-field input,
+.register-field input,
+.register-field select,
+.department-dropdown {
+  background-color: #ffffff;
+}
+
+:root[data-theme="dark"] .profile-menu-dropdown,
+:root[data-theme="dark"] .notification-dropdown,
+:root[data-theme="dark"] .period-filter-dropdown,
+:root[data-theme="dark"] .user-menu,
+:root[data-theme="dark"] .incident-row-menu,
+:root[data-theme="dark"] .employee-action-menu,
+:root[data-theme="dark"] .new-incident-modal,
+:root[data-theme="dark"] .incident-detail-modal,
+:root[data-theme="dark"] .employee-incident-modal,
+:root[data-theme="dark"] .maa-modal,
+:root[data-theme="dark"] .assignment-report,
+:root[data-theme="dark"] .add-device-modal,
+:root[data-theme="dark"] .um-modal {
+  background-color: var(--card-bg);
+}
+
+@media (max-width: 820px) {
+  .admin-topbar,
+  .dm-header,
+  .um-header,
+  .simple-header,
+  .incidents-header {
+    padding-inline: 16px;
+  }
+
+  .search-box {
+    width: min(268px, 32vw);
+  }
+
+  .dashboard-content,
+  .dm-content,
+  .um-content,
+  .incidents-content,
+  .assignment-content {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar-title {
+    overflow: hidden;
+  }
+
+  .topbar-title h1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .search-box {
+    display: none;
+  }
+
+  .topbar-user > div:not(.topbar-avatar),
+  .profile-menu-trigger > .profile-menu-chevron {
+    display: none;
+  }
+
+  .notification-dropdown,
+  .profile-menu-dropdown {
+    right: 0;
+    width: min(320px, calc(100vw - 76px));
+  }
+
+  .incidents-footer {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  /* Keep the last row's contextual controls within a scrolling table's
+     visible area instead of opening beneath its lower edge. */
+  .incidents-table-card tbody tr:nth-last-child(-n + 2) .incident-row-menu,
+  .employee-incidents-card tbody tr:nth-last-child(-n + 2) .employee-action-menu {
+    top: auto;
+    bottom: calc(100% + 6px);
+  }
+}
+
+@media (max-width: 420px) {
+  .admin-topbar,
+  .dm-header,
+  .um-header,
+  .simple-header,
+  .incidents-header {
+    padding-inline: 12px;
+  }
+
+  .notification-button,
+  .theme-toggle-button {
+    width: 36px;
+    height: 36px;
+  }
+}

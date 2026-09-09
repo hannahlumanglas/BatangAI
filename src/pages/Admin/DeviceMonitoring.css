@@ -111,12 +111,15 @@
 .dm-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 20px; }
 .dm-field { display:flex; flex-direction:column; gap:6px; }
 .dm-field-label { color:var(--text-heading); font-size:var(--font-secondary); font-weight:700; }
+.dm-field-label span { color:var(--text-secondary); font-weight:400; }
 .dm-field-label em { margin-left:2px; color:var(--danger); font-style:normal; }
 .dm-field input, .dm-field select { width:100%; height:44px; padding:0 12px; color:var(--text-heading); font:inherit; font-size:var(--font-input); background:var(--card-bg); border:1px solid var(--border-color); border-radius:9px; transition:.15s; }
 .dm-field input::placeholder { color:var(--text-muted); }
 .dm-field input:focus, .dm-field select:focus { outline:none; border-color:var(--primary); box-shadow:0 0 0 3px rgba(10,102,255,.12); }
 .dm-field input[aria-invalid="true"] { border-color:var(--danger); }
 .dm-field-error { color:var(--danger); font-size:var(--font-secondary); font-weight:600; }
+.dm-form-error { margin:0; padding:10px 12px; color:var(--danger); background:var(--danger-bg); border:1px solid var(--danger); border-radius:8px; font-size:var(--font-secondary); }
+.dm-retry { margin-left:8px; color:var(--primary); font:inherit; font-weight:700; background:transparent; border:0; cursor:pointer; text-decoration:underline; }
 
 .btn-primary, .btn-secondary { display:inline-flex; align-items:center; justify-content:center; gap:8px; height:44px; padding:0 20px; font:inherit; font-size:var(--font-button); font-weight:700; border-radius:10px; cursor:pointer; transition:.15s; }
 .btn-primary { color:var(--card-bg); background:var(--primary); border:0; box-shadow:0 9px 17px rgba(19,89,224,.18); }

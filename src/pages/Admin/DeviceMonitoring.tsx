@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { JSX, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -172,21 +172,21 @@ interface Device {
   throughput: number
   devicesConnected: number
   uptime: string
+  assignedUserId?: string | null
+  assignedUserName?: string | null
 }
 
-const initialDevices: Device[] = [
-  { id: 'DEV-001', name: 'Core Router - City Hall', type: 'Router', status: 'online', ip: '10.10.0.1', mac: '3C:5A:B4:11:02:9F', location: 'City Hall, Server Room', department: 'Information Technology Office', firmware: 'v4.2.1', lastSeen: 'Just now', throughput: 68, devicesConnected: 214, uptime: '32d 14h' },
-  { id: 'DEV-002', name: 'Switch - Health Dept Floor 2', type: 'Switch', status: 'online', ip: '10.10.1.14', mac: '00:1B:44:11:3A:B7', location: 'Health Department, 2F', department: 'Health Office', firmware: 'v2.9.0', lastSeen: 'Just now', throughput: 41, devicesConnected: 38, uptime: '19d 03h' },
-  { id: 'DEV-003', name: 'Access Point - Engineering Lobby', type: 'Access Point', status: 'warning', ip: '10.10.2.22', mac: 'AC:DE:48:00:11:22', location: 'Engineering Office, Lobby', department: 'Engineering Office', firmware: 'v1.7.3', lastSeen: '2 min ago', throughput: 89, devicesConnected: 61, uptime: '5d 21h' },
-  { id: 'DEV-004', name: 'Switch - Treasury Office', type: 'Switch', status: 'online', ip: '10.10.3.8', mac: '00:1A:2B:3C:4D:5E', location: 'Treasury Office, 1F', department: 'Treasury Office', firmware: 'v2.9.0', lastSeen: 'Just now', throughput: 33, devicesConnected: 19, uptime: '46d 09h' },
-  { id: 'DEV-005', name: 'Router - Engineering Annex', type: 'Router', status: 'online', ip: '10.10.4.1', mac: '3C:5A:B4:22:8A:10', location: 'Engineering Annex', department: 'Engineering Office', firmware: 'v4.2.1', lastSeen: 'Just now', throughput: 52, devicesConnected: 47, uptime: '12d 02h' },
-  { id: 'DEV-006', name: 'Access Point - Registrar', type: 'Access Point', status: 'online', ip: '10.10.5.30', mac: 'AC:DE:48:00:33:44', location: 'City Civil Registrar', department: 'Civil Registrar', firmware: 'v1.7.3', lastSeen: 'Just now', throughput: 27, devicesConnected: 15, uptime: '8d 17h' },
-  { id: 'DEV-007', name: 'Switch - HR Office', type: 'Switch', status: 'offline', ip: '10.10.6.5', mac: '00:1B:44:22:5C:91', location: 'Human Resources, 3F', department: 'Human Resources', firmware: 'v2.8.4', lastSeen: '41 min ago', throughput: 0, devicesConnected: 0, uptime: '\u2014' },
-  { id: 'DEV-008', name: 'Router - IT Office', type: 'Router', status: 'online', ip: '10.10.7.1', mac: '3C:5A:B4:44:1B:7C', location: 'IT Office, Server Rack', department: 'Information Technology Office', firmware: 'v4.2.1', lastSeen: 'Just now', throughput: 74, devicesConnected: 96, uptime: '58d 11h' },
-  { id: 'DEV-009', name: 'Access Point - Public Library', type: 'Access Point', status: 'warning', ip: '10.10.8.12', mac: 'AC:DE:48:00:55:66', location: 'City Public Library', department: 'Library Services', firmware: 'v1.6.9', lastSeen: '4 min ago', throughput: 91, devicesConnected: 73, uptime: '3d 06h' },
-  { id: 'DEV-010', name: 'Switch - Accounting Office', type: 'Switch', status: 'online', ip: '10.10.9.7', mac: '00:1A:2B:5D:6E:7F', location: 'Accounting Office, 2F', department: 'Accounting Office', firmware: 'v2.9.0', lastSeen: 'Just now', throughput: 22, devicesConnected: 11, uptime: '64d 20h' },
-  { id: 'DEV-011', name: 'Router - Mayor\u2019s Office', type: 'Router', status: 'online', ip: '10.10.10.1', mac: '3C:5A:B4:55:2E:9D', location: 'Office of the City Mayor', department: 'Office of the Mayor', firmware: 'v4.2.1', lastSeen: 'Just now', throughput: 45, devicesConnected: 28, uptime: '21d 07h' },
-]
+type DeviceDraft = Omit<Device, 'id' | 'lastSeen' | 'uptime' | 'assignedUserName'>
+
+type UserOption = {
+  userID: string | number
+  fullName: string
+  department: string
+  status: string
+}
+
+const DEVICES_URL = 'http://localhost/BatangAI/api/devices.php'
+const USERS_URL = 'http://localhost/BatangAI/api/users.php'
 
 const deviceTypes: DeviceType[] = ['Router', 'Switch', 'Access Point']
 const departments = ['Information Technology Office', 'Health Office', 'Engineering Office', 'Treasury Office', 'Civil Registrar', 'Human Resources', 'Library Services', 'Accounting Office', 'Office of the Mayor']
@@ -242,6 +242,7 @@ function DeviceCard({ device, expanded, onToggle }: { device: Device; expanded: 
               <div><dt>MAC Address</dt><dd>{device.mac}</dd></div>
               <div><dt>Location</dt><dd>{device.location}</dd></div>
               <div><dt>Department</dt><dd>{device.department}</dd></div>
+              <div><dt>User</dt><dd>{device.assignedUserName || 'Unassigned'}</dd></div>
               <div><dt>Firmware Version</dt><dd>{device.firmware}</dd></div>
               <div><dt>Last Seen</dt><dd>{device.lastSeen}</dd></div>
             </dl>
@@ -268,15 +269,18 @@ function DeviceCard({ device, expanded, onToggle }: { device: Device; expanded: 
   )
 }
 
-function AddDeviceModal({ onClose, onAdd, existingIds }: { onClose: () => void; onAdd: (device: Device) => void; existingIds: string[] }) {
+function AddDeviceModal({ onClose, onAdd, users }: { onClose: () => void; onAdd: (device: DeviceDraft) => Promise<void>; users: UserOption[] }) {
   const [name, setName] = useState('')
   const [type, setType] = useState<DeviceType>('Router')
+  const [status, setStatus] = useState<DeviceStatus>('online')
   const [ip, setIp] = useState('')
   const [mac, setMac] = useState('')
   const [location, setLocation] = useState('')
   const [department, setDepartment] = useState(departments[0])
+  const [assignedUserId, setAssignedUserId] = useState('')
   const [firmware, setFirmware] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
 
   const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/
   const macPattern = /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/
@@ -292,27 +296,22 @@ function AddDeviceModal({ onClose, onAdd, existingIds }: { onClose: () => void; 
     return Object.keys(next).length === 0
   }
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!validate()) return
-    let n = existingIds.length + 1
-    let id = `DEV-${String(n).padStart(3, '0')}`
-    while (existingIds.includes(id)) { n += 1; id = `DEV-${String(n).padStart(3, '0')}` }
-    onAdd({
-      id,
-      name: name.trim(),
-      type,
-      status: 'online',
-      ip: ip.trim(),
-      mac: mac.trim() || '\u2014',
-      location: location.trim(),
-      department,
-      firmware: firmware.trim() || '\u2014',
-      lastSeen: 'Just now',
-      throughput: 0,
-      devicesConnected: 0,
-      uptime: '0m',
-    })
+    setSaving(true)
+    try {
+      await onAdd({
+        name: name.trim(), type, status, ip: ip.trim(),
+        mac: mac.trim() || '\u2014', location: location.trim(), department,
+        firmware: firmware.trim() || '\u2014', throughput: 0, devicesConnected: 0,
+        assignedUserId: assignedUserId || null,
+      })
+    } catch (error) {
+      setErrors({ submit: error instanceof Error ? error.message : 'Unable to add the device.' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -340,6 +339,14 @@ function AddDeviceModal({ onClose, onAdd, existingIds }: { onClose: () => void; 
               </select>
             </div>
             <div className="dm-field">
+              <label className="dm-field-label" htmlFor="dev-status">Initial Status<em>*</em></label>
+              <select id="dev-status" value={status} onChange={e => setStatus(e.target.value as DeviceStatus)}>
+                <option value="online">Online</option>
+                <option value="warning">Warning</option>
+                <option value="offline">Offline</option>
+              </select>
+            </div>
+            <div className="dm-field">
               <label className="dm-field-label" htmlFor="dev-ip">IP Address<em>*</em></label>
               <input id="dev-ip" type="text" placeholder="10.10.0.5" value={ip} onChange={e => setIp(e.target.value)} aria-invalid={!!errors.ip} />
               {errors.ip && <span className="dm-field-error">{errors.ip}</span>}
@@ -361,14 +368,23 @@ function AddDeviceModal({ onClose, onAdd, existingIds }: { onClose: () => void; 
               </select>
             </div>
             <div className="dm-field">
+              <label className="dm-field-label" htmlFor="dev-user">User <span>(optional)</span></label>
+              <select id="dev-user" value={assignedUserId} onChange={e => setAssignedUserId(e.target.value)}>
+                <option value="">No assigned user</option>
+                {users.map(user => <option key={user.userID} value={user.userID}>{user.fullName} — {user.department}</option>)}
+              </select>
+            </div>
+            <div className="dm-field">
               <label className="dm-field-label" htmlFor="dev-firmware">Firmware Version</label>
               <input id="dev-firmware" type="text" placeholder="e.g. v4.2.1" value={firmware} onChange={e => setFirmware(e.target.value)} />
             </div>
           </div>
 
+          {errors.submit && <p className="dm-form-error" role="alert">{errors.submit}</p>}
+
           <div className="add-device-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary">Add Device</button>
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+            <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Adding…' : 'Add Device'}</button>
           </div>
         </form>
       </div>
@@ -385,7 +401,10 @@ function DeviceMonitoring({ audience = 'administrator' }: { audience?: 'administ
   const user = isIT ? { name: 'Juan dela Cruz', role: 'IT Personnel', initial: 'J', profilePath: '/it/profile' } : { name: 'Ricardo Mendoza', role: 'Administrator', initial: 'R', profilePath: '/admin/profile' }
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
-  const [deviceList, setDeviceList] = useState<Device[]>(initialDevices)
+  const [deviceList, setDeviceList] = useState<Device[]>([])
+  const [users, setUsers] = useState<UserOption[]>([])
+  const [loadingDevices, setLoadingDevices] = useState(true)
+  const [deviceError, setDeviceError] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState('All Types')
@@ -395,11 +414,39 @@ function DeviceMonitoring({ audience = 'administrator' }: { audience?: 'administ
   const [lastUpdated, setLastUpdated] = useState(() => new Date())
   const handleLogout = () => { localStorage.removeItem('batangai-admin-auth'); navigate('/') }
 
+  const loadDevices = useCallback(async () => {
+    try {
+      const response = await fetch(DEVICES_URL)
+      const data = await response.json() as { success?: boolean; devices?: Device[]; message?: string }
+      if (!response.ok || !data.success || !Array.isArray(data.devices)) throw new Error(data.message || 'Unable to load devices.')
+      setDeviceList(data.devices)
+      setDeviceError('')
+      setLastUpdated(new Date())
+    } catch (error) {
+      setDeviceError(error instanceof Error ? error.message : 'Unable to load devices.')
+    } finally {
+      setLoadingDevices(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => {
+      void loadDevices()
+      void fetch(USERS_URL)
+        .then(response => response.json())
+        .then((data: { success?: boolean; users?: UserOption[] }) => {
+          if (data.success && Array.isArray(data.users)) setUsers(data.users.filter(user => user.status === 'Active'))
+        })
+        .catch(() => setUsers([]))
+    }, 0)
+    return () => window.clearTimeout(initialLoad)
+  }, [loadDevices])
+
   useEffect(() => {
     if (!live) return
-    const id = setInterval(() => setLastUpdated(new Date()), 20000)
-    return () => clearInterval(id)
-  }, [live])
+    const id = window.setInterval(() => void loadDevices(), 20_000)
+    return () => window.clearInterval(id)
+  }, [live, loadDevices])
 
   const filtered = useMemo(() => {
     return deviceList.filter(d => {
@@ -417,10 +464,17 @@ function DeviceMonitoring({ audience = 'administrator' }: { audience?: 'administ
     offline: deviceList.filter(d => d.status === 'offline').length,
   }), [deviceList])
 
-  const handleAddDevice = (device: Device) => {
-    setDeviceList(list => [device, ...list])
+  const handleAddDevice = async (device: DeviceDraft) => {
+    const response = await fetch(DEVICES_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add', ...device }),
+    })
+    const data = await response.json() as { success?: boolean; device?: Device; message?: string }
+    if (!response.ok || !data.success || !data.device) throw new Error(data.message || 'Unable to add the device.')
+    setDeviceList(list => [data.device!, ...list])
     setShowAddModal(false)
-    setExpandedId(device.id)
+    setExpandedId(data.device.id)
   }
 
   return <div className={`admin-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
@@ -482,7 +536,11 @@ function DeviceMonitoring({ audience = 'administrator' }: { audience?: 'administ
           </label>
         </div>
 
-        {filtered.length === 0 ? (
+        {loadingDevices ? (
+          <div className="dm-grid"><div className="dashboard-card dm-empty">Loading devices…</div></div>
+        ) : deviceError ? (
+          <div className="dm-grid"><div className="dashboard-card dm-empty">{deviceError} <button type="button" className="dm-retry" onClick={() => void loadDevices()}>Retry</button></div></div>
+        ) : filtered.length === 0 ? (
           <div className="dm-grid"><div className="dashboard-card dm-empty">No devices match your search or filters.</div></div>
         ) : (
           <div className="dm-grid">
@@ -503,7 +561,7 @@ function DeviceMonitoring({ audience = 'administrator' }: { audience?: 'administ
       <AddDeviceModal
         onClose={() => setShowAddModal(false)}
         onAdd={handleAddDevice}
-        existingIds={deviceList.map(d => d.id)}
+        users={users}
       />
     )}
   </div>
