@@ -14,18 +14,19 @@
   align-items: center;
   padding: 40px 20px;
   background: url('../../assets/background.png') center / cover no-repeat;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
-    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .register-card {
   box-sizing: border-box;
-  width: min(100%, 650px);
-  padding: 38px 45px;
-  background: rgba(255, 255, 255, 0.97);
-  border: 1px solid rgba(255, 255, 255, 0.82);
-  border-radius: 24px;
-  box-shadow: 0 21px 43px rgba(22, 57, 97, 0.17);
+  width: min(100%, 640px);
+  padding: clamp(32px, 4.5vh, 44px) clamp(24px, 4vw, 44px);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 22px;
+  box-shadow: 0 16px 40px -10px rgba(15, 23, 42, 0.12), 0 0 1px 1px rgba(255, 255, 255, 0.6) inset;
 }
 
 .register-heading {
@@ -34,41 +35,42 @@
 
 .register-logo {
   display: block;
-  width: 90px;
-  height: 90px;
+  width: 76px;
+  height: 76px;
   margin: 0 auto 14px;
   object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.06));
 }
 
 .register-heading h1 {
   margin: 0;
-  color: #123666;
-  font-size: 38px;
-  font-weight: 800;
-  letter-spacing: -0.05em;
+  color: #0f172a;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
 }
 
 .register-heading h1 span {
-  color: #29986f;
+  color: #0e8a64;
 }
 
 .register-heading p {
-  max-width: 470px;
-  margin: 12px auto 28px;
-  color: #667b99;
+  max-width: 440px;
+  margin: 10px auto 24px;
+  color: #64748b;
   font-size: 13px;
-  line-height: 1.55;
+  line-height: 1.5;
 }
 
 .register-form {
   display: grid;
-  gap: 16px;
+  gap: 15px;
 }
 
 .register-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 15px;
 }
 
 .register-field {
@@ -77,35 +79,35 @@
 }
 
 .register-field label {
-  color: #142a4c;
-  font-size: 13px;
-  font-weight: 700;
+  color: #1e293b;
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .register-field input,
 .register-field select {
   box-sizing: border-box;
   width: 100%;
-  height: 48px;
+  height: 46px;
   padding: 0 14px;
-  color: #18395f;
+  color: #0f172a;
   font: inherit;
-  font-size: 13px;
-  background: #fff;
-  border: 1px solid #ccd8e6;
-  border-radius: 9px;
+  font-size: 13.5px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 12px;
   outline: none;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .register-field input::placeholder {
-  color: #8b9bb1;
+  color: #94a3b8;
 }
 
 .register-field input:focus,
 .register-field select:focus {
-  border-color: #236ac3;
-  box-shadow: 0 0 0 3px rgba(35, 106, 195, 0.14);
+  border-color: #0e8a64;
+  box-shadow: 0 0 0 3.5px rgba(14, 138, 100, 0.14);
 }
 
 .register-password-wrap {
@@ -113,72 +115,92 @@
 }
 
 .register-password-wrap input {
-  padding-right: 60px;
+  padding-right: 56px;
 }
 
 .register-password-wrap button {
   position: absolute;
   top: 50%;
   right: 10px;
-  padding: 5px;
-  color: #627895;
+  padding: 5px 8px;
+  color: #64748b;
   font: inherit;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 600;
   background: transparent;
   border: 0;
+  border-radius: 8px;
   cursor: pointer;
   transform: translateY(-50%);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .register-password-wrap button:hover {
-  color: #155cb3;
+  color: #0e8a64;
+  background: #ecfdf5;
 }
 
 .password-hint {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: 5px 0 0;
+  font-size: 11.5px;
   line-height: 1.4;
-  color: #718096;
+  color: #64748b;
 }
 
 .required {
-  color: #c62f2f;
+  color: #dc2626;
+  margin-left: 2px;
 }
 
 .register-error,
 .register-success {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
+  padding: 10px 14px;
+  border-radius: 10px;
   font-size: 13px;
+  font-weight: 500;
+  text-align: center;
 }
 
 .register-error {
-  color: #c62f2f;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
 }
 
 .register-success {
-  color: #168457;
+  color: #065f46;
+  background: #ecfdf5;
+  border: 1px solid #d1fae5;
 }
 
 .register-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  height: 50px;
-  margin-top: 4px;
-  color: #fff;
+  height: 48px;
+  margin-top: 6px;
+  color: #ffffff;
   font: inherit;
-  font-size: 14px;
-  font-weight: 750;
-  background: linear-gradient(115deg, #0f4da5, #1268ca);
+  font-size: 14.5px;
+  font-weight: 600;
+  background: linear-gradient(135deg, #0e8a64, #059669);
   border: 0;
-  border-radius: 9px;
-  box-shadow: 0 10px 18px rgba(18, 82, 171, 0.24);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(14, 138, 100, 0.25);
   cursor: pointer;
-  transition: transform 150ms ease, box-shadow 150ms ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .register-button:hover:not(:disabled) {
-  box-shadow: 0 12px 22px rgba(18, 82, 171, 0.31);
-  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(14, 138, 100, 0.32);
+  transform: translateY(-1.5px);
+}
+
+.register-button:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .register-button:disabled {
@@ -187,104 +209,104 @@
 }
 
 .register-login {
-  margin-top: 22px;
-  color: #687d99;
+  margin-top: 20px;
+  color: #64748b;
   font-size: 13px;
   text-align: center;
 }
 
 .register-login a {
-  color: #1360ba;
-  font-weight: 700;
+  color: #0e8a64;
+  font-weight: 600;
   text-decoration: none;
+  transition: color 0.15s ease;
 }
 
 .register-login a:hover {
+  color: #065f46;
   text-decoration: underline;
 }
 
 .register-footer {
   margin-top: 24px;
-  padding-top: 16px;
-  color: #687d99;
+  padding-top: 14px;
+  color: #94a3b8;
   font-size: 12px;
   text-align: center;
-  border-top: 1px solid #dce5ee;
+  border-top: 1px solid #e2e8f0;
 }
 
 @media (max-width: 600px) {
-    .register-page {
-        padding: 25px 15px;
-    }
+  .register-page {
+    padding: 24px 16px;
+  }
 
-    .register-card {
-        padding: 30px 22px;
-        border-radius: 18px;
-    }
+  .register-card {
+    padding: 28px 20px;
+    border-radius: 18px;
+  }
 
-    .register-row {
-        grid-template-columns: 1fr;
-    }
+  .register-row {
+    grid-template-columns: 1fr;
+  }
 
-    .register-heading h1 {
-        font-size: 34px;
-    }
+  .register-heading h1 {
+    font-size: 28px;
+  }
 }
-/* Searchable Department / Office Dropdown */
 
-    .department-search-wrapper {
-    position: relative;
-    width: 100%;
-    }
+/* Searchable Department Dropdown */
+.department-search-wrapper {
+  position: relative;
+  width: 100%;
+}
 
-    .department-search-wrapper input {
-    width: 100%;
-    box-sizing: border-box;
-    }
+.department-search-wrapper input {
+  width: 100%;
+  box-sizing: border-box;
+}
 
-    .department-dropdown {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    max-height: 240px;
-    overflow-y: auto;
-    background: #ffffff;
-    border: 1px solid #d7e2df;
-    border-radius: 10px;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
-    z-index: 1000;
-    }
+.department-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.08);
+  z-index: 1000;
+  scrollbar-width: thin;
+}
 
-    .department-option {
-    display: block;
-    width: 100%;
-    padding: 11px 14px;
-    border: none;
-    background: #ffffff;
-    color: #243b53;
-    text-align: left;
-    font-size: 14px;
-    cursor: pointer;
-    }
+.department-option {
+  display: block;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  background: #ffffff;
+  color: #334155;
+  text-align: left;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
 
-    .department-option:hover {
-    background: #eef8f5;
-    }
+.department-option:hover,
+.department-option:focus {
+  background: #ecfdf5;
+  color: #065f46;
+  outline: none;
+}
 
-    .department-option:focus {
-    outline: none;
-    background: #eef8f5;
-    }
+.department-no-result {
+  padding: 14px;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+}
 
-    .department-no-result {
-    padding: 14px;
-    color: #7a8b87;
-    font-size: 14px;
-    }
-
-    .required {
-    color: #c62f2f;
-    }
 
     

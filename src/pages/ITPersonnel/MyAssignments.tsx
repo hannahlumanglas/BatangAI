@@ -389,6 +389,12 @@ function MyAssignments() {
     loadAssignments()
   }, [])
 
+  // New assignments are made by the admin or secretary in a separate session.
+  useEffect(() => {
+    const refreshInterval = window.setInterval(loadAssignments, 15000)
+    return () => window.clearInterval(refreshInterval)
+  }, [])
+
   const loadAssignments = async () => {
     try {
       setLoading(true)

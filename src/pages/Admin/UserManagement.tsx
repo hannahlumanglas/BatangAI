@@ -6,12 +6,12 @@ import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './UserManagement.css'
 import {
-  AUTH_STORAGE_KEY,
   getAuthSession,
   signOut,
 } from '../../auth'
 /* --------- API ---------- */
 const USERS_API_URL = 'http://localhost/BatangAI/api/users.php'
+const UPDATE_USER_API_URL = 'http://localhost/BatangAI/api/update_user.php'
 const CREATE_USER_API_URL = 'http://localhost/BatangAI/api/create_user.php'
 const UPDATE_USER_STATUS_API_URL = 'http://localhost/BatangAI/api/update_user_status.php'
 const DELETE_USER_API_URL = 'http://localhost/BatangAI/api/delete_user.php'
@@ -30,6 +30,8 @@ type UserMenuAction =
   | 'reset'
   | 'disable'
   | 'delete'
+
+type UserPanelMode = 'view' | 'edit' | 'reset'
 
 type User = {
   id: string
@@ -118,7 +120,6 @@ function getInitials(name: string) {
     .join('')
     .toUpperCase()
 }
-
 function formatJoinedDate(value: string | null | undefined) {
   if (!value) return '—'
 
@@ -134,7 +135,6 @@ function formatJoinedDate(value: string | null | undefined) {
     day: 'numeric',
   })
 }
-
 function normalizeRole(value: string): UserRole {
   const normalized = value.trim().toLowerCase()
 
@@ -162,7 +162,20 @@ function normalizeStatus(value: string): UserStatus {
     ? 'Inactive'
     : 'Active'
 }
+async function updateUserOnServer(payload: Record<string, string>) {
+  const response = await fetch(UPDATE_USER_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
 
+  const data = await response.json()
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.message || 'Unable to update the user.')
+  }
+}
+/* ---------- Avatar ---------- */
 function avatarUrl(name: string) {
   const colors = [
     '#0b5cff',
@@ -171,7 +184,6 @@ function avatarUrl(name: string) {
     '#c2410c',
     '#be123c',
   ]
-
   const color =
     colors[
       [...name].reduce(
@@ -179,9 +191,7 @@ function avatarUrl(name: string) {
         0,
       ) % colors.length
     ]
-
   const initials = getInitials(name)
-
   return `data:image/svg+xml,${encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
       <rect width="96" height="96" rx="48" fill="${color}"/>
@@ -201,10 +211,7 @@ function avatarUrl(name: string) {
     </svg>`,
   )}`
 }
-
-
 /* ---------- Icons ---------- */
-
 type IconName =
   | 'dashboard'
   | 'incidents'
@@ -219,7 +226,6 @@ type IconName =
   | 'shield'
   | 'admin'
   | 'assign'
-
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, JSX.Element> = {
     dashboard: (
@@ -230,21 +236,18 @@ function Icon({ name }: { name: IconName }) {
         <rect x="14" y="14" width="7" height="7" rx="1" />
       </>
     ),
-
     incidents: (
       <>
         <rect x="5" y="4" width="14" height="17" rx="2" />
         <path d="M9 4.5h6M9 10h6M9 14h6M9 18h3" />
       </>
     ),
-
     devices: (
       <>
         <rect x="3" y="4" width="18" height="13" rx="1.5" />
         <path d="M8 21h8M12 17v4" />
       </>
     ),
-
     users: (
       <>
         <circle cx="9" cy="8" r="3" />
@@ -252,58 +255,49 @@ function Icon({ name }: { name: IconName }) {
         <path d="M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M15 15c2.7.1 4.4 1.7 4.6 4.5" />
       </>
     ),
-
     reports: (
       <>
         <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
       </>
     ),
-
     profile: (
       <>
         <circle cx="12" cy="8" r="4" />
         <path d="M4 21c.7-4.1 3.4-6.2 8-6.2s7.3 2.1 8 6.2" />
       </>
     ),
-
     logout: (
       <>
         <path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" />
       </>
     ),
-
     menu: (
       <>
         <path d="M4 6h16M4 12h16M4 18h16" />
       </>
     ),
-
     bell: (
       <>
         <path d="M18 10a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 22h4" />
       </>
     ),
-
     search: (
       <>
         <circle cx="10.5" cy="10.5" r="5.5" />
         <path d="m15 15 4 4" />
       </>
     ),
-
     shield: (
       <>
         <path d="M12 3 20 6v5c0 5-3.3 8-8 10-4.7-2-8-5-8-10V6l8-3Z" />
         <path d="m8 14 8-8M8 6l8 8" />
       </>
     ),
-
     admin: (
       <>
         <path d="M4 18h16M6 18l1-8 5 3 5-3 1 8M9 7l3-4 3 4" />
       </>
     ),
-
     assign: (
       <>
         <circle cx="9" cy="8" r="3" />
@@ -312,7 +306,6 @@ function Icon({ name }: { name: IconName }) {
       </>
     ),
   }
-
   return (
     <svg
       className="admin-icon"
@@ -323,8 +316,6 @@ function Icon({ name }: { name: IconName }) {
     </svg>
   )
 }
-
-
 function DotsIcon() {
   return (
     <svg
@@ -339,10 +330,7 @@ function DotsIcon() {
     </svg>
   )
 }
-
-
 /* ---------- Small shared pieces ---------- */
-
 function StatCard({
   icon,
   number,
@@ -367,8 +355,6 @@ function StatCard({
     </article>
   )
 }
-
-
 function RoleBadge({ role }: { role: UserRole }) {
   return (
     <span
@@ -380,8 +366,6 @@ function RoleBadge({ role }: { role: UserRole }) {
     </span>
   )
 }
-
-
 function StatusBadge({ status }: { status: UserStatus }) {
   return (
     <span
@@ -392,10 +376,7 @@ function StatusBadge({ status }: { status: UserStatus }) {
     </span>
   )
 }
-
-
 /* ---------- Navigation ---------- */
-
 const navigation: {
   label: string
   icon: IconName
@@ -437,12 +418,9 @@ const navigation: {
     path: '/admin/profile',
   },
 ]
-
-
 /* =========================================================
    THREE-DOT ACTION MENU
    ========================================================= */
-
 function UserMenu({
   status,
   onAction,
@@ -478,11 +456,10 @@ function UserMenu({
     },
     {
       key: 'delete',
-      label: 'Delete User',
+      label: 'Delete Account',
       danger: true,
     },
   ]
-
   return (
     <>
       <div
@@ -492,7 +469,6 @@ function UserMenu({
           onClose()
         }}
       />
-
       <div
         className="user-menu"
         role="menu"
@@ -506,7 +482,6 @@ function UserMenu({
             className={item.danger ? 'danger' : ''}
             onClick={() => {
               onAction(item.key)
-              onClose()
             }}
           >
             {item.label}
@@ -516,12 +491,9 @@ function UserMenu({
     </>
   )
 }
-
-
 /* =========================================================
    USER CARD
    ========================================================= */
-
 function UserCard({
   user,
   selected,
@@ -605,7 +577,6 @@ function UserCard({
           )}
         </div>
       </div>
-
       <div className="user-card-meta">
         <RoleBadge role={user.role} />
         <StatusBadge status={user.status} />
@@ -629,13 +600,14 @@ function UserCard({
    CHANGE PASSWORD
    Existing UI retained.
    ========================================================= */
-
 function ChangePasswordCard({
-  userName,
-  userID,
+  user,
+  onSaved,
+  resetMode = false,
 }: {
-  userName: string
-  userID?: number | string
+  user: User
+  onSaved: () => Promise<void>
+  resetMode?: boolean
 }) {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -657,37 +629,27 @@ function ChangePasswordCard({
     setSuccess('')
 
     if (newPassword.length < 8) {
-      setError(
-        'Password must be at least 8 characters long.',
-      )
+      setError('Password must be at least 8 characters long.')
       return
     }
 
     if (!/[A-Z]/.test(newPassword)) {
-      setError(
-        'Password must contain at least one uppercase letter.',
-      )
+      setError('Password must contain at least one uppercase letter.')
       return
     }
 
     if (!/[a-z]/.test(newPassword)) {
-      setError(
-        'Password must contain at least one lowercase letter.',
-      )
+      setError('Password must contain at least one lowercase letter.')
       return
     }
 
     if (!/[0-9]/.test(newPassword)) {
-      setError(
-        'Password must contain at least one number.',
-      )
+      setError('Password must contain at least one number.')
       return
     }
 
     if (!/[^a-zA-Z0-9]/.test(newPassword)) {
-      setError(
-        'Password must contain at least one special character.',
-      )
+      setError('Password must contain at least one special character.')
       return
     }
 
@@ -696,7 +658,13 @@ function ChangePasswordCard({
       return
     }
 
-    if (userID === undefined || userID === null || String(userID).trim() === '') {
+    const targetUserID = user.userID
+
+    if (
+      targetUserID === undefined ||
+      targetUserID === null ||
+      String(targetUserID).trim() === ''
+    ) {
       setError('Unable to identify the selected user.')
       return
     }
@@ -704,7 +672,11 @@ function ChangePasswordCard({
     const session = getAuthSession()
     const adminUserID = session?.user?.userID
 
-    if (adminUserID === undefined || adminUserID === null || String(adminUserID).trim() === '') {
+    if (
+      adminUserID === undefined ||
+      adminUserID === null ||
+      String(adminUserID).trim() === ''
+    ) {
       setError('Administrator session not found. Please log in again.')
       return
     }
@@ -722,7 +694,7 @@ function ChangePasswordCard({
           },
           body: JSON.stringify({
             adminUserID,
-            userID,
+            userID: targetUserID,
             newPassword,
           }),
         },
@@ -732,17 +704,17 @@ function ChangePasswordCard({
 
       if (!response.ok || !data.success) {
         throw new Error(
-          data.message ||
-            'Unable to update the password.',
+          data.message || 'Unable to update the password.',
         )
       }
 
       setSuccess(
-        data.message ||
-          `Password updated for ${userName}.`,
+        data.message || `Password updated for ${user.name}.`,
       )
       setNewPassword('')
       setConfirmPassword('')
+
+      await onSaved()
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -755,12 +727,27 @@ function ChangePasswordCard({
   }
 
   return (
-    <article className="dashboard-card um-password-card">
-      <h2>Change Password</h2>
+    <article
+      className={`dashboard-card um-password-card${
+        resetMode ? ' is-reset-mode' : ''
+      }`}
+    >
+      <header className="um-panel-heading">
+        <div>
+          <p className="um-eyebrow">Security</p>
+          <h2>
+            {resetMode ? 'Reset Password' : 'Password & Security'}
+          </h2>
+          <span>
+            {resetMode
+              ? `Set a new password for ${user.name}.`
+              : 'Update this account password when needed.'}
+          </span>
+        </div>
+      </header>
 
       <label className="um-field">
         <span>New Password</span>
-
         <input
           type="password"
           value={newPassword}
@@ -777,7 +764,6 @@ function ChangePasswordCard({
 
       <label className="um-field">
         <span>Confirm Password</span>
-
         <input
           type="password"
           value={confirmPassword}
@@ -793,15 +779,11 @@ function ChangePasswordCard({
       </label>
 
       {error && (
-        <p className="um-form-message um-form-error">
-          {error}
-        </p>
+        <p className="um-form-message um-form-error">{error}</p>
       )}
 
       {success && (
-        <p className="um-form-message um-form-success">
-          {success}
-        </p>
+        <p className="um-form-message um-form-success">{success}</p>
       )}
 
       <div className="um-password-actions">
@@ -828,24 +810,74 @@ function ChangePasswordCard({
 }
 
 /* SELECTED USER DETAILS*/
-
+function EditUserCard({ user, onSaved, onCancel }: { user: User; onSaved: () => Promise<void>; onCancel: () => void }) {
+  const [values, setValues] = useState({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    if (!values.name.trim() || !values.employeeId.trim() || !values.department.trim() || !values.email.trim()) { setError('Complete all account fields before saving.'); return }
+    try {
+      setSaving(true); setError('')
+      await updateUserOnServer({ action: 'update', userID: user.id, fullName: values.name.trim(), employeeId: values.employeeId.trim(), email: values.email.trim(), department: values.department.trim(), role: values.role })
+      await onSaved()
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save user changes.') } finally { setSaving(false) }
+  }
+  return <article className="dashboard-card um-edit-card"><header><div><h2>Edit User</h2><p>Update account details and access role.</p></div><button className="um-text-button" type="button" onClick={onCancel}>Cancel</button></header><div className="um-edit-grid"><label className="um-field"><span>Full Name</span><input value={values.name} onChange={e => setValues(current => ({ ...current, name: e.target.value }))} /></label><label className="um-field"><span>Employee ID</span><input value={values.employeeId} onChange={e => setValues(current => ({ ...current, employeeId: e.target.value }))} /></label><label className="um-field"><span>Email Address</span><input type="email" value={values.email} onChange={e => setValues(current => ({ ...current, email: e.target.value }))} /></label><label className="um-field"><span>Department</span><input value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))} /></label><label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option>Secretary</option><option>IT Personnel</option><option>Administrator</option></select></label></div>{error && <p className="um-form-message um-form-error">{error}</p>}<footer><button className="um-btn-secondary" type="button" onClick={onCancel}>Cancel</button><button className="um-btn-primary" type="button" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer></article>
+}
 function UserDetails({
   user,
+  mode,
+  onModeChange,
+  onSaved,
 }: {
   user: User
+  mode: UserPanelMode
+  onModeChange: (mode: UserPanelMode) => void
+  onSaved: () => Promise<void>
 }) {
+  if (mode === 'edit') {
+    return (
+      <EditUserCard
+        user={user}
+        onSaved={onSaved}
+        onCancel={() => onModeChange('view')}
+      />
+    )
+  }
+
+  if (mode === 'reset') {
+    return (
+      <ChangePasswordCard
+        user={user}
+        onSaved={onSaved}
+        resetMode
+      />
+    )
+  }
+
   return (
     <div className="um-details-grid">
       <article className="dashboard-card um-account-card">
-        <h2>Account Information</h2>
+        <header className="um-panel-heading um-account-heading">
+          <div>
+            <p className="um-eyebrow">User profile</p>
+            <h2>Account Information</h2>
+            <span>Identity, contact details, and access level.</span>
+          </div>
+
+          <button
+            type="button"
+            className="um-text-button"
+            onClick={() => onModeChange('edit')}
+          >
+            Edit account
+          </button>
+        </header>
 
         <div className="um-account-profile">
           <span className="um-account-avatar">
             <img
-              src={
-                user.profilePhoto ||
-                avatarUrl(user.name)
-              }
+              src={user.profilePhoto || avatarUrl(user.name)}
               alt={`${user.name} profile`}
             />
           </span>
@@ -889,16 +921,14 @@ function UserDetails({
       </article>
 
       <ChangePasswordCard
-        userName={user.name}
-        userID={user.userID}
+        user={user}
+        onSaved={onSaved}
       />
     </div>
   )
 }
 
-
 /* CREATE USER MODAL */
-
 function CreateUserModal({
   onClose,
   onCreated,
@@ -907,7 +937,6 @@ function CreateUserModal({
   onCreated: (user: User) => void
 }) {
   const session = getAuthSession()
-
   const [form, setForm] =
     useState<CreateUserForm>({
       fullName: '',
@@ -918,20 +947,17 @@ function CreateUserModal({
       password: '',
       confirmPassword: '',
     })
-
   const [error, setError] = useState('')
   const [success, setSuccess] =
     useState('')
   const [submitting, setSubmitting] =
     useState(false)
-
   const [departmentOpen, setDepartmentOpen] =
     useState(false)
   const [departmentHighlight, setDepartmentHighlight] =
     useState(0)
   const departmentRef =
     useRef<HTMLDivElement>(null)
-
   const filteredDepartments = useMemo(() => {
     const search = form.department.trim().toLowerCase()
 
@@ -943,10 +969,8 @@ function CreateUserModal({
       department.toLowerCase().includes(search),
     )
   }, [form.department])
-
   useEffect(() => {
     if (!departmentOpen) return
-
     const handleOutsideClick = (event: MouseEvent) => {
       if (
         departmentRef.current &&
@@ -955,24 +979,20 @@ function CreateUserModal({
         setDepartmentOpen(false)
       }
     }
-
     document.addEventListener('mousedown', handleOutsideClick)
 
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick)
     }
   }, [departmentOpen])
-
   useEffect(() => {
     setDepartmentHighlight(0)
   }, [form.department])
-
   const selectDepartment = (department: string) => {
     updateField('department', department)
     setDepartmentOpen(false)
     setDepartmentHighlight(0)
   }
-
   const updateField = <
     K extends keyof CreateUserForm,
   >(
@@ -987,33 +1007,26 @@ function CreateUserModal({
     setError('')
     setSuccess('')
   }
-
   const validatePassword = (
     password: string,
   ) => {
     if (password.length < 8) {
       return 'Password must be at least 8 characters long.'
     }
-
     if (!/[A-Z]/.test(password)) {
       return 'Password must contain at least one uppercase letter.'
     }
-
     if (!/[a-z]/.test(password)) {
       return 'Password must contain at least one lowercase letter.'
     }
-
     if (!/[0-9]/.test(password)) {
       return 'Password must contain at least one number.'
     }
-
     if (!/[^A-Za-z0-9]/.test(password)) {
       return 'Password must contain at least one special character.'
     }
-
     return ''
   }
-
   const handleSubmit = async (
     e: FormEvent<HTMLFormElement>,
   ) => {
@@ -1028,7 +1041,6 @@ function CreateUserModal({
       )
       return
     }
-
     if (
       !form.fullName.trim() ||
       !form.employeeId.trim() ||
@@ -1042,12 +1054,10 @@ function CreateUserModal({
       )
       return
     }
-
     if (!CITY_HALL_DEPARTMENTS.includes(form.department.trim() as (typeof CITY_HALL_DEPARTMENTS)[number])) {
       setError('Please select a department from the list.')
       return
     }
-
     if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
         form.email.trim(),
@@ -1058,7 +1068,6 @@ function CreateUserModal({
       )
       return
     }
-
     if (
       form.password !==
       form.confirmPassword
@@ -1068,17 +1077,13 @@ function CreateUserModal({
       )
       return
     }
-
     const passwordError =
       validatePassword(form.password)
-
     if (passwordError) {
       setError(passwordError)
       return
     }
-
     setSubmitting(true)
-
     try {
       const response = await fetch(
         CREATE_USER_API_URL,
@@ -1105,9 +1110,7 @@ function CreateUserModal({
           }),
         },
       )
-
       const data = await response.json()
-
       if (
         !response.ok ||
         !data.success
@@ -1117,9 +1120,7 @@ function CreateUserModal({
             'Unable to create the user account.',
         )
       }
-
       const created = data.user
-
       const newUser: User = {
         id: String(
           created.userID ??
@@ -1160,11 +1161,9 @@ function CreateUserModal({
           created.profilePhoto ??
           null,
       }
-
       setSuccess(
         'User account created successfully.',
       )
-
       onCreated(newUser)
     } catch (err) {
       setError(
@@ -1176,7 +1175,6 @@ function CreateUserModal({
       setSubmitting(false)
     }
   }
-
   return (
     <div
       className="um-modal-backdrop"
@@ -1246,7 +1244,6 @@ function CreateUserModal({
               required
             />
           </label>
-
           <label className="um-field">
             <span>
               Employee ID
@@ -1267,12 +1264,10 @@ function CreateUserModal({
               required
             />
           </label>
-
           <div className="um-field" ref={departmentRef}>
             <span>
               Department
             </span>
-
             <div
               style={{
                 position: 'relative',
@@ -1301,7 +1296,6 @@ function CreateUserModal({
                     }
                     return
                   }
-
                   if (e.key === 'ArrowDown') {
                     e.preventDefault()
                     setDepartmentHighlight(current =>
@@ -1335,7 +1329,6 @@ function CreateUserModal({
                 aria-controls="department-options"
                 role="combobox"
               />
-
               {departmentOpen && (
                 <div
                   id="department-options"
@@ -1401,7 +1394,6 @@ function CreateUserModal({
               )}
             </div>
           </div>
-
           <label className="um-field">
             <span>
               Email Address
@@ -1422,7 +1414,6 @@ function CreateUserModal({
               required
             />
           </label>
-
           <label className="um-field">
             <span>
               Account Role
@@ -1453,7 +1444,6 @@ function CreateUserModal({
               </option>
             </select>
           </label>
-
           <label className="um-field">
             <span>
               Password
@@ -1543,15 +1533,10 @@ function CreateUserModal({
     </div>
   )
 }
-
-
 /* THEME*/
-
 type Theme = 'light' | 'dark'
-
 const THEME_STORAGE_KEY =
   'batangai-theme'
-
 function readStoredTheme(): Theme {
   const stored =
     localStorage.getItem(
@@ -1564,16 +1549,13 @@ function readStoredTheme(): Theme {
   ) {
     return stored
   }
-
   return 'light'
 }
-
 function useTheme() {
   const [theme, setTheme] =
     useState<Theme>(
       readStoredTheme,
     )
-
   useEffect(() => {
     document.documentElement.setAttribute(
       'data-theme',
@@ -1585,21 +1567,17 @@ function useTheme() {
       theme,
     )
   }, [theme])
-
   const toggleTheme = () =>
     setTheme(current =>
       current === 'dark'
         ? 'light'
         : 'dark',
     )
-
   return {
     theme,
     toggleTheme,
   }
 }
-
-
 function ThemeToggle({
   theme,
   onToggle,
@@ -1609,7 +1587,6 @@ function ThemeToggle({
 }) {
   const isDark =
     theme === 'dark'
-
   return (
     <button
       type="button"
@@ -1644,7 +1621,6 @@ function ThemeToggle({
             cy="12"
             r="4.2"
           />
-
           <path d="M12 2.5v2.4M12 19.1v2.4M4.4 4.4l1.7 1.7M17.9 17.9l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.4 19.6l1.7-1.7M17.9 6.1l1.7-1.7" />
         </svg>
       ) : (
@@ -1665,10 +1641,7 @@ function ThemeToggle({
     </button>
   )
 }
-
-
 /* PROFILE MENU*/
-
 function ProfileMenu({
   name,
   role,
@@ -1680,16 +1653,12 @@ function ProfileMenu({
 }) {
   const [open, setOpen] =
     useState(false)
-
   const navigate =
     useNavigate()
-
   const rootRef =
     useRef<HTMLDivElement>(null)
-
   useEffect(() => {
     if (!open) return
-
     const handleClickOutside = (
       e: MouseEvent,
     ) => {
@@ -1702,7 +1671,6 @@ function ProfileMenu({
         setOpen(false)
       }
     }
-
     const handleEscape = (
       e: KeyboardEvent,
     ) => {
@@ -1710,35 +1678,29 @@ function ProfileMenu({
         setOpen(false)
       }
     }
-
     document.addEventListener(
       'mousedown',
       handleClickOutside,
     )
-
     document.addEventListener(
       'keydown',
       handleEscape,
     )
-
     return () => {
       document.removeEventListener(
         'mousedown',
         handleClickOutside,
       )
-
       document.removeEventListener(
         'keydown',
         handleEscape,
       )
     }
   }, [open])
-
   const goToProfile = () => {
     setOpen(false)
     navigate('/admin/profile')
   }
-
   return (
     <div
       className="profile-menu-root"
@@ -1756,12 +1718,10 @@ function ProfileMenu({
         <div className="topbar-avatar">
           {getInitials(name)}
         </div>
-
         <div>
           <strong>{name}</strong>
           <span>{role}</span>
         </div>
-
         <span
           className={`profile-menu-chevron${
             open ? ' open' : ''
@@ -1782,7 +1742,6 @@ function ProfileMenu({
           </svg>
         </span>
       </button>
-
       {open && (
         <div
           className="profile-menu-dropdown"
@@ -1809,13 +1768,10 @@ function ProfileMenu({
                 cy="8"
                 r="4"
               />
-
               <path d="M4 21c.7-4.1 3.4-6.2 8-6.2s7.3 2.1 8 6.2" />
             </svg>
-
             My Profile
           </button>
-
           <button
             type="button"
             role="menuitem"
@@ -1839,13 +1795,10 @@ function ProfileMenu({
                 cy="12"
                 r="3"
               />
-
               <path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4.7a7.6 7.6 0 0 0-2.6-1.5L14 2h-4l-.4 2.7a7.6 7.6 0 0 0-2.6 1.5l-2.4-.7-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-.7a7.6 7.6 0 0 0 2.6 1.5L10 22h4l.4-2.7a7.6 7.6 0 0 0 2.6-1.5l2.4.7 2-3.4Z" />
             </svg>
-
             Settings
           </button>
-
           <button
             type="button"
             role="menuitem"
@@ -1869,15 +1822,11 @@ function ProfileMenu({
                 height="11"
                 rx="2"
               />
-
               <path d="M8 10V7a4 4 0 0 1 8 0v3" />
             </svg>
-
             Change Password
           </button>
-
           <span className="profile-menu-divider" />
-
           <button
             type="button"
             role="menuitem"
@@ -1900,7 +1849,6 @@ function ProfileMenu({
             >
               <path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" />
             </svg>
-
             Logout
           </button>
         </div>
@@ -1908,64 +1856,44 @@ function ProfileMenu({
     </div>
   )
 }
-
-
 /* PAGE*/
-
 function UserManagement() {
   const navigate =
     useNavigate()
-
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(false)
-
   const {
     theme,
     toggleTheme,
   } = useTheme()
-
   const [query, setQuery] =
     useState('')
-
   const [role, setRole] =
     useState('All Roles')
-
   const [users, setUsers] =
     useState<User[]>([])
-
   const [selectedUserId, setSelectedUserId] =
     useState<string | null>(null)
-
   const [menuOpenId, setMenuOpenId] =
     useState<string | null>(null)
-
-  const [showCreateUser, setShowCreateUser] =
-    useState(false)
-
+  const [showCreateUser, setShowCreateUser] = useState(false)
+  const [panelMode, setPanelMode] = useState<UserPanelMode>('view')
   const [loadingUsers, setLoadingUsers] =
     useState(true)
-
   const [usersError, setUsersError] =
     useState('')
-
   const session =
     getAuthSession()
-
   const adminName =
     session?.user?.fullName ||
     'Administrator'
-
   const adminRole =
     session?.user?.role ||
     'Administrator'
-
-
   /* LOAD USERS FROM DATABASE */
-
   const loadUsers = async () => {
     setLoadingUsers(true)
     setUsersError('')
-
     try {
       const response =
         await fetch(
@@ -1978,28 +1906,23 @@ function UserManagement() {
             },
           },
         )
-
       if (!response.ok) {
         throw new Error(
           `Unable to load users. Server returned ${response.status}.`,
         )
       }
-
       const data =
         await response.json()
-
       if (!data.success) {
         throw new Error(
           data.message ||
             'Unable to load users.',
         )
       }
-
       const databaseUsers =
         Array.isArray(data.users)
           ? data.users
           : []
-
       const mappedUsers: User[] =
         databaseUsers.map(
           (
@@ -2014,25 +1937,21 @@ function UserManagement() {
                   item.name ??
                   'Unknown User',
               )
-
             const userID =
               item.userID ??
               item.id
-
             const employeeId =
               String(
                 item.employeeId ??
                   item.employeeID ??
                   '',
               )
-
             return {
               id: String(
                 userID ??
                   employeeId ??
                   name,
               ),
-
               userID:
                 userID as
                   | number
@@ -2040,29 +1959,23 @@ function UserManagement() {
                   | undefined,
 
               employeeId,
-
               name,
-
               initial:
                 getInitials(name),
-
               email: String(
                 item.email ?? '',
               ),
-
               department:
                 String(
                   item.department ??
                     '',
                 ),
-
               role: normalizeRole(
                 String(
                   item.role ??
                     'Employee',
                 ),
               ),
-
               status:
                 normalizeStatus(
                   String(
@@ -2070,7 +1983,6 @@ function UserManagement() {
                       'Active',
                   ),
                 ),
-
               joined:
                 formatJoinedDate(
                   String(
@@ -2079,7 +1991,6 @@ function UserManagement() {
                       '',
                   ),
                 ),
-
               profilePhoto:
                 item.profilePhoto
                   ? String(
@@ -2089,7 +2000,6 @@ function UserManagement() {
             }
           },
         )
-
       setUsers(mappedUsers)
     } catch (error) {
       setUsersError(
@@ -2101,15 +2011,22 @@ function UserManagement() {
       setLoadingUsers(false)
     }
   }
-
-
   useEffect(() => {
     loadUsers()
   }, [])
-
-
   /* FILTER USERS */
-
+  useEffect(() => {
+    if (!selectedUserId) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedUserId(null)
+        setPanelMode('view')
+      }
+    }
+    document.addEventListener('keydown', closeOnEscape)
+    return () => document.removeEventListener('keydown', closeOnEscape)
+  }, [selectedUserId])
+  /* ---------- Search / Filter ---------- */
   const shown = useMemo(
     () =>
       users.filter(
@@ -2127,11 +2044,8 @@ function UserManagement() {
                 .trim(),
             ),
       ),
-
     [query, role, users],
   )
-
-
   const selectedUser =
     useMemo(
       () =>
@@ -2143,18 +2057,12 @@ function UserManagement() {
 
       [users, selectedUserId],
     )
-
-
   /* LOGOUT */
-
   const handleLogout = () => {
     signOut()
     navigate('/')
   }
-
-
   /* SELECT USER*/
-
   const handleSelect = (
     id: string,
   ) => {
@@ -2167,10 +2075,7 @@ function UserManagement() {
           : id,
     )
   }
-
-
   /* USER MENU */
-
   const handleToggleMenu = (
     id: string,
   ) => {
@@ -2181,54 +2086,37 @@ function UserManagement() {
           : id,
     )
   }
-
-
   const handleMenuAction = async (
     action: UserMenuAction,
     user: User,
   ) => {
     setMenuOpenId(null)
-
     switch (action) {
       case 'view':
         setSelectedUserId(
           user.id,
         )
+        setPanelMode('view')
         break
-
       case 'edit':
-        window.alert(
-          `Edit User: opening the editable profile form for ${user.name} would go here.`,
-        )
-
-        setSelectedUserId(
-          user.id,
-        )
+        setSelectedUserId(user.id)
+        setPanelMode('edit')
         break
-
       case 'reset':
-        setSelectedUserId(
-          user.id,
-        )
-
-        window.alert(
-          `A password reset link has been sent to ${user.email}.`,
-        )
+        setSelectedUserId(user.id)
+        setPanelMode('reset')
         break
-
       case 'disable': {
         const nextStatus: UserStatus =
           user.status ===
           'Active'
             ? 'Inactive'
             : 'Active'
-
         const verb =
           nextStatus ===
           'Inactive'
             ? 'disable'
             : 're-enable'
-
         if (
           !window.confirm(
             `Are you sure you want to ${verb} ${user.name}'s account?`,
@@ -2236,10 +2124,8 @@ function UserManagement() {
         ) {
           break
         }
-
         const adminUserID = session?.user?.userID
         const targetUserID = user.userID
-
         if (
           adminUserID === undefined ||
           adminUserID === null ||
@@ -2250,7 +2136,6 @@ function UserManagement() {
           )
           break
         }
-
         if (
           targetUserID === undefined ||
           targetUserID === null ||
@@ -2261,7 +2146,6 @@ function UserManagement() {
           )
           break
         }
-
         try {
           const response = await fetch(
             UPDATE_USER_STATUS_API_URL,
@@ -2278,21 +2162,17 @@ function UserManagement() {
               }),
             },
           )
-
           const data = await response.json()
-
           if (!response.ok || !data.success) {
             throw new Error(
               data.message ||
                 'Unable to update the account status.',
             )
           }
-
           const updatedStatus =
             data.user?.status === 'Inactive'
               ? 'Inactive'
               : 'Active'
-
           setUsers(
             current =>
               current.map(
@@ -2305,7 +2185,6 @@ function UserManagement() {
                     : u,
               ),
           )
-
           window.alert(
             data.message ||
               `${user.name}'s account is now ${updatedStatus}.`,
@@ -2317,10 +2196,8 @@ function UserManagement() {
               : 'Unable to update the account status. Please try again.',
           )
         }
-
         break
       }
-
       case 'delete': {
         if (
           !window.confirm(
@@ -2329,7 +2206,6 @@ function UserManagement() {
         ) {
           break
         }
-
         const adminUserID = session?.user?.userID
         const targetUserID = user.userID
 
@@ -2343,7 +2219,6 @@ function UserManagement() {
           )
           break
         }
-
         if (
           targetUserID === undefined ||
           targetUserID === null ||
@@ -2354,7 +2229,6 @@ function UserManagement() {
           )
           break
         }
-
         try {
           const response = await fetch(
             DELETE_USER_API_URL,
@@ -2370,16 +2244,13 @@ function UserManagement() {
               }),
             },
           )
-
           const data = await response.json()
-
           if (!response.ok || !data.success) {
             throw new Error(
               data.message ||
                 'Unable to delete the user account.',
             )
           }
-
           setUsers(
             current =>
               current.filter(
@@ -2388,7 +2259,6 @@ function UserManagement() {
                   user.id,
               ),
           )
-
           setSelectedUserId(
             current =>
               current ===
@@ -2396,7 +2266,6 @@ function UserManagement() {
                 ? null
                 : current,
           )
-
           window.alert(
             data.message ||
               `${user.name}'s account was deleted successfully.`,
@@ -2408,15 +2277,11 @@ function UserManagement() {
               : 'Unable to delete the user account. Please try again.',
           )
         }
-
         break
       }
     }
   }
-
-
   /* AFTER CREATE */
-
   const handleUserCreated = (
     createdUser: User,
   ) => {
@@ -2426,20 +2291,14 @@ function UserManagement() {
         ...current,
       ],
     )
-
     setShowCreateUser(false)
-
     setSelectedUserId(
       createdUser.id,
     )
-
     setQuery('')
     setRole('All Roles')
   }
-
-
   /* RENDER*/
-
   return (
     <div
       className={`admin-shell${
@@ -2449,19 +2308,16 @@ function UserManagement() {
       }`}
     >
       {/*SIDEBAR*/}
-
       <aside className="admin-sidebar">
         <div className="sidebar-brand">
           <img
             src={logo}
             alt="Batangas City seal"
           />
-
           <strong>
             Batang<span>AI</span>
           </strong>
         </div>
-
         <nav
           className="sidebar-nav"
           aria-label="Administrator navigation"
@@ -2488,7 +2344,6 @@ function UserManagement() {
                     item.icon
                   }
                 />
-
                 <span>
                   {item.label}
                 </span>
@@ -2497,13 +2352,9 @@ function UserManagement() {
           )}
         </nav>
       </aside>
-
-
       {/* MAIN*/}
-
       <main className="admin-main">
         {/*  TOPBAR*/}
-
         <header className="admin-topbar">
           <button
             className="menu-button"
@@ -2526,23 +2377,19 @@ function UserManagement() {
             <h1>
               User Management
             </h1>
-
             <p>
               Manage all system
               accounts and
               permissions.
             </p>
           </div>
-
           <ThemeToggle
             theme={theme}
             onToggle={
               toggleTheme
             }
           />
-
           <AdminNotifications />
-
           <ProfileMenu
             name={adminName}
             role={adminRole}
@@ -2551,9 +2398,7 @@ function UserManagement() {
             }
           />
         </header>
-
         {/*  CONTENT*/}
-
         <div className="dashboard-content">
           {/*STATISTICS*/}
           <section className="statistics-grid um-stats">
@@ -2565,7 +2410,6 @@ function UserManagement() {
               title="Total Users"
               tone="green"
             />
-
             <StatCard
               icon="profile"
               number={
@@ -2578,7 +2422,6 @@ function UserManagement() {
               title="Employee"
               tone="blue"
             />
-
             <StatCard
               icon="incidents"
               number={
@@ -2591,7 +2434,6 @@ function UserManagement() {
               title="Secretary"
               tone="orange"
             />
-
             <StatCard
               icon="shield"
               number={
@@ -2604,7 +2446,6 @@ function UserManagement() {
               title="IT Personnel"
               tone="blue"
             />
-
             <StatCard
               icon="admin"
               number={
@@ -2729,37 +2570,61 @@ function UserManagement() {
               search or filter.
             </div>
           )}
-          {/* SELECTED USER DETAILS*/}
-          <div
-            className={`um-details-wrap${
-              selectedUser
-                ? ' open'
-                : ''
-            }`}
-          >
-            <div className="um-details-inner">
-              {selectedUser && (
-                <UserDetails
-                  user={
-                    selectedUser
-                  }
-                />
-              )}
-            </div>
-          </div>
         </div>
       </main>
-      {/*CREATE USER MODAL*/}
+      {selectedUser && (
+        <div
+          className="um-modal-backdrop"
+          role="presentation"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) {
+              setSelectedUserId(null)
+              setPanelMode('view')
+            }
+          }}
+        >
+          <section
+            className="um-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${
+              panelMode === 'edit'
+                ? 'Edit'
+                : panelMode === 'reset'
+                  ? 'Reset password for'
+                  : 'Profile for'
+            } ${selectedUser.name}`}
+          >
+            <button
+              className="um-modal-close"
+              type="button"
+              onClick={() => {
+                setSelectedUserId(null)
+                setPanelMode('view')
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <UserDetails
+              user={selectedUser}
+              mode={panelMode}
+              onModeChange={setPanelMode}
+              onSaved={async () => {
+                await loadUsers()
+                setPanelMode('view')
+              }}
+            />
+          </section>
+        </div>
+      )}
+      {/* CREATE USER MODAL */}
       {showCreateUser && (
         <CreateUserModal
           onClose={() =>
-            setShowCreateUser(
-              false,
-            )
+            setShowCreateUser(false)
           }
-          onCreated={
-            handleUserCreated
-          }
+          onCreated={handleUserCreated}
         />
       )}
     </div>

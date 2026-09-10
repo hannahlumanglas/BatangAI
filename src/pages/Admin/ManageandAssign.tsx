@@ -948,6 +948,16 @@ function ManageAndAssign({
     void loadData()
   }, [])
 
+  // A report can be submitted or assigned from another user's session.
+  // Refresh the shared queue so each role sees the change without a manual reload.
+  useEffect(() => {
+    const refreshInterval = window.setInterval(() => {
+      void loadData()
+    }, 15000)
+
+    return () => window.clearInterval(refreshInterval)
+  }, [])
+
   /* ---------- Logout ---------- */
 
   const handleLogout = () => {
@@ -1098,10 +1108,9 @@ function ManageAndAssign({
                   String(
                     selectedPersonnel.userID,
                   ),
-                status:
-                  incident.status === 'Pending'
-                    ? 'In Progress'
-                    : incident.status,
+                // Assignment only puts the report in the selected IT user's
+                // queue. It becomes In Progress when that user takes action.
+                status: 'Pending',
               }
             : incident,
         ),

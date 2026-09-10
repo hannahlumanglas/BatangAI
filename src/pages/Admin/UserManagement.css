@@ -1352,3 +1352,171 @@
   .um-modal-actions {
   border-top-color: var(--card-border);
 }
+
+/* =========================================================
+   USER DETAILS / EDIT MODAL
+   ========================================================= */
+
+.um-modal {
+  position: relative;
+  width: min(940px, 100%);
+  max-height: calc(100vh - 56px);
+  overflow: auto;
+  padding: 26px;
+  background: var(--card-bg);
+  border: 1px solid color-mix(in srgb, var(--card-bg) 78%, #fff);
+  border-radius: 18px;
+  box-shadow: 0 28px 72px rgba(10, 25, 50, 0.28);
+  animation: um-modal-rise 0.2s ease-out;
+}
+
+.um-modal .um-details-grid {
+  padding-top: 0;
+}
+
+.um-modal .um-edit-card {
+  max-width: none;
+}
+
+.um-modal .dashboard-card {
+  box-shadow: none;
+}
+
+@keyframes um-modal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.um-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.um-panel-heading h2 {
+  margin: 2px 0 5px;
+  color: var(--text-heading);
+  font-size: var(--font-card-title);
+  font-weight: 750;
+}
+
+.um-panel-heading span {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--font-secondary);
+  line-height: 1.45;
+}
+
+.um-eyebrow {
+  margin: 0;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.um-edit-card {
+  max-width: 900px;
+}
+
+.um-edit-card > header,
+.um-edit-card > footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.um-edit-card > header {
+  padding-bottom: 18px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.um-edit-card > header h2 {
+  margin: 0;
+  color: var(--text-heading);
+  font-size: var(--font-card-title);
+}
+
+.um-edit-card > header p {
+  margin: 5px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-secondary);
+}
+
+.um-edit-card > footer {
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.um-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.um-field select {
+  height: 42px;
+  padding: 0 12px;
+  color: var(--text-heading);
+  font: inherit;
+  font-size: var(--font-input);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  outline: 0;
+}
+
+.um-text-button {
+  padding: 7px 0;
+  color: var(--primary);
+  font: inherit;
+  font-size: var(--font-button);
+  font-weight: 700;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.um-password-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+@media (max-width: 560px) {
+  .um-edit-grid,
+  .um-account-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .um-account-fields > div:first-child {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .um-modal {
+    max-height: calc(100vh - 24px);
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .um-modal .um-panel-heading {
+    padding-right: 34px;
+  }
+}
