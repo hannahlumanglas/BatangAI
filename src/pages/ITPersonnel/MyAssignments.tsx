@@ -33,6 +33,10 @@ type Ticket = {
   classification?: string
   summary?: string
   troubleshooting?: string[]
+
+  resolutionNotes?: string
+  resolvedBy?: string
+  resolvedAt?: string
 }
 
 type IconName =
@@ -179,9 +183,7 @@ function ITProfileMenu({
     const close = (event: MouseEvent) => {
       if (
         rootRef.current &&
-        !rootRef.current.contains(
-          event.target as Node,
-        )
+        !rootRef.current.contains(event.target as Node)
       ) {
         setOpen(false)
       }
@@ -382,6 +384,13 @@ function MyAssignments() {
   const [actionLoading, setActionLoading] =
     useState<string | null>(null)
 
+  const [resolutionTicket, setResolutionTicket] =
+    useState<Ticket | null>(null)
+  const [resolutionNotes, setResolutionNotes] =
+    useState('')
+  const [resolutionLoading, setResolutionLoading] =
+    useState(false)
+
   const currentUserId = getCurrentUserId()
   const currentUserName = getCurrentUserName()
 
@@ -389,10 +398,14 @@ function MyAssignments() {
     loadAssignments()
   }, [])
 
-  // New assignments are made by the admin or secretary in a separate session.
   useEffect(() => {
-    const refreshInterval = window.setInterval(loadAssignments, 15000)
-    return () => window.clearInterval(refreshInterval)
+    const refreshInterval = window.setInterval(
+      loadAssignments,
+      15000,
+    )
+
+    return () =>
+      window.clearInterval(refreshInterval)
   }, [])
 
   const loadAssignments = async () => {
@@ -553,6 +566,18 @@ function MyAssignments() {
               incident.summary,
 
             troubleshooting,
+
+            resolutionNotes:
+              incident.resolutionNotes ||
+              undefined,
+
+            resolvedBy:
+              incident.resolvedBy ||
+              undefined,
+
+            resolvedAt:
+              incident.resolvedAt ||
+              undefined,
           }
         })
 
@@ -584,7 +609,7 @@ function MyAssignments() {
   )
 
   const takeAction = async (id: string) => {
-    if (actionLoading) {
+    if (actionLoading || resolutionLoading) {
       return
     }
 
@@ -614,11 +639,6 @@ function MyAssignments() {
         )
       }
 
-      /*
-       * Update the ticket immediately in React.
-       * This makes the status visible without
-       * refreshing the browser.
-       */
       setTickets(current =>
         current.map(ticket =>
           ticket.id === id
@@ -631,10 +651,6 @@ function MyAssignments() {
         ),
       )
 
-      /*
-       * If the report modal is currently open,
-       * update the selected report too.
-       */
       setSelected(current =>
         current && current.id === id
           ? {
@@ -657,6 +673,142 @@ function MyAssignments() {
       )
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const openResolution = (ticket: Ticket) => {
+    setResolutionTicket(ticket)
+    setResolutionNotes(
+      ticket.resolutionNotes || '',
+    )
+  }
+
+  const closeResolution = () => {
+    if (resolutionLoading) {
+      return
+    }
+
+    setResolutionTicket(null)
+    setResolutionNotes('')
+  }
+
+  const resolveIncident = async () => {
+    if (
+      !resolutionTicket ||
+      resolutionLoading
+    ) {
+      return
+    }
+
+    const notes = resolutionNotes.trim()
+
+    if (!notes) {
+      alert(
+        'Please enter the resolution notes before resolving this incident.',
+      )
+      return
+    }
+
+    try {
+      setResolutionLoading(true)
+
+      const response = await fetch(
+        'http://localhost/BatangAI/api/update_incident_status.php',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            incidentID: resolutionTicket.id,
+            status: 'Resolved',
+            resolvedBy: currentUserName,
+            resolutionNotes: notes,
+          }),
+        },
+      )
+
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message ||
+            'Failed to resolve incident.',
+        )
+      }
+
+      const resolvedIncident =
+        data.incident || {}
+
+      const resolvedAt =
+        resolvedIncident.resolvedAt ||
+        new Date().toISOString()
+
+      const durationMinutes =
+        resolvedIncident.durationMinutes
+
+      const updatedDuration =
+        durationMinutes !== null &&
+        durationMinutes !== undefined
+          ? formatDuration(durationMinutes)
+          : resolutionTicket.duration
+
+      setTickets(current =>
+        current.map(ticket =>
+          ticket.id === resolutionTicket.id
+            ? {
+                ...ticket,
+                status: 'solved',
+                resolutionNotes: notes,
+                resolvedBy:
+                  resolvedIncident.resolvedBy ||
+                  currentUserName,
+                resolvedAt,
+                duration:
+                  updatedDuration,
+              }
+            : ticket,
+        ),
+      )
+
+      setSelected(current =>
+        current &&
+        current.id === resolutionTicket.id
+          ? {
+              ...current,
+              status: 'solved',
+              resolutionNotes: notes,
+              resolvedBy:
+                resolvedIncident.resolvedBy ||
+                currentUserName,
+              resolvedAt,
+              duration:
+                updatedDuration,
+            }
+          : current,
+      )
+
+      setResolutionTicket(null)
+      setResolutionNotes('')
+
+      alert(
+        'Incident resolved successfully.',
+      )
+
+      await loadAssignments()
+    } catch (err) {
+      console.error(
+        'Resolve Incident error:',
+        err,
+      )
+
+      alert(
+        err instanceof Error
+          ? err.message
+          : 'Failed to resolve this incident.',
+      )
+    } finally {
+      setResolutionLoading(false)
     }
   }
 
@@ -823,7 +975,11 @@ function MyAssignments() {
                   tickets={available}
                   onView={setSelected}
                   onTakeAction={takeAction}
+                  onResolve={openResolution}
                   actionLoading={actionLoading}
+                  resolutionLoading={
+                    resolutionLoading
+                  }
                 />
               )}
 
@@ -834,7 +990,11 @@ function MyAssignments() {
                   tickets={inProgress}
                   onView={setSelected}
                   onTakeAction={takeAction}
+                  onResolve={openResolution}
                   actionLoading={actionLoading}
+                  resolutionLoading={
+                    resolutionLoading
+                  }
                 />
               )}
 
@@ -845,7 +1005,11 @@ function MyAssignments() {
                   tickets={solved}
                   onView={setSelected}
                   onTakeAction={takeAction}
+                  onResolve={openResolution}
                   actionLoading={actionLoading}
+                  resolutionLoading={
+                    resolutionLoading
+                  }
                 />
               )}
             </>
@@ -860,7 +1024,24 @@ function MyAssignments() {
             setSelected(null)
           }
           onTakeAction={takeAction}
+          onResolve={openResolution}
           actionLoading={actionLoading}
+          resolutionLoading={
+            resolutionLoading
+          }
+        />
+      )}
+
+      {resolutionTicket && (
+        <ResolutionModal
+          ticket={resolutionTicket}
+          resolutionNotes={resolutionNotes}
+          setResolutionNotes={
+            setResolutionNotes
+          }
+          onClose={closeResolution}
+          onResolve={resolveIncident}
+          loading={resolutionLoading}
         />
       )}
     </div>
@@ -873,14 +1054,18 @@ function TicketGroup({
   tickets,
   onView,
   onTakeAction,
+  onResolve,
   actionLoading,
+  resolutionLoading,
 }: {
   title: string
   tone: Status
   tickets: Ticket[]
   onView: (ticket: Ticket) => void
   onTakeAction: (id: string) => void
+  onResolve: (ticket: Ticket) => void
   actionLoading: string | null
+  resolutionLoading: boolean
 }) {
   return (
     <section
@@ -917,7 +1102,6 @@ function TicketGroup({
             </b>
           </div>
 
-          {/* STATUS */}
           <div className="ticket-status-row">
             <span
               className={`ticket-status ticket-status--${ticket.status}`}
@@ -968,7 +1152,8 @@ function TicketGroup({
                 type="button"
                 className="take-action"
                 disabled={
-                  actionLoading === ticket.id
+                  actionLoading === ticket.id ||
+                  resolutionLoading
                 }
                 onClick={() =>
                   onTakeAction(ticket.id)
@@ -981,13 +1166,20 @@ function TicketGroup({
             )}
 
             {ticket.status === 'in-progress' && (
-              <button
-                type="button"
-                className="take-action"
-                disabled
-              >
-                ✓ In Progress
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="take-action"
+                  disabled={
+                    resolutionLoading
+                  }
+                  onClick={() =>
+                    onResolve(ticket)
+                  }
+                >
+                  ✓ Resolve Incident
+                </button>
+              </>
             )}
 
             {ticket.status === 'solved' && (
@@ -1009,13 +1201,24 @@ function ReportModal({
   ticket,
   onClose,
   onTakeAction,
+  onResolve,
   actionLoading,
+  resolutionLoading,
 }: {
   ticket: Ticket
   onClose: () => void
   onTakeAction: (id: string) => void
+  onResolve: (ticket: Ticket) => void
   actionLoading: string | null
+  resolutionLoading: boolean
 }) {
+  const statusText =
+    ticket.status === 'available'
+      ? 'Pending'
+      : ticket.status === 'in-progress'
+        ? 'In Progress'
+        : 'Resolved'
+
   return (
     <div
       className="assignment-modal-backdrop"
@@ -1088,11 +1291,7 @@ function ReportModal({
 
             <p>
               <span>Status</span>
-              {ticket.status === 'available'
-                ? 'Pending'
-                : ticket.status === 'in-progress'
-                  ? 'In Progress'
-                  : 'Resolved'}
+              {statusText}
             </p>
           </div>
 
@@ -1143,6 +1342,48 @@ function ReportModal({
                 </ol>
               )}
           </section>
+
+          {ticket.status === 'solved' && (
+            <section className="report-problem">
+              <span>
+                RESOLUTION
+              </span>
+
+              <p>
+                {ticket.resolutionNotes ||
+                  'No resolution notes provided.'}
+              </p>
+
+              {ticket.resolvedBy && (
+                <p>
+                  <strong>
+                    Resolved by:
+                  </strong>{' '}
+                  {ticket.resolvedBy}
+                </p>
+              )}
+
+              {ticket.resolvedAt && (
+                <p>
+                  <strong>
+                    Resolved at:
+                  </strong>{' '}
+                  {formatDateTime(
+                    ticket.resolvedAt,
+                  )}
+                </p>
+              )}
+
+              {ticket.duration && (
+                <p>
+                  <strong>
+                    Resolution duration:
+                  </strong>{' '}
+                  {ticket.duration}
+                </p>
+              )}
+            </section>
+          )}
         </div>
 
         {ticket.status === 'available' && (
@@ -1150,7 +1391,8 @@ function ReportModal({
             <button
               type="button"
               disabled={
-                actionLoading === ticket.id
+                actionLoading === ticket.id ||
+                resolutionLoading
               }
               onClick={() =>
                 onTakeAction(ticket.id)
@@ -1167,12 +1409,178 @@ function ReportModal({
           <footer>
             <button
               type="button"
-              disabled
+              disabled={resolutionLoading}
+              onClick={() =>
+                onResolve(ticket)
+              }
             >
-              ✓ In Progress
+              ✓ Resolve Incident
             </button>
           </footer>
         )}
+
+        {ticket.status === 'solved' && (
+          <footer>
+            <button
+              type="button"
+              disabled
+            >
+              ✓ Resolved
+            </button>
+          </footer>
+        )}
+      </section>
+    </div>
+  )
+}
+
+function ResolutionModal({
+  ticket,
+  resolutionNotes,
+  setResolutionNotes,
+  onClose,
+  onResolve,
+  loading,
+}: {
+  ticket: Ticket
+  resolutionNotes: string
+  setResolutionNotes: (
+    value: string,
+  ) => void
+  onClose: () => void
+  onResolve: () => void
+  loading: boolean
+}) {
+  return (
+    <div
+      className="assignment-modal-backdrop"
+      role="presentation"
+      onMouseDown={event => {
+        if (
+          event.target ===
+          event.currentTarget &&
+          !loading
+        ) {
+          onClose()
+        }
+      }}
+    >
+      <section
+        className="assignment-report"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="resolution-title"
+      >
+        <header>
+          <div>
+            <h2 id="resolution-title">
+              Resolve Incident
+            </h2>
+
+            <p className="person-line-label">
+              {ticket.id} — {ticket.title}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Close resolution form"
+            disabled={loading}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="report-body">
+          <section className="report-problem">
+            <span>
+              INCIDENT
+            </span>
+
+            <p>
+              <strong>
+                Reported by:
+              </strong>{' '}
+              {ticket.reporter}
+            </p>
+
+            <p>
+              <strong>
+                Problem:
+              </strong>{' '}
+              {ticket.description ||
+                'No problem description provided.'}
+            </p>
+
+            <p>
+              <strong>
+                Current status:
+              </strong>{' '}
+              In Progress
+            </p>
+          </section>
+
+          <section className="report-problem">
+            <span>
+              RESOLUTION NOTES
+            </span>
+
+            <textarea
+              value={resolutionNotes}
+              onChange={event =>
+                setResolutionNotes(
+                  event.target.value,
+                )
+              }
+              placeholder="Describe the troubleshooting performed, solution applied, or replacement made..."
+              rows={7}
+              disabled={loading}
+              autoFocus
+            />
+          </section>
+
+          <section className="ai-solution">
+            <header>
+              <strong>
+                ✓ Ready to Resolve
+              </strong>
+
+              <span>
+                IT Personnel
+              </span>
+            </header>
+
+            <p>
+              Submitting this form will mark
+              the incident as Resolved and
+              record the resolution time.
+            </p>
+          </section>
+        </div>
+
+        <footer>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            disabled={
+              loading ||
+              !resolutionNotes.trim()
+            }
+            onClick={onResolve}
+          >
+            {loading
+              ? 'Resolving...'
+              : '✓ Submit Resolution'}
+          </button>
+        </footer>
       </section>
     </div>
   )

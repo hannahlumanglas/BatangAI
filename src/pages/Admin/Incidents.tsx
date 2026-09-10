@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { PersonName } from '../../components/PersonName'
 import { AdminNotifications } from './AdminNotifications'
-import { getCurrentUserId } from '../../auth'
 import './Dashboard.css'
 import './Incidents.css'
 
@@ -704,9 +703,9 @@ function Incidents({
 
   const isIT = audience === 'it'
 
-  // IT personnel should only ever see reports specifically assigned to them.
-  // Administrators and secretaries share the incoming-report queue.
-  const currentUserId = getCurrentUserId()
+  // IT personnel can see the complete incident queue.
+  // Assignment determines who is responsible for working on an incident,
+  // while All Incidents remains visible to every IT Personnel account.
 
   const roleNavigation = isSecretary
     ? navigation
@@ -874,16 +873,8 @@ function Incidents({
   }, [])
 
   const roleIncidents = useMemo(
-    () =>
-      isIT
-        ? incidents.filter(
-            incident =>
-              incident.assignedTo !== null &&
-              currentUserId !== null &&
-              String(incident.assignedTo) === String(currentUserId),
-          )
-        : incidents,
-    [incidents, isIT, currentUserId],
+    () => incidents,
+    [incidents],
   )
 
   /* FILTERS*/

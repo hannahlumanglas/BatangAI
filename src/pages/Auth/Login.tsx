@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+
 import logo from '../../assets/logo.png'
 import { signIn } from '../../auth'
+
 import './Login.css'
 
 function Login() {
@@ -10,11 +12,11 @@ function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+
   const navigate = useNavigate()
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-
     setErrorMessage('')
 
     if (!email.trim() || !password) {
@@ -41,16 +43,21 @@ function Login() {
       navigate('/employee/report-incident')
     }
   }
-    
 
   return (
     <main className="login-page">
       <section className="login-card" aria-labelledby="login-heading">
         <header className="login-heading">
-          <img className="login-logo" src={logo} alt="Batangas City seal" />
+          <img
+            className="login-logo"
+            src={logo}
+            alt="Batangas City seal"
+          />
+
           <h2 id="login-heading">
             Batang<span>AI</span>
           </h2>
+
           <p>
             AI-Integrated Network Incident Reporting and Troubleshooting Support
             System
@@ -60,11 +67,13 @@ function Login() {
         <form className="login-form" onSubmit={handleLogin}>
           <div className="login-field">
             <label htmlFor="email">Email Address</label>
+
             <div className="input-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="8" r="3.25" />
                 <path d="M5.5 19c.6-3.3 3.04-5 6.5-5s5.9 1.7 6.5 5" />
               </svg>
+
               <input
                 id="email"
                 name="email"
@@ -80,12 +89,20 @@ function Login() {
 
           <div className="login-field">
             <label htmlFor="password">Password</label>
+
             <div className="input-wrap password-wrap">
               <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="5.5" y="10" width="13" height="10" rx="1.5" />
+                <rect
+                  x="5.5"
+                  y="10"
+                  width="13"
+                  height="10"
+                  rx="1.5"
+                />
                 <path d="M8.5 10V7.5a3.5 3.5 0 0 1 7 0V10" />
                 <path d="M12 14v2" />
               </svg>
+
               <input
                 id="password"
                 name="password"
@@ -96,6 +113,7 @@ function Login() {
                 onChange={(event) => setPassword(event.target.value)}
                 required
               />
+
               <button
                 className="password-toggle"
                 type="button"
@@ -117,9 +135,16 @@ function Login() {
 
           <button className="login-button" type="submit">
             <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="6.5" y="10.5" width="11" height="9" rx="1.4" />
+              <rect
+                x="6.5"
+                y="10.5"
+                width="11"
+                height="9"
+                rx="1.4"
+              />
               <path d="M9 10.5v-2a3 3 0 0 1 6 0v2M12 14v2" />
             </svg>
+
             Login
           </button>
 
@@ -127,28 +152,29 @@ function Login() {
             <p
               role="alert"
               aria-live="assertive"
-              style={{ color: '#c62f2f', fontSize: '13px', margin: '-7px 0 0' }}
+              style={{
+                color: '#c62f2f',
+                fontSize: '13px',
+                margin: '-7px 0 0',
+              }}
             >
               {errorMessage}
             </p>
           )}
-
-          <p className="register-link">
-            Don't have an account?{' '}
-            <Link to="/register">Register here</Link>
-          </p>
-          
         </form>
 
         <footer className="login-footer">
           <span />
+
           <p>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M12 3 19 6v5c0 4.4-2.8 7.45-7 9-4.2-1.55-7-4.6-7-9V6l7-3Z" />
               <path d="m8.7 12 2.05 2.05 4.55-4.65" />
             </svg>
+
             Authorized personnel only
           </p>
+
           <span />
         </footer>
       </section>

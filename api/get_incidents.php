@@ -2,8 +2,8 @@
 
 header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json");
+header("Access-Control-Allow-Headers: Content-Type, Accept");
+header("Content-Type: application/json; charset=UTF-8");
 
 // Handle browser preflight request
 if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
@@ -30,7 +30,8 @@ require_once "config.php";
 | Get all incidents
 |--------------------------------------------------------------------------
 |
-| Newest incidents appear first.
+| The All Incidents page needs the complete incident record from MySQL.
+| Results are ordered from newest to oldest.
 |
 */
 
@@ -72,7 +73,9 @@ if (!$result) {
 
     echo json_encode([
         "success" => false,
-        "message" => "Failed to retrieve incidents.",
+        "count" => 0,
+        "incidents" => [],
+        "message" => "Failed to retrieve incident reports.",
         "error" => $conn->error
     ]);
 
@@ -80,37 +83,92 @@ if (!$result) {
     exit;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Build incident list
+|--------------------------------------------------------------------------
+*/
+
 $incidents = [];
 
 while ($row = $result->fetch_assoc()) {
-    $incidents[] = [
-        "incidentID" => $row["incidentID"],
-        "affectedIssue" => $row["affectedIssue"],
-        "classification" => $row["classification"],
-        "connectionType" => $row["connectionType"],
-        "createdAt" => $row["createdAt"],
-        "department" => $row["department"],
-        "description" => $row["description"],
-        "deviceType" => $row["deviceType"],
-        "employeeName" => $row["employeeName"],
-        "issueCategory" => $row["issueCategory"],
-        "location" => $row["location"],
-        "resolvedAt" => $row["resolvedAt"],
-        "resolvedBy" => $row["resolvedBy"],
-        "severity" => $row["severity"],
-        "status" => $row["status"],
-        "summary" => $row["summary"],
-        "troubleshooting" => $row["troubleshooting"],
-        "userId" => $row["userId"],
-        "assigned" => $row["assigned"],
-        "assignedAt" => $row["assignedAt"],
-        "assignedTo" => $row["assignedTo"],
-        "assignedToName" => $row["assignedToName"],
-        "durationMinutes" => $row["durationMinutes"],
-        "resolutionNotes" => $row["resolutionNotes"],
-        "startedAt" => $row["startedAt"]
-    ];
+
+    $row["incidentID"] = (string)($row["incidentID"] ?? "");
+    $row["affectedIssue"] = (string)($row["affectedIssue"] ?? "");
+    $row["classification"] = $row["classification"] !== null
+        ? (string)$row["classification"]
+        : null;
+
+    $row["connectionType"] = $row["connectionType"] !== null
+        ? (string)$row["connectionType"]
+        : null;
+
+    $row["createdAt"] = (string)($row["createdAt"] ?? "");
+    $row["department"] = (string)($row["department"] ?? "");
+    $row["description"] = (string)($row["description"] ?? "");
+    $row["deviceType"] = $row["deviceType"] !== null
+        ? (string)$row["deviceType"]
+        : null;
+
+    $row["employeeName"] = (string)($row["employeeName"] ?? "");
+    $row["issueCategory"] = (string)($row["issueCategory"] ?? "");
+    $row["location"] = (string)($row["location"] ?? "");
+
+    $row["resolvedAt"] = $row["resolvedAt"] !== null
+        ? (string)$row["resolvedAt"]
+        : null;
+
+    $row["resolvedBy"] = $row["resolvedBy"] !== null
+        ? (string)$row["resolvedBy"]
+        : null;
+
+    $row["severity"] = (string)($row["severity"] ?? "Low");
+    $row["status"] = (string)($row["status"] ?? "Pending");
+
+    $row["summary"] = $row["summary"] !== null
+        ? (string)$row["summary"]
+        : null;
+
+    $row["troubleshooting"] = $row["troubleshooting"] !== null
+        ? (string)$row["troubleshooting"]
+        : null;
+
+    $row["userId"] = (string)($row["userId"] ?? "");
+
+    $row["assigned"] = (string)($row["assigned"] ?? "No");
+
+    $row["assignedAt"] = $row["assignedAt"] !== null
+        ? (string)$row["assignedAt"]
+        : null;
+
+    $row["assignedTo"] = $row["assignedTo"] !== null
+        ? (string)$row["assignedTo"]
+        : null;
+
+    $row["assignedToName"] = $row["assignedToName"] !== null
+        ? (string)$row["assignedToName"]
+        : null;
+
+    $row["durationMinutes"] = $row["durationMinutes"] !== null
+        ? (int)$row["durationMinutes"]
+        : null;
+
+    $row["resolutionNotes"] = $row["resolutionNotes"] !== null
+        ? (string)$row["resolutionNotes"]
+        : null;
+
+    $row["startedAt"] = $row["startedAt"] !== null
+        ? (string)$row["startedAt"]
+        : null;
+
+    $incidents[] = $row;
 }
+
+/*
+|--------------------------------------------------------------------------
+| Successful response
+|--------------------------------------------------------------------------
+*/
 
 echo json_encode([
     "success" => true,
@@ -118,5 +176,7 @@ echo json_encode([
     "incidents" => $incidents
 ]);
 
+$result->free();
 $conn->close();
+
 ?>
