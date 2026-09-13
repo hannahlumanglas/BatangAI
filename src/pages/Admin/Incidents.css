@@ -293,10 +293,12 @@
 
 .new-incident-modal{
   display:flex;
+  flex:none;
   flex-direction:column;
   width:100%;
-  max-width:720px;
+  max-width:600px !important;
   max-height:min(90vh,900px);
+  margin:0 auto;
   background:var(--card, #fff);
   border-radius:20px;
   box-shadow:var(--shadow-hover);
@@ -312,6 +314,25 @@
   padding:22px 24px 4px;
 }
 
+.new-incident-heading{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+}
+
+.new-incident-icon{
+  display:inline-grid;
+  flex:none;
+  width:40px;
+  height:40px;
+  place-items:center;
+  color:#fff;
+  background:var(--success);
+  border-radius:50%;
+}
+
+.new-incident-icon svg{ width:20px; height:20px; }
+
 .new-incident-header h2{ margin:0 0 4px; color:var(--text); font-size:var(--font-heading); font-weight:800; }
 .new-incident-header p{ margin:0; color:var(--text); font-size:var(--font-body); }
 
@@ -325,7 +346,7 @@
 
 .new-incident-footer{
   display:flex;
-  flex-direction:column-reverse;
+  justify-content:flex-end;
   gap:10px;
   margin-top:8px;
   padding-top:4px;

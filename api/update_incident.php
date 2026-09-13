@@ -37,16 +37,74 @@ if (!$data) {
 }
 
 $incidentID = trim($data['incidentID'] ?? '');
-$severity = trim($data['severity'] ?? '');
 
-$allowedSeverity = ['High', 'Medium', 'Low'];
-
-if ($incidentID === '' || !in_array($severity, $allowedSeverity, true)) {
+if ($incidentID === '') {
     http_response_code(400);
 
     echo json_encode([
         "success" => false,
-        "message" => "Valid incident ID and severity are required."
+        "message" => "Valid incident ID is required."
+    ]);
+
+    exit;
+}
+
+/*
+ * Every column this endpoint is allowed to touch, and how to bind it.
+ * Only keys actually present in the request body get updated — this is
+ * what keeps the old "Admin sets severity only" call working exactly as
+ * before, while also supporting Edit Incident's full-record update (all
+ * of these fields plus a freshly regenerated AI analysis) in one request.
+ */
+$updatableFields = [
+    'department'      => 's',
+    'location'        => 's',
+    'issueCategory'   => 's',
+    'deviceType'      => 's',
+    'connectionType'  => 's',
+    'affectedIssue'   => 's',
+    'description'     => 's',
+    'severity'        => 's',
+    'classification'  => 's',
+    'summary'         => 's',
+    'troubleshooting' => 's',
+];
+
+$allowedSeverity = ['High', 'Medium', 'Low'];
+
+$setParts = [];
+$bindTypes = '';
+$bindValues = [];
+
+foreach ($updatableFields as $field => $bindType) {
+    if (!array_key_exists($field, $data)) {
+        continue;
+    }
+
+    $value = trim((string) $data[$field]);
+
+    if ($field === 'severity' && !in_array($value, $allowedSeverity, true)) {
+        http_response_code(400);
+
+        echo json_encode([
+            "success" => false,
+            "message" => "Severity must be High, Medium, or Low."
+        ]);
+
+        exit;
+    }
+
+    $setParts[] = "`$field` = ?";
+    $bindTypes .= $bindType;
+    $bindValues[] = $value;
+}
+
+if (empty($setParts)) {
+    http_response_code(400);
+
+    echo json_encode([
+        "success" => false,
+        "message" => "No valid fields were provided to update."
     ]);
 
     exit;
@@ -54,7 +112,7 @@ if ($incidentID === '' || !in_array($severity, $allowedSeverity, true)) {
 
 $sql = "
     UPDATE incidents
-    SET severity = ?
+    SET " . implode(", ", $setParts) . "
     WHERE incidentID = ?
 ";
 
@@ -71,18 +129,17 @@ if (!$stmt) {
     exit;
 }
 
-$stmt->bind_param(
-    "ss",
-    $severity,
-    $incidentID
-);
+$bindTypes .= 's';
+$bindValues[] = $incidentID;
+
+$stmt->bind_param($bindTypes, ...$bindValues);
 
 if (!$stmt->execute()) {
     http_response_code(500);
 
     echo json_encode([
         "success" => false,
-        "message" => "Failed to update severity.",
+        "message" => "Failed to update the incident.",
         "error" => $stmt->error
     ]);
 
@@ -94,7 +151,7 @@ if (!$stmt->execute()) {
 
 echo json_encode([
     "success" => true,
-    "message" => "Severity updated successfully."
+    "message" => "Incident updated successfully."
 ]);
 
 $stmt->close();

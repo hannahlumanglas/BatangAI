@@ -33,25 +33,232 @@ const navigation: { label: string; icon: IconName; path: string }[] = [
   { label: 'Profile', icon: 'profile', path: '/employee/profile' },
 ]
 
-const ISSUE_CATEGORIES = ['Network', 'Hardware', 'Software', 'Account Access', 'Other']
-const DEVICE_TYPES = ['Desktop Computer', 'Laptop', 'Printer', 'Router', 'Switch', 'Mobile Device', 'Other']
-const CONNECTION_TYPES = ['Wi-Fi', 'LAN / Ethernet', 'VPN', 'Mobile Data', 'Other']
+/* =============================================================
+   SHARED INCIDENT FORM PIECES
+   -------------------------------------------------------------
+   Exported from here (not a separate file) so Incidents.tsx can
+   import them for the Edit Incident modal. This is the SINGLE
+   SOURCE OF TRUTH for the incident fields, dropdown options, and
+   the BatangAI analysis logic — Report Incident and Edit Incident
+   both use these, so they can never drift apart.
+   ============================================================= */
 
-type EmployeeIncident = {
-  id: string
+export const ISSUE_CATEGORIES = [
+  'Network Connectivity',
+  'Hardware Malfunction',
+  'Software / Application Error',
+  'Email / Communication',
+  'Printer / Peripheral',
+  'Server / System Downtime',
+  'Security / Access Issue',
+]
+
+export const DEVICE_TYPES = ['Desktop Computer', 'Laptop', 'Printer', 'Router', 'Switch', 'Access Point']
+
+export const CONNECTION_TYPES = ['LAN', 'Wi-Fi']
+
+export type IncidentFormValues = {
   department: string
   location: string
   issueCategory: string
   deviceType: string
   connectionType: string
-  severity: 'High' | 'Medium' | 'Low'
   affectedService: string
   description: string
-  status: 'Pending'
-  date: string
 }
 
-type IncidentFormValues = Omit<EmployeeIncident, 'id' | 'status' | 'date' | 'severity'> & { severity: '' | EmployeeIncident['severity'] }
+export type IncidentAnalysis = {
+  classification: string
+  summary: string
+  troubleshooting: string
+}
+
+/*
+ * Generates the BatangAI analysis from whatever values are CURRENTLY in the
+ * form. Both Report Incident (on create) and Edit Incident (on re-analyze)
+ * call this with the live form state — never with cached/old values — so
+ * the result always reflects what's on screen at the moment of the call.
+ */
+export function generateIncidentAnalysis(values: IncidentFormValues): IncidentAnalysis {
+  return {
+    classification: `${values.issueCategory} issue`,
+    summary: `${values.affectedService} — ${values.description}`,
+    troubleshooting:
+      '1. Check the device and its network connection.\n' +
+      '2. Restart the device, then try again.\n' +
+      '3. Record any error message and send the report to IT.',
+  }
+}
+
+export function IncidentDetailsFields({
+  values,
+  onChange,
+  departmentEditable = false,
+}: {
+  values: IncidentFormValues
+  onChange: (field: keyof IncidentFormValues, value: string) => void
+  /*
+   * On Report Incident, Department is auto-filled from the employee's
+   * session and locked. On Edit Incident the employee is revising an
+   * already-submitted report, so Department is editable like every other
+   * field (per the Edit Incident requirements) — pass true there.
+   */
+  departmentEditable?: boolean
+}) {
+  return (
+    <fieldset className="incident-form-section">
+      <legend className="sr-only">Incident Details</legend>
+      <div className="incident-form-section-header">
+        <span className="incident-form-badge">1</span>
+        <h3>Incident Details</h3>
+      </div>
+      <div className="incident-form-grid">
+        <label className="incident-field">
+          <span className="incident-field-label">Department</span>
+          <input
+            value={values.department}
+            readOnly={!departmentEditable}
+            disabled={!departmentEditable}
+            onChange={e => onChange('department', e.target.value)}
+          />
+        </label>
+        <label className="incident-field">
+          <span className="incident-field-label">
+            Location / Room <em>*</em>
+          </span>
+          <input
+            required
+            placeholder="e.g. 2nd Floor, IT Room"
+            value={values.location}
+            onChange={e => onChange('location', e.target.value)}
+          />
+        </label>
+        <label className="incident-field">
+          <span className="incident-field-label">
+            Issue Category <em>*</em>
+          </span>
+          <select required value={values.issueCategory} onChange={e => onChange('issueCategory', e.target.value)}>
+            <option value="">Select a category</option>
+            {ISSUE_CATEGORIES.map(item => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label className="incident-field">
+          <span className="incident-field-label">
+            Device Type <em>*</em>
+          </span>
+          <select required value={values.deviceType} onChange={e => onChange('deviceType', e.target.value)}>
+            <option value="">Select a device type</option>
+            {DEVICE_TYPES.map(item => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label className="incident-field">
+          <span className="incident-field-label">
+            Connection Type <em>*</em>
+          </span>
+          <select required value={values.connectionType} onChange={e => onChange('connectionType', e.target.value)}>
+            <option value="">Select a connection type</option>
+            {CONNECTION_TYPES.map(item => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </fieldset>
+  )
+}
+
+export function IncidentDescriptionFields({
+  values,
+  onChange,
+}: {
+  values: IncidentFormValues
+  onChange: (field: keyof IncidentFormValues, value: string) => void
+}) {
+  return (
+    <fieldset className="incident-form-section">
+      <legend className="sr-only">Problem Description</legend>
+      <div className="incident-form-section-header">
+        <span className="incident-form-badge">2</span>
+        <h3>Problem Description</h3>
+      </div>
+      <div className="incident-form-grid incident-form-grid--single">
+        <label className="incident-field">
+          <span className="incident-field-label">
+            Affected Issue / Service <em>*</em>
+          </span>
+          <input
+            required
+            placeholder="e.g. Records System login"
+            value={values.affectedService}
+            onChange={e => onChange('affectedService', e.target.value)}
+          />
+        </label>
+        <label className="incident-field">
+          <span className="incident-field-label">
+            Detailed Problem Description <em>*</em>
+          </span>
+          <textarea
+            required
+            rows={4}
+            placeholder="Describe what happened, when it started, and any error messages you saw."
+            value={values.description}
+            onChange={e => onChange('description', e.target.value)}
+          />
+        </label>
+      </div>
+    </fieldset>
+  )
+}
+
+export function IncidentAnalysisResult({
+  analysis,
+  reviewNote,
+}: {
+  analysis: IncidentAnalysis
+  reviewNote: string
+}) {
+  return (
+    <>
+      <div className="employee-ai-result-heading">
+        <svg className="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z" />
+          <path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6L19 16Z" />
+        </svg>
+        <div>
+          <h3>BatangAI Analysis Result</h3>
+          <p>{reviewNote}</p>
+        </div>
+      </div>
+      <div className="employee-ai-block">
+        <span>Incident Summary</span>
+        <p>{analysis.summary}</p>
+      </div>
+      <div className="employee-ai-block">
+        <span>AI Classification</span>
+        <strong>{analysis.classification}</strong>
+      </div>
+      <div className="employee-ai-block">
+        <span>Possible Cause</span>
+        <p>The issue may be caused by a device, connection, or service configuration problem in the reporting location.</p>
+      </div>
+      <div className="employee-ai-block">
+        <span>Recommended Troubleshooting Steps</span>
+        <ol>
+          {analysis.troubleshooting
+            .split('\n')
+            .filter(Boolean)
+            .map(step => (
+              <li key={step}>{step.replace(/^\d+\.\s*/, '')}</li>
+            ))}
+        </ol>
+      </div>
+    </>
+  )
+}
 
 function getInitialValues(): IncidentFormValues {
   return {
@@ -60,11 +267,11 @@ function getInitialValues(): IncidentFormValues {
     issueCategory: '',
     deviceType: '',
     connectionType: '',
-    severity: '',
     affectedService: '',
     description: '',
   }
 }
+
 
 /* ---------- Theme (light/dark) — same pattern used across every admin page ---------- */
 
@@ -136,6 +343,8 @@ function ReportIncident() {
       return
     }
 
+    const analysis = generateIncidentAnalysis(values)
+
     try {
       const response = await fetch(
         'http://localhost/BatangAI/api/create_incident.php',
@@ -156,16 +365,12 @@ function ReportIncident() {
             deviceType: values.deviceType,
             connectionType: values.connectionType,
             location: values.location,
-            severity: values.severity || 'Low',
+            // Severity is set by Admin/Secretary only — not selectable by the employee.
+            severity: null,
 
-            classification: `${values.issueCategory} issue`,
-
-            summary: `${values.affectedService} — ${values.description}`,
-
-            troubleshooting:
-              '1. Check the device and its network connection.\n' +
-              '2. Restart the device, then try again.\n' +
-              '3. Record any error message and send the report to IT.',
+            classification: analysis.classification,
+            summary: analysis.summary,
+            troubleshooting: analysis.troubleshooting,
           }),
         }
       )
@@ -255,37 +460,24 @@ function ReportIncident() {
             </header>
             <div className="employee-report-dialog-body">
             {phase === 'form' ? <form className="incident-form" onSubmit={analyze}>
-              <fieldset className="incident-form-section">
-                <legend className="sr-only">Incident Details</legend>
-                <div className="incident-form-section-header"><span className="incident-form-badge">1</span><h3>Incident Details</h3></div>
-                <div className="incident-form-grid">
-                  <label className="incident-field"><span className="incident-field-label">Department</span><input value={values.department} readOnly disabled /></label>
-                  <label className="incident-field"><span className="incident-field-label">Location / Room <em>*</em></span><input required placeholder="e.g. 2nd Floor, IT Room" value={values.location} onChange={e => setValues(v => ({ ...v, location: e.target.value }))} /></label>
-                  <label className="incident-field"><span className="incident-field-label">Issue Category <em>*</em></span><select required value={values.issueCategory} onChange={e => setValues(v => ({ ...v, issueCategory: e.target.value }))}><option value="">Select a category</option>{ISSUE_CATEGORIES.map(item => <option key={item}>{item}</option>)}</select></label>
-                  <label className="incident-field"><span className="incident-field-label">Device Type <em>*</em></span><select required value={values.deviceType} onChange={e => setValues(v => ({ ...v, deviceType: e.target.value }))}><option value="">Select a device type</option>{DEVICE_TYPES.map(item => <option key={item}>{item}</option>)}</select></label>
-                  <label className="incident-field"><span className="incident-field-label">Connection Type <em>*</em></span><select required value={values.connectionType} onChange={e => setValues(v => ({ ...v, connectionType: e.target.value }))}><option value="">Select a connection type</option>{CONNECTION_TYPES.map(item => <option key={item}>{item}</option>)}</select></label>
-                  <label className="incident-field"><span className="incident-field-label">Severity <em>*</em></span><select required value={values.severity} onChange={e => setValues(v => ({ ...v, severity: e.target.value as IncidentFormValues['severity'] }))}><option value="">Select severity</option><option value="Low">Low</option><option value="Medium">Medium</option><option value="High">High</option></select></label>
-                </div>
-              </fieldset>
-              <fieldset className="incident-form-section">
-                <legend className="sr-only">Problem Description</legend>
-                <div className="incident-form-section-header"><span className="incident-form-badge">2</span><h3>Problem Description</h3></div>
-                <div className="incident-form-grid incident-form-grid--single">
-                  <label className="incident-field"><span className="incident-field-label">Affected Issue / Service <em>*</em></span><input required placeholder="e.g. Records System login" value={values.affectedService} onChange={e => setValues(v => ({ ...v, affectedService: e.target.value }))} /></label>
-                  <label className="incident-field"><span className="incident-field-label">Detailed Problem Description <em>*</em></span><textarea required rows={4} placeholder="Describe what happened, when it started, and any error messages you saw." value={values.description} onChange={e => setValues(v => ({ ...v, description: e.target.value }))} /></label>
-                </div>
-              </fieldset>
+              <IncidentDetailsFields
+                values={values}
+                onChange={(field, value) => setValues(v => ({ ...v, [field]: value }))}
+              />
+              <IncidentDescriptionFields
+                values={values}
+                onChange={(field, value) => setValues(v => ({ ...v, [field]: value }))}
+              />
               <footer className="employee-report-footer">
                 <button className="btn-secondary" type="button" onClick={closeReport}>Cancel</button>
                 <button className="incident-new" type="submit"><Icon name="sparkle" /> Analyze with BatangAI</button>
               </footer>
               {submitted && <p className="employee-report-success"><Icon name="check" /> Your incident report has been submitted.</p>}
             </form> : <section className="employee-ai-result" aria-live="polite">
-              <div className="employee-ai-result-heading"><Icon name="sparkle" /><div><h3>BatangAI Analysis Result</h3><p>Review the analysis before submitting your incident.</p></div></div>
-              <div className="employee-ai-block"><span>Incident Summary</span><p>{values.affectedService} — {values.description}</p></div>
-              <div className="employee-ai-block"><span>AI Classification</span><strong>{values.issueCategory} issue</strong></div>
-              <div className="employee-ai-block"><span>Possible Cause</span><p>The issue may be caused by a device, connection, or service configuration problem in the reporting location.</p></div>
-              <div className="employee-ai-block"><span>Recommended Troubleshooting Steps</span><ol><li>Check the device and its network connection.</li><li>Restart the device, then try again.</li><li>Record any error message and send the report to IT.</li></ol></div>
+              <IncidentAnalysisResult
+                analysis={generateIncidentAnalysis(values)}
+                reviewNote="Review the analysis before submitting your incident."
+              />
               <section className="employee-resolution-check"><h3>Were you able to resolve the issue?</h3><p>Using the steps above, did you fix the problem? Your answer determines how this report is handled.</p><div className="employee-resolution-options"><button type="button" className={`employee-resolution-option resolved${resolutionStatus === 'resolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('resolved')}><b>✓</b><strong>Yes, Resolved!</strong><span>Mark as resolved by user</span></button><button type="button" className={`employee-resolution-option unresolved${resolutionStatus === 'unresolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('unresolved')}><b>×</b><strong>Not Resolved</strong><span>Assign to IT personnel</span></button></div></section>
               <div className="employee-ai-actions"><button className="employee-ai-back" type="button" onClick={() => setPhase('form')}>Edit Report</button><button className="incident-new" type="button" onClick={submit} disabled={!resolutionStatus}><Icon name="check" /> Submit Incident</button></div>
             </section>}

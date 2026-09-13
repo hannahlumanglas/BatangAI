@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react'
-import type { JSX } from 'react'
+import type { JSX, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { ProfileMenu } from './Profile'
 import { getAuthSession } from '../../auth'
+import {
+  IncidentDetailsFields,
+  IncidentDescriptionFields,
+  IncidentAnalysisResult,
+  generateIncidentAnalysis,
+} from './ReportIncident'
+import type { IncidentFormValues } from './ReportIncident'
 import '../Admin/Dashboard.css'
 import './Incidents.css'
+import './ReportIncident.css'
 
 type IconName =
   | 'report'
@@ -19,6 +27,8 @@ type IconName =
   | 'edit'
   | 'trash'
   | 'close'
+  | 'sparkle'
+  | 'check'
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, JSX.Element> = {
@@ -86,6 +96,20 @@ function Icon({ name }: { name: IconName }) {
     close: (
       <>
         <path d="m6 6 12 12M18 6 6 18" />
+      </>
+    ),
+
+    sparkle: (
+      <>
+        <path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z" />
+        <path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6L19 16Z" />
+      </>
+    ),
+
+    check: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="m8 12 2.7 2.7L16.5 9" />
       </>
     ),
   }
@@ -437,6 +461,39 @@ function Incidents() {
   const [menuOpenId, setMenuOpenId] =
     useState<string | null>(null)
 
+  const [editing, setEditing] =
+    useState<EmployeeIncident | null>(null)
+
+  const [editForm, setEditForm] =
+    useState<IncidentFormValues>({
+      department: '',
+      location: '',
+      issueCategory: '',
+      deviceType: '',
+      connectionType: '',
+      affectedService: '',
+      description: '',
+    })
+
+  /*
+   * Edit Incident mirrors Report Incident's two-step flow: fill in the
+   * (pre-filled) form, then "Analyze with BatangAI" before saving. The
+   * analysis itself is always derived from editForm at render time (see
+   * generateIncidentAnalysis below), so it can never go stale relative to
+   * what's on screen.
+   */
+  const [editPhase, setEditPhase] =
+    useState<'form' | 'result'>('form')
+
+  const [savingEdit, setSavingEdit] =
+    useState(false)
+
+  const [editError, setEditError] =
+    useState('')
+
+  const [deletingId, setDeletingId] =
+    useState<string | null>(null)
+
   const handleLogout = () => {
     localStorage.removeItem(
       'batangai-admin-auth',
@@ -597,6 +654,32 @@ function Incidents() {
   }, [menuOpenId])
 
   /* =========================================================
+     LOCK BACKGROUND SCROLL WHILE A MODAL IS OPEN
+     ========================================================= */
+
+  useEffect(() => {
+    const modalIsOpen =
+      viewing !== null ||
+      editing !== null
+
+    if (!modalIsOpen) {
+      return
+    }
+
+    const previousOverflow =
+      document.body.style
+        .overflow
+
+    document.body.style.overflow =
+      'hidden'
+
+    return () => {
+      document.body.style.overflow =
+        previousOverflow
+    }
+  }, [viewing, editing])
+
+  /* =========================================================
      NAVIGATION
      ========================================================= */
 
@@ -620,6 +703,326 @@ function Incidents() {
 
   const closeViewing = () => {
     setViewing(null)
+  }
+
+  /* =========================================================
+     EDIT INCIDENT
+     ========================================================= */
+
+  const handleEdit = (
+    incident: EmployeeIncident,
+  ) => {
+    setMenuOpenId(null)
+
+    if (incident.status !== 'Pending') {
+      alert(
+        'This incident is already being worked on, so it can no longer be edited. Please contact IT Personnel or the Administrator for changes.',
+      )
+
+      return
+    }
+
+    setEditError('')
+
+    setEditForm({
+      department:
+        incident.department,
+      location:
+        incident.location,
+      issueCategory:
+        incident.issueCategory,
+      deviceType:
+        incident.deviceType,
+      connectionType:
+        incident.connectionType,
+      affectedService:
+        incident.affectedIssue,
+      description:
+        incident.description,
+    })
+
+    setEditPhase('form')
+    setEditing(incident)
+  }
+
+  const closeEditing = () => {
+    if (savingEdit) {
+      return
+    }
+
+    setEditing(null)
+    setEditError('')
+    setEditPhase('form')
+  }
+
+  const handleEditFieldChange = (
+    field: keyof IncidentFormValues,
+    value: string,
+  ) => {
+    setEditForm(current => ({
+      ...current,
+      [field]: value,
+    }))
+  }
+
+  /*
+   * Step 1 of Edit Incident: pressing "Analyze with BatangAI" does NOT
+   * save anything yet — it just moves to the result step, where the
+   * analysis is computed fresh from the current editForm values.
+   */
+  const handleEditAnalyze = (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault()
+    setEditPhase('result')
+  }
+
+  const handleEditBackToForm = () => {
+    setEditPhase('form')
+  }
+
+  /*
+   * Step 2 of Edit Incident: only after the user has reviewed the NEW
+   * BatangAI analysis does "Save Changes" persist the updated incident
+   * information together with that new analysis.
+   */
+  const handleSaveEditChanges =
+    async () => {
+      if (!editing) {
+        return
+      }
+
+      const analysis =
+        generateIncidentAnalysis(
+          editForm,
+        )
+
+      try {
+        setSavingEdit(true)
+        setEditError('')
+
+        const response =
+          await fetch(
+            'http://localhost/BatangAI/api/update_incident.php',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type':
+                  'application/json',
+                Accept:
+                  'application/json',
+              },
+              body: JSON.stringify({
+                incidentID:
+                  editing.incidentID,
+                department:
+                  editForm.department,
+                location:
+                  editForm.location,
+                issueCategory:
+                  editForm.issueCategory,
+                deviceType:
+                  editForm.deviceType,
+                connectionType:
+                  editForm.connectionType,
+                affectedIssue:
+                  editForm.affectedService,
+                description:
+                  editForm.description,
+                classification:
+                  analysis.classification,
+                summary:
+                  analysis.summary,
+                troubleshooting:
+                  analysis.troubleshooting,
+              }),
+            },
+          )
+
+        const responseText =
+          await response.text()
+
+        let data: {
+          success: boolean
+          message?: string
+        }
+
+        try {
+          data = JSON.parse(
+            responseText,
+          )
+        } catch {
+          console.error(
+            'Invalid JSON from update_incident.php:',
+            responseText,
+          )
+
+          throw new Error(
+            'The server returned an invalid response.',
+          )
+        }
+
+        if (
+          !response.ok ||
+          !data.success
+        ) {
+          throw new Error(
+            data.message ||
+              'Failed to update the incident.',
+          )
+        }
+
+        setIncidents(current =>
+          current.map(item =>
+            item.incidentID ===
+            editing.incidentID
+              ? {
+                  ...item,
+                  department:
+                    editForm.department,
+                  location:
+                    editForm.location,
+                  issueCategory:
+                    editForm.issueCategory,
+                  deviceType:
+                    editForm.deviceType,
+                  connectionType:
+                    editForm.connectionType,
+                  affectedIssue:
+                    editForm.affectedService,
+                  description:
+                    editForm.description,
+                  classification:
+                    analysis.classification,
+                  summary:
+                    analysis.summary,
+                  troubleshooting:
+                    analysis.troubleshooting,
+                }
+              : item,
+          ),
+        )
+
+        setEditing(null)
+        setEditPhase('form')
+      } catch (error) {
+        console.error(
+          'Update incident error:',
+          error,
+        )
+
+        setEditError(
+          error instanceof Error
+            ? error.message
+            : 'Failed to update the incident.',
+        )
+      } finally {
+        setSavingEdit(false)
+      }
+    }
+
+  /* =========================================================
+     DELETE INCIDENT
+     ========================================================= */
+
+  const handleDelete = async (
+    incident: EmployeeIncident,
+  ) => {
+    setMenuOpenId(null)
+
+    if (incident.status !== 'Pending') {
+      alert(
+        'This incident is already being worked on, so it can no longer be deleted. Please contact IT Personnel or the Administrator.',
+      )
+
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Delete incident ${incident.incidentID}? This cannot be undone.`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
+    try {
+      setDeletingId(
+        incident.incidentID,
+      )
+
+      const response =
+        await fetch(
+          'http://localhost/BatangAI/api/delete_incident.php',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type':
+                'application/json',
+              Accept:
+                'application/json',
+            },
+            body: JSON.stringify({
+              incidentID:
+                incident.incidentID,
+            }),
+          },
+        )
+
+      const responseText =
+        await response.text()
+
+      let data: {
+        success: boolean
+        message?: string
+      }
+
+      try {
+        data = JSON.parse(
+          responseText,
+        )
+      } catch {
+        console.error(
+          'Invalid JSON from delete_incident.php:',
+          responseText,
+        )
+
+        throw new Error(
+          'The server returned an invalid response.',
+        )
+      }
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        throw new Error(
+          data.message ||
+            'Failed to delete the incident.',
+        )
+      }
+
+      setIncidents(current =>
+        current.filter(
+          item =>
+            item.incidentID !==
+            incident.incidentID,
+        ),
+      )
+    } catch (error) {
+      console.error(
+        'Delete incident error:',
+        error,
+      )
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Failed to delete the incident.',
+      )
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   /* =========================================================
@@ -839,10 +1242,6 @@ function Incidents() {
                     </th>
 
                     <th>
-                      Reported
-                    </th>
-
-                    <th>
                       Action
                     </th>
                   </tr>
@@ -853,7 +1252,7 @@ function Incidents() {
                     <tr>
                       <td
                         className="employee-empty"
-                        colSpan={7}
+                        colSpan={6}
                       >
                         Loading your incident reports...
                       </td>
@@ -863,7 +1262,7 @@ function Incidents() {
                     <tr>
                       <td
                         className="employee-empty"
-                        colSpan={7}
+                        colSpan={6}
                       >
                         No incident reports yet. Submit one from Report Incident.
                       </td>
@@ -918,12 +1317,6 @@ function Incidents() {
                             </span>
                           </td>
 
-                          <td>
-                            {formatDate(
-                              incident.createdAt,
-                            )}
-                          </td>
-
                           <td className="employee-actions">
                             <button
                               type="button"
@@ -936,7 +1329,6 @@ function Incidents() {
                               aria-label={`View ${incident.incidentID}`}
                             >
                               <Icon name="eye" />
-
                               View
                             </button>
 
@@ -972,15 +1364,21 @@ function Incidents() {
                                 <div className="employee-action-menu">
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setMenuOpenId(
-                                        null,
+                                    disabled={
+                                      incident.status !==
+                                      'Pending'
+                                    }
+                                    title={
+                                      incident.status !==
+                                      'Pending'
+                                        ? 'Already being worked on — contact IT Personnel or the Administrator to make changes.'
+                                        : undefined
+                                    }
+                                    onClick={() =>
+                                      handleEdit(
+                                        incident,
                                       )
-
-                                      alert(
-                                        'Incident editing is handled by the IT Personnel or Administrator after the report is submitted.',
-                                      )
-                                    }}
+                                    }
                                   >
                                     <Icon name="edit" />
 
@@ -990,19 +1388,30 @@ function Incidents() {
                                   <button
                                     type="button"
                                     className="danger"
-                                    onClick={() => {
-                                      setMenuOpenId(
-                                        null,
+                                    disabled={
+                                      incident.status !==
+                                        'Pending' ||
+                                      deletingId ===
+                                        incident.incidentID
+                                    }
+                                    title={
+                                      incident.status !==
+                                      'Pending'
+                                        ? 'Already being worked on — contact IT Personnel or the Administrator to delete it.'
+                                        : undefined
+                                    }
+                                    onClick={() =>
+                                      void handleDelete(
+                                        incident,
                                       )
-
-                                      alert(
-                                        'Incident deletion is not available for database records.',
-                                      )
-                                    }}
+                                    }
                                   >
                                     <Icon name="trash" />
 
-                                    Delete
+                                    {deletingId ===
+                                    incident.incidentID
+                                      ? 'Deleting...'
+                                      : 'Delete'}
                                   </button>
                                 </div>
                               )}
@@ -1140,22 +1549,6 @@ function Incidents() {
                     viewing.connectionType ||
                     'Not specified'
                   }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Severity
-                </span>
-
-                <strong>
-                  <span
-                    className={`tag ${viewing.severity.toLowerCase()}-tag`}
-                  >
-                    {
-                      viewing.severity
-                    }
-                  </span>
                 </strong>
               </div>
 
@@ -1303,6 +1696,183 @@ function Incidents() {
                 </p>
               </section>
             )}
+          </section>
+        </div>
+      )}
+
+      {/* =====================================================
+          EDIT INCIDENT MODAL
+          ===================================================== */}
+
+      {editing && (
+        <div
+          className="employee-modal-overlay"
+          onMouseDown={event => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              closeEditing()
+            }
+          }}
+        >
+          <section
+            className="employee-incident-modal employee-edit-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="employee-edit-title"
+          >
+            <header>
+              <div>
+                <h2 id="employee-edit-title">
+                  Edit{' '}
+                  {
+                    editing.incidentID
+                  }
+                </h2>
+
+                <p>
+                  {editPhase === 'form'
+                    ? 'Update the report details below, then analyze again with BatangAI.'
+                    : 'Review the new BatangAI analysis, then save your changes.'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  closeEditing
+                }
+                aria-label="Close"
+                disabled={
+                  savingEdit
+                }
+              >
+                <Icon name="close" />
+              </button>
+            </header>
+
+            {editError && (
+              <div
+                style={{
+                  margin:
+                    '20px 22px 0',
+                  padding:
+                    '12px 14px',
+                  borderRadius:
+                    '9px',
+                  border:
+                    '1px solid #f1aeb5',
+                  background:
+                    '#f8d7da',
+                  color:
+                    '#842029',
+                  fontSize:
+                    'var(--font-secondary)',
+                }}
+              >
+                {editError}
+              </div>
+            )}
+
+            {editPhase === 'form' ? (
+              <form
+                id="employee-edit-form"
+                className="incident-form"
+                onSubmit={
+                  handleEditAnalyze
+                }
+              >
+                <IncidentDetailsFields
+                  values={editForm}
+                  onChange={
+                    handleEditFieldChange
+                  }
+                  departmentEditable
+                />
+
+                <IncidentDescriptionFields
+                  values={editForm}
+                  onChange={
+                    handleEditFieldChange
+                  }
+                />
+              </form>
+            ) : (
+              <section
+                className="employee-ai-result"
+                aria-live="polite"
+              >
+                <IncidentAnalysisResult
+                  analysis={generateIncidentAnalysis(
+                    editForm,
+                  )}
+                  reviewNote="Review the updated analysis before saving your changes."
+                />
+              </section>
+            )}
+
+            <footer>
+              {editPhase === 'form' ? (
+                <>
+                  <button
+                    type="button"
+                    className="employee-cancel"
+                    onClick={
+                      closeEditing
+                    }
+                    disabled={
+                      savingEdit
+                    }
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    form="employee-edit-form"
+                    className="incident-new"
+                    disabled={
+                      savingEdit
+                    }
+                  >
+                    <Icon name="sparkle" />
+                    Analyze with BatangAI
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="employee-cancel"
+                    onClick={
+                      handleEditBackToForm
+                    }
+                    disabled={
+                      savingEdit
+                    }
+                  >
+                    Back to Edit
+                  </button>
+
+                  <button
+                    type="button"
+                    className="employee-view-button"
+                    onClick={() =>
+                      void handleSaveEditChanges()
+                    }
+                    disabled={
+                      savingEdit
+                    }
+                  >
+                    <Icon name="check" />
+                    {savingEdit
+                      ? 'Saving...'
+                      : 'Save Changes'}
+                  </button>
+                </>
+              )}
+            </footer>
           </section>
         </div>
       )}

@@ -3,6 +3,7 @@ import type { FormEvent, JSX, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { PersonName } from '../../components/PersonName'
+import { getCurrentUserDepartment } from '../../auth'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
@@ -244,15 +245,17 @@ interface IncidentFormValues {
   description: string
 }
 
-const initialIncidentFormValues: IncidentFormValues = {
-  department: '',
-  location: '',
-  issueCategory: '',
-  deviceType: '',
-  connectionType: '',
-  severity: '',
-  affectedService: '',
-  description: '',
+function getInitialIncidentFormValues(): IncidentFormValues {
+  return {
+    department: getCurrentUserDepartment(),
+    location: '',
+    issueCategory: '',
+    deviceType: '',
+    connectionType: '',
+    severity: '',
+    affectedService: '',
+    description: '',
+  }
 }
 
 const ISSUE_CATEGORIES = [
@@ -263,7 +266,6 @@ const ISSUE_CATEGORIES = [
   'Printer / Peripheral',
   'Server / System Downtime',
   'Security / Access Issue',
-  'Other',
 ]
 
 const DEVICE_TYPES = [
@@ -272,6 +274,7 @@ const DEVICE_TYPES = [
   'Printer',
   'Router',
   'Switch',
+  'Access Point',
 ]
 
 const CONNECTION_TYPES = [
@@ -985,6 +988,236 @@ function Incidents({
     setActionMenuId(null)
   }
 
+  /* EDIT INCIDENT*/
+
+  const [editingIncident, setEditingIncident] =
+    useState<Incident | null>(null)
+
+  const [editValues, setEditValues] =
+    useState<IncidentFormValues>(
+      getInitialIncidentFormValues(),
+    )
+
+  const [isSavingEdit, setIsSavingEdit] =
+    useState(false)
+
+  const openEditIncident = (
+    incident: Incident,
+  ) => {
+    setActionMenuId(null)
+
+    setEditingIncident(incident)
+
+    setEditValues({
+      department: incident.department,
+      location: incident.location,
+      issueCategory: incident.issueCategory,
+      deviceType: incident.deviceType ?? '',
+      connectionType:
+        incident.connectionType ?? '',
+      severity: incident.severity,
+      affectedService: incident.affectedIssue,
+      description: incident.description,
+    })
+  }
+
+  const closeEditIncident = () => {
+    setEditingIncident(null)
+  }
+
+  const handleEditFieldChange = (
+    field: keyof IncidentFormValues,
+    value: string,
+  ) => {
+    setEditValues(prev => ({
+      ...prev,
+      [field]: value,
+    }))
+  }
+
+  const saveEditIncident = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault()
+
+    if (!editingIncident) return
+
+    setIsSavingEdit(true)
+
+    try {
+      const response = await fetch(
+        'http://localhost/BatangAI/api/update_incident.php',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            incidentID:
+              editingIncident.incidentID,
+            department:
+              editValues.department,
+            location: editValues.location,
+            issueCategory:
+              editValues.issueCategory,
+            deviceType:
+              editValues.deviceType,
+            connectionType:
+              editValues.connectionType,
+            severity: editValues.severity,
+            affectedIssue:
+              editValues.affectedService,
+            description:
+              editValues.description,
+          }),
+        },
+      )
+
+      const responseText =
+        await response.text()
+
+      let data: {
+        success: boolean
+        message?: string
+      }
+
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        console.error(
+          'Invalid JSON from update_incident.php:',
+          responseText,
+        )
+
+        alert(
+          'The server returned an invalid response. Please check your PHP API.',
+        )
+
+        return
+      }
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        alert(
+          data.message ||
+            'Failed to update incident.',
+        )
+
+        return
+      }
+
+      await fetchIncidents()
+      setEditingIncident(null)
+    } catch (error) {
+      console.error(
+        'Update incident error:',
+        error,
+      )
+
+      alert(
+        'Unable to connect to the server. Please make sure XAMPP Apache and MySQL are running.',
+      )
+    } finally {
+      setIsSavingEdit(false)
+    }
+  }
+
+  /* DELETE INCIDENT*/
+
+  const [deletingId, setDeletingId] =
+    useState<string | null>(null)
+
+  const deleteIncident = async (
+    incidentID: string,
+  ) => {
+    setActionMenuId(null)
+
+    const confirmed = window.confirm(
+      `Delete incident ${incidentID}? This cannot be undone.`,
+    )
+
+    if (!confirmed) return
+
+    setDeletingId(incidentID)
+
+    try {
+      const response = await fetch(
+        'http://localhost/BatangAI/api/delete_incident.php',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+          body: JSON.stringify({
+            incidentID,
+          }),
+        },
+      )
+
+      const responseText =
+        await response.text()
+
+      let data: {
+        success: boolean
+        message?: string
+      }
+
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        console.error(
+          'Invalid JSON from delete_incident.php:',
+          responseText,
+        )
+
+        alert(
+          'The server returned an invalid response. Please check your PHP API.',
+        )
+
+        return
+      }
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        alert(
+          data.message ||
+            'Failed to delete incident.',
+        )
+
+        return
+      }
+
+      setIncidents(prev =>
+        prev.filter(
+          item =>
+            item.incidentID !==
+            incidentID,
+        ),
+      )
+
+      if (viewingId === incidentID) {
+        setViewingId(null)
+      }
+    } catch (error) {
+      console.error(
+        'Delete incident error:',
+        error,
+      )
+
+      alert(
+        'Unable to connect to the server. Please make sure XAMPP Apache and MySQL are running.',
+      )
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   /* NEW INCIDENT MODAL*/
 
   const [isNewIncidentOpen, setIsNewIncidentOpen] =
@@ -995,7 +1228,7 @@ function Incidents({
 
   const [values, setValues] =
     useState<IncidentFormValues>(
-      initialIncidentFormValues,
+      getInitialIncidentFormValues,
     )
 
   const [errors, setErrors] =
@@ -1025,7 +1258,7 @@ function Incidents({
 
   const openNewIncident = () => {
     setValues(
-      initialIncidentFormValues,
+      getInitialIncidentFormValues(),
     )
 
     setErrors({})
@@ -1568,15 +1801,11 @@ function Incidents({
                                 <div className="incident-row-menu">
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      setActionMenuId(
-                                        null,
+                                    onClick={() =>
+                                      openEditIncident(
+                                        incident,
                                       )
-
-                                      alert(
-                                        'Edit Incident will be connected to the database in the Manage & Assign module.',
-                                      )
-                                    }}
+                                    }
                                   >
                                     Edit
                                   </button>
@@ -1584,17 +1813,20 @@ function Incidents({
                                   <button
                                     className="incident-delete-action"
                                     type="button"
-                                    onClick={() => {
-                                      setActionMenuId(
-                                        null,
+                                    disabled={
+                                      deletingId ===
+                                      incident.incidentID
+                                    }
+                                    onClick={() =>
+                                      deleteIncident(
+                                        incident.incidentID,
                                       )
-
-                                      alert(
-                                        'Delete Incident is not connected yet. No database record was deleted.',
-                                      )
-                                    }}
+                                    }
                                   >
-                                    Delete
+                                    {deletingId ===
+                                    incident.incidentID
+                                      ? 'Deleting…'
+                                      : 'Delete'}
                                   </button>
                                 </div>
                               )}
@@ -1692,19 +1924,25 @@ function Incidents({
               aria-labelledby="new-incident-title"
             >
               <header className="new-incident-header">
-                <div>
-                  <h2 id="new-incident-title">
-                    Report a Network
-                    Incident
-                  </h2>
+                <div className="new-incident-heading">
+                  <span className="new-incident-icon">
+                    <Icon name="incidents" />
+                  </span>
 
-                  <p>
-                    Fill out the form
-                    below. BatangAI will
-                    analyze and provide
-                    troubleshooting
-                    steps.
-                  </p>
+                  <div>
+                    <h2 id="new-incident-title">
+                      Report a Network
+                      Incident
+                    </h2>
+
+                    <p>
+                      Fill out the form
+                      below. BatangAI will
+                      analyze and provide
+                      troubleshooting
+                      steps.
+                    </p>
+                  </div>
                 </div>
 
                 <button
@@ -1760,14 +1998,8 @@ function Incidents({
                           value={
                             values.department
                           }
-                          onChange={e =>
-                            handleFieldChange(
-                              'department',
-                              e.target
-                                .value,
-                            )
-                          }
-                          placeholder="Enter department"
+                          readOnly
+                          disabled
                         />
                       </label>
 
@@ -2053,7 +2285,7 @@ function Incidents({
 
                 <footer className="new-incident-footer">
                   <button
-                    className="btn-secondary btn-block"
+                    className="btn-secondary"
                     type="button"
                     onClick={
                       closeNewIncident
@@ -2067,7 +2299,7 @@ function Incidents({
                   </button>
 
                   <button
-                    className="btn-primary btn-block"
+                    className="btn-primary"
                     type="submit"
                     disabled={
                       phase ===
@@ -2292,6 +2524,394 @@ function Incidents({
             </div>
           </div>
         )}
+
+      {/* EDIT INCIDENT*/}
+
+      {editingIncident && (
+        <div
+          className="modal-overlay"
+          onMouseDown={event => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              closeEditIncident()
+            }
+          }}
+        >
+          <div
+            className="new-incident-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-incident-title"
+          >
+            <header className="new-incident-header">
+              <div className="new-incident-heading">
+                <span className="new-incident-icon">
+                  <Icon name="incidents" />
+                </span>
+
+                <div>
+                  <h2 id="edit-incident-title">
+                    Edit Incident
+                  </h2>
+
+                  <p>
+                    {
+                      editingIncident.incidentID
+                    }{' '}
+                    — update the details
+                    below and save your
+                    changes.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                className="modal-close"
+                type="button"
+                aria-label="Close dialog"
+                onClick={
+                  closeEditIncident
+                }
+              >
+                ×
+              </button>
+            </header>
+
+            <form
+              className="new-incident-body"
+              onSubmit={
+                saveEditIncident
+              }
+              noValidate
+            >
+              <div className="incident-form">
+                <fieldset
+                  className="incident-form-section"
+                  disabled={isSavingEdit}
+                >
+                  <legend className="sr-only">
+                    Incident Details
+                  </legend>
+
+                  <div className="incident-form-section-header">
+                    <span className="incident-form-badge">
+                      1
+                    </span>
+
+                    <h3>
+                      Incident Details
+                    </h3>
+                  </div>
+
+                  <div className="incident-form-grid">
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Department
+                      </span>
+
+                      <input
+                        type="text"
+                        value={
+                          editValues.department
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'department',
+                            e.target
+                              .value,
+                          )
+                        }
+                        placeholder="Enter department"
+                      />
+                    </label>
+
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Location / Room
+                        <em>*</em>
+                      </span>
+
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. 2nd Floor, IT Room"
+                        value={
+                          editValues.location
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'location',
+                            e.target
+                              .value,
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Issue Category
+                        <em>*</em>
+                      </span>
+
+                      <select
+                        required
+                        value={
+                          editValues.issueCategory
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'issueCategory',
+                            e.target
+                              .value,
+                          )
+                        }
+                      >
+                        <option value="">
+                          Select a
+                          category
+                        </option>
+
+                        {ISSUE_CATEGORIES.map(
+                          category => (
+                            <option
+                              key={
+                                category
+                              }
+                              value={
+                                category
+                              }
+                            >
+                              {category}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Device Type
+                        <em>*</em>
+                      </span>
+
+                      <select
+                        required
+                        value={
+                          editValues.deviceType
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'deviceType',
+                            e.target
+                              .value,
+                          )
+                        }
+                      >
+                        <option value="">
+                          Select a
+                          device type
+                        </option>
+
+                        {DEVICE_TYPES.map(
+                          device => (
+                            <option
+                              key={
+                                device
+                              }
+                              value={
+                                device
+                              }
+                            >
+                              {device}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Connection Type
+                        <em>*</em>
+                      </span>
+
+                      <select
+                        required
+                        value={
+                          editValues.connectionType
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'connectionType',
+                            e.target
+                              .value,
+                          )
+                        }
+                      >
+                        <option value="">
+                          Select a
+                          connection
+                          type
+                        </option>
+
+                        {CONNECTION_TYPES.map(
+                          connection => (
+                            <option
+                              key={
+                                connection
+                              }
+                              value={
+                                connection
+                              }
+                            >
+                              {connection}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Severity
+                        <em>*</em>
+                      </span>
+
+                      <select
+                        required
+                        value={
+                          editValues.severity
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'severity',
+                            e.target
+                              .value,
+                          )
+                        }
+                      >
+                        <option value="">
+                          Select
+                          severity
+                        </option>
+
+                        <option value="Low">
+                          Low
+                        </option>
+
+                        <option value="Medium">
+                          Medium
+                        </option>
+
+                        <option value="High">
+                          High
+                        </option>
+                      </select>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <fieldset
+                  className="incident-form-section"
+                  disabled={isSavingEdit}
+                >
+                  <legend className="sr-only">
+                    Problem
+                    Description
+                  </legend>
+
+                  <div className="incident-form-section-header">
+                    <span className="incident-form-badge">
+                      2
+                    </span>
+
+                    <h3>
+                      Problem
+                      Description
+                    </h3>
+                  </div>
+
+                  <div className="incident-form-grid incident-form-grid--single">
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Affected Issue /
+                        Service
+                        <em>*</em>
+                      </span>
+
+                      <input
+                        type="text"
+                        required
+                        placeholder="e.g. Records System login"
+                        value={
+                          editValues.affectedService
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'affectedService',
+                            e.target
+                              .value,
+                          )
+                        }
+                      />
+                    </label>
+
+                    <label className="incident-field">
+                      <span className="incident-field-label">
+                        Detailed Problem
+                        Description
+                        <em>*</em>
+                      </span>
+
+                      <textarea
+                        required
+                        rows={4}
+                        placeholder="Describe what happened, when it started, and any error messages you saw."
+                        value={
+                          editValues.description
+                        }
+                        onChange={e =>
+                          handleEditFieldChange(
+                            'description',
+                            e.target
+                              .value,
+                          )
+                        }
+                      />
+                    </label>
+                  </div>
+                </fieldset>
+              </div>
+
+              <footer className="new-incident-footer">
+                <button
+                  className="btn-secondary"
+                  type="button"
+                  onClick={
+                    closeEditIncident
+                  }
+                  disabled={isSavingEdit}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  className="btn-primary"
+                  type="submit"
+                  disabled={isSavingEdit}
+                >
+                  {isSavingEdit
+                    ? 'Saving…'
+                    : 'Save Changes'}
+                </button>
+              </footer>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* REAL DATABASE INCIDENT DETAILS*/}
 
