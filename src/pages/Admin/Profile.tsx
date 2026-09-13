@@ -44,6 +44,16 @@ type NavIconName =
   | 'profile'
   | 'settings'
 
+const UPDATE_USER_API_URL = 'http://localhost/BatangAI/api/update_user.php'
+
+function PasswordVisibilityButton({ visible, onClick }: { visible: boolean; onClick: () => void }) {
+  return <button type="button" className="password-visibility-button" onClick={onClick} aria-label={visible ? 'Hide password' : 'Show password'} title={visible ? 'Hide password' : 'Show password'}>
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      {visible ? <><path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" /><path d="M9.9 5.1A10.8 10.8 0 0 1 12 5c5.1 0 8.7 4.5 9.5 7-.4 1.2-1.4 2.9-3 4.3M6.3 6.3C4.6 7.7 3.4 9.8 2.5 12c.8 2.5 4.4 7 9.5 7 1 0 1.9-.2 2.7-.5" /></> : <><path d="M2.5 12S6.1 5 12 5s9.5 7 9.5 7-3.6 7-9.5 7S2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="3" /></>}
+    </svg>
+  </button>
+}
+
 
 /*
 |--------------------------------------------------------------------------
@@ -586,9 +596,15 @@ function Profile({
   */
   const [password, setPassword] =
     useState({
+      current: '',
       next: '',
       confirm: '',
     })
+
+  const [showPasswords, setShowPasswords] =
+    useState({ current: false, next: false, confirm: false })
+
+  const [updatingPassword, setUpdatingPassword] = useState(false)
 
   const fileRef =
     useRef<HTMLInputElement>(null)
@@ -941,7 +957,19 @@ function Profile({
   | Update password.
   |--------------------------------------------------------------------------
   */
-  const updatePassword = () => {
+  const updatePassword = async () => {
+    const currentSession = getAuthSession()
+
+    if (!currentSession?.user) {
+      setNotice('You are not logged in.')
+      return
+    }
+
+    if (!password.current) {
+      setNotice('Enter your current password.')
+      return
+    }
+
     if (password.next.length < 8) {
       setNotice(
         'Password must contain at least 8 characters.',
@@ -961,14 +989,32 @@ function Profile({
       return
     }
 
-    setPassword({
-      next: '',
-      confirm: '',
-    })
+    try {
+      setUpdatingPassword(true)
 
-    setNotice(
-      'Password updated successfully.',
-    )
+      const response = await fetch(UPDATE_USER_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'self_password',
+          userID: String(currentSession.user.userID),
+          currentPassword: password.current,
+          password: password.next,
+        }),
+      })
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to update password.')
+      }
+
+      setPassword({ current: '', next: '', confirm: '' })
+      setNotice('Password updated successfully.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to update password.')
+    } finally {
+      setUpdatingPassword(false)
+    }
   }
 
   /*
@@ -1479,10 +1525,31 @@ function Profile({
 
                   <label>
 
+                    Current password
+
+                    <span className="password-input-wrap">
+                      <input
+                        type={showPasswords.current ? 'text' : 'password'}
+                        value={password.current}
+                        onChange={event => setPassword(current => ({ ...current, current: event.target.value }))}
+                        placeholder="Enter current password"
+                        autoComplete="current-password"
+                      />
+                      <PasswordVisibilityButton
+                        visible={showPasswords.current}
+                        onClick={() => setShowPasswords(current => ({ ...current, current: !current.current }))}
+                      />
+                    </span>
+
+                  </label>
+
+                  <label>
+
                     New password
 
+                    <span className="password-input-wrap">
                     <input
-                      type="password"
+                      type={showPasswords.next ? 'text' : 'password'}
                       value={
                         password.next
                       }
@@ -1497,7 +1564,13 @@ function Profile({
                         )
                       }
                       placeholder="At least 8 characters"
+                      autoComplete="new-password"
                     />
+                    <PasswordVisibilityButton
+                      visible={showPasswords.next}
+                      onClick={() => setShowPasswords(current => ({ ...current, next: !current.next }))}
+                    />
+                    </span>
 
                   </label>
 
@@ -1505,8 +1578,9 @@ function Profile({
 
                     Confirm new password
 
+                    <span className="password-input-wrap">
                     <input
-                      type="password"
+                      type={showPasswords.confirm ? 'text' : 'password'}
                       value={
                         password.confirm
                       }
@@ -1521,7 +1595,13 @@ function Profile({
                         )
                       }
                       placeholder="Re-enter password"
+                      autoComplete="new-password"
                     />
+                    <PasswordVisibilityButton
+                      visible={showPasswords.confirm}
+                      onClick={() => setShowPasswords(current => ({ ...current, confirm: !current.confirm }))}
+                    />
+                    </span>
 
                   </label>
 
@@ -1531,8 +1611,11 @@ function Profile({
                     onClick={
                       updatePassword
                     }
+                    disabled={updatingPassword}
                   >
-                    Update password
+                    {updatingPassword
+                      ? 'Updating...'
+                      : 'Update password'}
                   </button>
 
                 </div>

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 
 import logo from '../../assets/logo.png'
 import { signIn } from '../../auth'
-
+import type { UserRole } from '../../auth'
 import './Login.css'
 
 function Login() {
@@ -24,24 +24,21 @@ function Login() {
       return
     }
 
-    const session = await signIn(email.trim(), password)
+    const result = await signIn(email.trim(), password)
 
-    if (!session) {
-      setErrorMessage('Invalid email or password.')
+    if (!result.session) {
+      setErrorMessage(result.message)
       return
     }
 
-    const role = session.user.role
-
-    if (role === 'Administrator') {
-      navigate('/admin')
-    } else if (role === 'Secretary') {
-      navigate('/secretary/incidents')
-    } else if (role === 'IT Personnel') {
-      navigate('/it/incidents')
-    } else {
-      navigate('/employee/report-incident')
+    const destinations: Record<UserRole, string> = {
+      Administrator: '/admin',
+      Secretary: '/secretary/incidents',
+      'IT Personnel': '/it/incidents',
+      Employee: '/employee/report-incident',
     }
+
+    navigate(destinations[result.session.user.role])
   }
 
   return (

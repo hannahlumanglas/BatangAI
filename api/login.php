@@ -14,7 +14,7 @@ require_once "config.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$email = trim($data["email"] ?? "");
+$email = strtolower(trim((string)($data["email"] ?? "")));
 $password = $data["password"] ?? "";
 
 if ($email === "" || $password === "") {
@@ -41,7 +41,12 @@ $stmt = $conn->prepare("
         role,
         status
     FROM users
-    WHERE email = ?
+    /*
+     * Do not rely on a particular database collation for authentication.
+     * Registration stores normalized addresses, but this also supports
+     * accounts that existed before that rule was added.
+     */
+    WHERE LOWER(email) = ?
     LIMIT 1
 ");
 
@@ -74,7 +79,7 @@ if (!password_verify($password, $user["password"])) {
     exit;
 }
 
-if (strtolower($user["status"]) !== "active") {
+if (strtolower(trim((string)$user["status"])) !== "active") {
     http_response_code(403);
 
     echo json_encode([
@@ -85,10 +90,30 @@ if (strtolower($user["status"]) !== "active") {
     exit;
 }
 
-// Convert database role "Admin" to frontend role "Administrator"
-if (strtolower($user["role"]) === "admin") {
-    $user["role"] = "Administrator";
+/*
+ * The frontend authorizes only these canonical role labels. Normalize the
+ * legacy database value "Admin" and reject an invalid role rather than
+ * accidentally treating it as an Employee.
+ */
+$roleMap = [
+    "admin" => "Administrator",
+    "administrator" => "Administrator",
+    "secretary" => "Secretary",
+    "it personnel" => "IT Personnel",
+    "employee" => "Employee"
+];
+$normalizedRole = strtolower(trim((string)$user["role"]));
+
+if (!isset($roleMap[$normalizedRole])) {
+    http_response_code(500);
+    echo json_encode([
+        "success" => false,
+        "message" => "This account has an invalid role configuration."
+    ]);
+    exit;
 }
+
+$user["role"] = $roleMap[$normalizedRole];
 
 // Never send the password to the frontend
 unset($user["password"]);

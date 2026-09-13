@@ -341,3 +341,51 @@ a:focus-visible {
     height: 36px;
   }
 }
+
+.password-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.password-form h3 + label {
+  grid-column: 1 / -1;
+}
+
+.password-input-wrap input {
+  width: 100%;
+  padding-right: 48px;
+}
+
+.password-visibility-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.password-visibility-button:hover,
+.password-visibility-button:focus-visible {
+  color: var(--primary);
+  background: var(--hover-bg);
+  outline: 0;
+}
+
+.password-visibility-button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}

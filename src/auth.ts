@@ -23,6 +23,40 @@ export type AuthSession = {
   isAuthenticated: true
 }
 
+export type SignInResult =
+  | { session: AuthSession; message?: never }
+  | { session: null; message: string }
+
+export function isUserRole(value: unknown): value is UserRole {
+  return (
+    value === 'Administrator' ||
+    value === 'Employee' ||
+    value === 'Secretary' ||
+    value === 'IT Personnel'
+  )
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const user = value as Partial<AuthUser>
+
+  return (
+    (typeof user.userID === 'number' || typeof user.userID === 'string') &&
+    Boolean(user.userID) &&
+    typeof user.email === 'string' &&
+    Boolean(user.email) &&
+    typeof user.fullName === 'string' &&
+    Boolean(user.fullName) &&
+    typeof user.department === 'string' &&
+    Boolean(user.department) &&
+    isUserRole(user.role) &&
+    typeof user.status === 'string'
+  )
+}
+
 /**
  * Creates a default profile avatar using the actual
  * logged-in user's full name.
@@ -129,7 +163,7 @@ export function getProfilePhotoUrl(
 export async function signIn(
   email: string,
   password: string,
-): Promise<AuthSession | null> {
+): Promise<SignInResult> {
   try {
     const response = await fetch(
       'http://localhost/BatangAI/api/login.php',
@@ -139,23 +173,49 @@ export async function signIn(
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email,
+          email: email.trim().toLowerCase(),
           password,
         }),
       },
     )
 
-    const data = await response.json()
+    const data: unknown = await response.json()
+
+    if (!data || typeof data !== 'object') {
+      return {
+        session: null,
+        message: 'The login service returned an invalid response.',
+      }
+    }
+
+    const payload = data as {
+      success?: unknown
+      message?: unknown
+      user?: unknown
+    }
 
     if (
       !response.ok ||
-      !data.success ||
-      !data.user
+      payload.success !== true ||
+      !payload.user
     ) {
-      return null
+      return {
+        session: null,
+        message:
+          typeof payload.message === 'string'
+            ? payload.message
+            : 'Unable to sign in. Please try again.',
+      }
     }
 
-    const user = data.user as AuthUser
+    if (!isAuthUser(payload.user)) {
+      return {
+        session: null,
+        message: 'The login service returned invalid account data.',
+      }
+    }
+
+    const user = payload.user
 
     const session: AuthSession = {
       user,
@@ -167,11 +227,14 @@ export async function signIn(
       JSON.stringify(session),
     )
 
-    return session
+    return { session }
   } catch (error) {
     console.error('Login error:', error)
 
-    return null
+    return {
+      session: null,
+      message: 'Unable to reach the login service. Please try again.',
+    }
   }
 }
 
@@ -197,17 +260,11 @@ export function getAuthSession(): AuthSession | null {
       return null
     }
 
-    const user = parsed.user as AuthUser
-
-    if (
-      !user.userID ||
-      !user.email ||
-      !user.fullName ||
-      !user.department ||
-      !user.role
-    ) {
+    if (!isAuthUser(parsed.user)) {
       return null
     }
+
+    const user = parsed.user
 
     return {
       user,

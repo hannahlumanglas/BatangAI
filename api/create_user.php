@@ -27,7 +27,7 @@ $adminUserID = $data["adminUserID"] ?? "";
 $fullName = trim($data["fullName"] ?? "");
 $employeeId = trim($data["employeeId"] ?? "");
 $department = trim($data["department"] ?? "");
-$email = trim($data["email"] ?? "");
+$email = strtolower(trim((string)($data["email"] ?? "")));
 $password = $data["password"] ?? "";
 $role = trim($data["role"] ?? "");
 
@@ -190,7 +190,7 @@ if (
 $stmt = $conn->prepare("
     SELECT userID
     FROM users
-    WHERE email = ?
+    WHERE LOWER(email) = ?
     LIMIT 1
 ");
 
@@ -328,5 +328,4 @@ echo json_encode([
 
 $stmt->close();
 $conn->close();
-
 ?>
