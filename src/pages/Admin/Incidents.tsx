@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import type { FormEvent, JSX, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
+import { getAuthSession, getProfilePhotoUrl, signOut } from '../../auth'
 import { PersonName } from '../../components/PersonName'
-import { getCurrentUserDepartment } from '../../auth'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
@@ -38,18 +38,21 @@ function Icon({ name }: { name: IconName }) {
         <rect x="14" y="14" width="7" height="7" rx="1" />
       </>
     ),
+
     incidents: (
       <>
         <rect x="5" y="4" width="14" height="17" rx="2" />
         <path d="M9 4.5h6M9 10h6M9 14h6M9 18h3" />
       </>
     ),
+
     devices: (
       <>
         <rect x="3" y="4" width="18" height="13" rx="1.5" />
         <path d="M8 21h8M12 17v4" />
       </>
     ),
+
     users: (
       <>
         <circle cx="9" cy="8" r="3" />
@@ -57,22 +60,26 @@ function Icon({ name }: { name: IconName }) {
         <path d="M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M15 15c2.7.1 4.4 1.7 4.6 4.5" />
       </>
     ),
+
     reports: (
       <>
         <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
       </>
     ),
+
     profile: (
       <>
         <circle cx="12" cy="8" r="4" />
         <path d="M4 21c.7-4.1 3.4-6.2 8-6.2s7.3 2.1 8 6.2" />
       </>
     ),
+
     logout: (
       <>
         <path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" />
       </>
     ),
+
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
 
     bell: (
@@ -80,18 +87,21 @@ function Icon({ name }: { name: IconName }) {
         <path d="M18 10a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 22h4" />
       </>
     ),
+
     search: (
       <>
         <circle cx="10.5" cy="10.5" r="5.5" />
         <path d="m15 15 4 4" />
       </>
     ),
+
     view: (
       <>
         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
         <circle cx="12" cy="12" r="3" />
       </>
     ),
+
     more: (
       <>
         <circle cx="12" cy="5" r="1.3" />
@@ -99,27 +109,32 @@ function Icon({ name }: { name: IconName }) {
         <circle cx="12" cy="19" r="1.3" />
       </>
     ),
+
     sparkle: (
       <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
     ),
+
     'check-circle': (
       <>
         <circle cx="12" cy="12" r="9" />
         <path d="m8.3 12.3 2.4 2.4L15.8 9.6" />
       </>
     ),
+
     'x-circle': (
       <>
         <circle cx="12" cy="12" r="9" />
         <path d="m9.2 9.2 5.6 5.6M14.8 9.2l-5.6 5.6" />
       </>
     ),
+
     walk: (
       <>
         <circle cx="13" cy="4.5" r="1.8" />
         <path d="M13 7.3 9.5 9l1 3.2-3 2.3M13 7.3l2.5 2.2-.8 3.3 2.8 3M9.5 9l3.5-.5 2 1.5" />
       </>
     ),
+
     assign: (
       <>
         <circle cx="9" cy="8" r="3" />
@@ -127,6 +142,7 @@ function Icon({ name }: { name: IconName }) {
         <path d="M18 8v6M15 11h6" />
       </>
     ),
+
     close: <path d="M6 6l12 12M18 6 6 18" />,
   }
 
@@ -183,7 +199,10 @@ const navigation: {
   },
 ]
 
-/* DATABASE INCIDENT TYPE */
+/* ===========================================================
+   DATABASE INCIDENT TYPE
+   =========================================================== */
+
 type Incident = {
   incidentID: string
   affectedIssue: string
@@ -211,14 +230,22 @@ type Incident = {
   resolutionNotes: string | null
   startedAt: string | null
 }
-/*API RESPONSE*/
+
+/* ===========================================================
+   API RESPONSE
+   =========================================================== */
+
 type IncidentsResponse = {
   success: boolean
   count: number
   incidents: Incident[]
   message?: string
 }
-/* FILTERS */
+
+/* ===========================================================
+   FILTERS
+   =========================================================== */
+
 const STATUS_OPTIONS = [
   'All Status',
   'Pending',
@@ -233,7 +260,11 @@ const SEVERITY_OPTIONS = [
   'Medium',
   'Low',
 ]
-/* NEW INCIDENT FORM */
+
+/* ===========================================================
+   NEW INCIDENT FORM
+   =========================================================== */
+
 interface IncidentFormValues {
   department: string
   location: string
@@ -245,17 +276,15 @@ interface IncidentFormValues {
   description: string
 }
 
-function getInitialIncidentFormValues(): IncidentFormValues {
-  return {
-    department: getCurrentUserDepartment(),
-    location: '',
-    issueCategory: '',
-    deviceType: '',
-    connectionType: '',
-    severity: '',
-    affectedService: '',
-    description: '',
-  }
+const initialIncidentFormValues: IncidentFormValues = {
+  department: '',
+  location: '',
+  issueCategory: '',
+  deviceType: '',
+  connectionType: '',
+  severity: '',
+  affectedService: '',
+  description: '',
 }
 
 const ISSUE_CATEGORIES = [
@@ -266,6 +295,7 @@ const ISSUE_CATEGORIES = [
   'Printer / Peripheral',
   'Server / System Downtime',
   'Security / Access Issue',
+  'Other',
 ]
 
 const DEVICE_TYPES = [
@@ -274,7 +304,6 @@ const DEVICE_TYPES = [
   'Printer',
   'Router',
   'Switch',
-  'Access Point',
 ]
 
 const CONNECTION_TYPES = [
@@ -282,7 +311,10 @@ const CONNECTION_TYPES = [
   'Wi-Fi',
 ]
 
-/*AI ANALYSIS*/
+/* ===========================================================
+   AI ANALYSIS
+   =========================================================== */
+
 interface AIAnalysisResult {
   summary: string
   classification: string
@@ -412,7 +444,9 @@ function generateMockAnalysis(
   }
 }
 
-/* THEME */
+/* ===========================================================
+   THEME
+   =========================================================== */
 
 type Theme = 'light' | 'dark'
 
@@ -515,16 +549,20 @@ function ThemeToggle({
   )
 }
 
-/*PROFILE MENU*/
+/* ===========================================================
+   PROFILE MENU
+   =========================================================== */
 
 function ProfileMenu({
   name,
   role,
+  avatar,
   onLogout,
   profilePath = '/admin/profile',
 }: {
   name: string
   role: string
+  avatar: string
   onLogout: () => void
   profilePath?: string
 }) {
@@ -602,12 +640,19 @@ function ProfileMenu({
         aria-expanded={open}
       >
         <div className="topbar-avatar">
-          {name
-            .split(/\s+/)
-            .map(part => part[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase()}
+          {avatar ? (
+            <img
+              src={avatar}
+              alt=""
+            />
+          ) : (
+            name
+              .split(/\s+/)
+              .map(part => part[0])
+              .slice(0, 2)
+              .join('')
+              .toUpperCase()
+          )}
         </div>
 
         <div>
@@ -692,7 +737,9 @@ function ProfileMenu({
   )
 }
 
-/*PAGE */
+/* ===========================================================
+   PAGE
+   =========================================================== */
 
 function Incidents({
   audience = 'administrator',
@@ -705,10 +752,6 @@ function Incidents({
     audience === 'secretary'
 
   const isIT = audience === 'it'
-
-  // IT personnel can see the complete incident queue.
-  // Assignment determines who is responsible for working on an incident,
-  // while All Incidents remains visible to every IT Personnel account.
 
   const roleNavigation = isSecretary
     ? navigation
@@ -752,26 +795,67 @@ function Incidents({
           }))
       : navigation
 
+  const session = getAuthSession()
+  const currentUser = session?.user
+
   const user = isSecretary
     ? {
-        name: 'Teresa Lopez',
-        role: 'Secretary',
-        initial: 'T',
+        name: currentUser?.fullName || 'Secretary',
+        role: currentUser?.role || 'Secretary',
+        initial: 'S',
         profilePath: '/secretary/profile',
       }
     : isIT
       ? {
-          name: 'Juan dela Cruz',
-          role: 'IT Personnel',
-          initial: 'J',
+          name: currentUser?.fullName || 'IT Personnel',
+          role: currentUser?.role || 'IT Personnel',
+          initial: 'I',
           profilePath: '/it/profile',
         }
       : {
-          name: 'Ricardo Mendoza',
-          role: 'Administrator',
-          initial: 'R',
+          name: currentUser?.fullName || 'Administrator',
+          role: currentUser?.role || 'Administrator',
+          initial: 'A',
           profilePath: '/admin/profile',
         }
+
+  const [profileAvatar, setProfileAvatar] = useState(() =>
+    getProfilePhotoUrl(
+      currentUser?.profilePhoto,
+      currentUser?.fullName,
+      currentUser?.role,
+    ),
+  )
+
+  useEffect(() => {
+    const updateProfilePhoto = () => {
+      const updatedSession = getAuthSession()
+      const updatedUser = updatedSession?.user
+
+      if (!updatedUser) return
+
+      setProfileAvatar(
+        getProfilePhotoUrl(
+          updatedUser.profilePhoto,
+          updatedUser.fullName,
+          updatedUser.role,
+        ),
+      )
+    }
+
+    updateProfilePhoto()
+    window.addEventListener(
+      'batangai-auth-updated',
+      updateProfilePhoto,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'batangai-auth-updated',
+        updateProfilePhoto,
+      )
+    }
+  }, [])
 
   const {
     theme,
@@ -779,17 +863,16 @@ function Incidents({
   } = useTheme()
 
   const handleLogout = () => {
-    localStorage.removeItem(
-      'batangai-admin-auth',
-    )
-
-    navigate('/')
+    signOut()
+    navigate('/', { replace: true })
   }
 
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(false)
 
-  /*REAL DATABASE INCIDENTS */
+  /* =========================================================
+     REAL DATABASE INCIDENTS
+     ========================================================= */
 
   const [incidents, setIncidents] =
     useState<Incident[]>([])
@@ -869,18 +952,10 @@ function Incidents({
     fetchIncidents()
   }, [])
 
-  // Keep the role queues current when another user submits or assigns a report.
-  useEffect(() => {
-    const refreshInterval = window.setInterval(fetchIncidents, 15000)
-    return () => window.clearInterval(refreshInterval)
-  }, [])
+  /* =========================================================
+     FILTERS
+     ========================================================= */
 
-  const roleIncidents = useMemo(
-    () => incidents,
-    [incidents],
-  )
-
-  /* FILTERS*/
   const [query, setQuery] =
     useState('')
 
@@ -896,7 +971,7 @@ function Incidents({
   const departmentOptions = useMemo(() => {
     const departments = Array.from(
       new Set(
-        roleIncidents
+        incidents
           .map(
             incident =>
               incident.department,
@@ -909,14 +984,14 @@ function Incidents({
       'All Departments',
       ...departments,
     ]
-  }, [roleIncidents])
+  }, [incidents])
 
   const filteredIncidents =
     useMemo(() => {
       const q =
         query.trim().toLowerCase()
 
-      return roleIncidents.filter(
+      return incidents.filter(
         incident => {
           const matchesQuery =
             q === '' ||
@@ -961,14 +1036,16 @@ function Incidents({
         },
       )
     }, [
-      roleIncidents,
+      incidents,
       query,
       statusFilter,
       severityFilter,
       departmentFilter,
     ])
 
-  /* VIEW / ACTION MENU */
+  /* =========================================================
+     VIEW / ACTION MENU
+     ========================================================= */
 
   const [viewingId, setViewingId] =
     useState<string | null>(null)
@@ -988,237 +1065,9 @@ function Incidents({
     setActionMenuId(null)
   }
 
-  /* EDIT INCIDENT*/
-
-  const [editingIncident, setEditingIncident] =
-    useState<Incident | null>(null)
-
-  const [editValues, setEditValues] =
-    useState<IncidentFormValues>(
-      getInitialIncidentFormValues(),
-    )
-
-  const [isSavingEdit, setIsSavingEdit] =
-    useState(false)
-
-  const openEditIncident = (
-    incident: Incident,
-  ) => {
-    setActionMenuId(null)
-
-    setEditingIncident(incident)
-
-    setEditValues({
-      department: incident.department,
-      location: incident.location,
-      issueCategory: incident.issueCategory,
-      deviceType: incident.deviceType ?? '',
-      connectionType:
-        incident.connectionType ?? '',
-      severity: incident.severity,
-      affectedService: incident.affectedIssue,
-      description: incident.description,
-    })
-  }
-
-  const closeEditIncident = () => {
-    setEditingIncident(null)
-  }
-
-  const handleEditFieldChange = (
-    field: keyof IncidentFormValues,
-    value: string,
-  ) => {
-    setEditValues(prev => ({
-      ...prev,
-      [field]: value,
-    }))
-  }
-
-  const saveEditIncident = async (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault()
-
-    if (!editingIncident) return
-
-    setIsSavingEdit(true)
-
-    try {
-      const response = await fetch(
-        'http://localhost/BatangAI/api/update_incident.php',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json',
-          },
-          body: JSON.stringify({
-            incidentID:
-              editingIncident.incidentID,
-            department:
-              editValues.department,
-            location: editValues.location,
-            issueCategory:
-              editValues.issueCategory,
-            deviceType:
-              editValues.deviceType,
-            connectionType:
-              editValues.connectionType,
-            severity: editValues.severity,
-            affectedIssue:
-              editValues.affectedService,
-            description:
-              editValues.description,
-          }),
-        },
-      )
-
-      const responseText =
-        await response.text()
-
-      let data: {
-        success: boolean
-        message?: string
-      }
-
-      try {
-        data = JSON.parse(responseText)
-      } catch {
-        console.error(
-          'Invalid JSON from update_incident.php:',
-          responseText,
-        )
-
-        alert(
-          'The server returned an invalid response. Please check your PHP API.',
-        )
-
-        return
-      }
-
-      if (
-        !response.ok ||
-        !data.success
-      ) {
-        alert(
-          data.message ||
-            'Failed to update incident.',
-        )
-
-        return
-      }
-
-      await fetchIncidents()
-      setEditingIncident(null)
-    } catch (error) {
-      console.error(
-        'Update incident error:',
-        error,
-      )
-
-      alert(
-        'Unable to connect to the server. Please make sure XAMPP Apache and MySQL are running.',
-      )
-    } finally {
-      setIsSavingEdit(false)
-    }
-  }
-
-  /* DELETE INCIDENT*/
-
-  const [deletingId, setDeletingId] =
-    useState<string | null>(null)
-
-  const deleteIncident = async (
-    incidentID: string,
-  ) => {
-    setActionMenuId(null)
-
-    const confirmed = window.confirm(
-      `Delete incident ${incidentID}? This cannot be undone.`,
-    )
-
-    if (!confirmed) return
-
-    setDeletingId(incidentID)
-
-    try {
-      const response = await fetch(
-        'http://localhost/BatangAI/api/delete_incident.php',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type':
-              'application/json',
-          },
-          body: JSON.stringify({
-            incidentID,
-          }),
-        },
-      )
-
-      const responseText =
-        await response.text()
-
-      let data: {
-        success: boolean
-        message?: string
-      }
-
-      try {
-        data = JSON.parse(responseText)
-      } catch {
-        console.error(
-          'Invalid JSON from delete_incident.php:',
-          responseText,
-        )
-
-        alert(
-          'The server returned an invalid response. Please check your PHP API.',
-        )
-
-        return
-      }
-
-      if (
-        !response.ok ||
-        !data.success
-      ) {
-        alert(
-          data.message ||
-            'Failed to delete incident.',
-        )
-
-        return
-      }
-
-      setIncidents(prev =>
-        prev.filter(
-          item =>
-            item.incidentID !==
-            incidentID,
-        ),
-      )
-
-      if (viewingId === incidentID) {
-        setViewingId(null)
-      }
-    } catch (error) {
-      console.error(
-        'Delete incident error:',
-        error,
-      )
-
-      alert(
-        'Unable to connect to the server. Please make sure XAMPP Apache and MySQL are running.',
-      )
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  /* NEW INCIDENT MODAL*/
+  /* =========================================================
+     NEW INCIDENT MODAL
+     ========================================================= */
 
   const [isNewIncidentOpen, setIsNewIncidentOpen] =
     useState(false)
@@ -1228,7 +1077,7 @@ function Incidents({
 
   const [values, setValues] =
     useState<IncidentFormValues>(
-      getInitialIncidentFormValues,
+      initialIncidentFormValues,
     )
 
   const [errors, setErrors] =
@@ -1258,7 +1107,7 @@ function Incidents({
 
   const openNewIncident = () => {
     setValues(
-      getInitialIncidentFormValues(),
+      initialIncidentFormValues,
     )
 
     setErrors({})
@@ -1499,6 +1348,7 @@ function Incidents({
           <ProfileMenu
             name={user.name}
             role={user.role}
+            avatar={profileAvatar}
             profilePath={
               user.profilePath
             }
@@ -1509,7 +1359,9 @@ function Incidents({
         </header>
 
         <div className="dashboard-content">
-          {/* SEARCH / NEW INCIDENT*/}
+          {/* =================================================
+              SEARCH / NEW INCIDENT
+              ================================================= */}
 
           <section className="incident-tools">
             <label className="incident-search">
@@ -1537,7 +1389,9 @@ function Incidents({
             </button>
           </section>
 
-          {/* FILTERS*/}
+          {/* =================================================
+              FILTERS
+              ================================================= */}
 
           <section className="incident-filters">
             <label className="incident-filter-select">
@@ -1624,7 +1478,9 @@ function Incidents({
             </button>
           </section>
 
-          {/* API ERROR*/}
+          {/* =================================================
+              API ERROR
+              ================================================= */}
 
           {apiError && (
             <div
@@ -1662,7 +1518,9 @@ function Incidents({
             </div>
           )}
 
-          {/*INCIDENT TABLE*/}
+          {/* =================================================
+              INCIDENT TABLE
+              ================================================= */}
 
           <article className="dashboard-card incidents-table-card">
             <table>
@@ -1801,11 +1659,15 @@ function Incidents({
                                 <div className="incident-row-menu">
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      openEditIncident(
-                                        incident,
+                                    onClick={() => {
+                                      setActionMenuId(
+                                        null,
                                       )
-                                    }
+
+                                      alert(
+                                        'Edit Incident will be connected to the database in the Manage & Assign module.',
+                                      )
+                                    }}
                                   >
                                     Edit
                                   </button>
@@ -1813,20 +1675,17 @@ function Incidents({
                                   <button
                                     className="incident-delete-action"
                                     type="button"
-                                    disabled={
-                                      deletingId ===
-                                      incident.incidentID
-                                    }
-                                    onClick={() =>
-                                      deleteIncident(
-                                        incident.incidentID,
+                                    onClick={() => {
+                                      setActionMenuId(
+                                        null,
                                       )
-                                    }
+
+                                      alert(
+                                        'Delete Incident is not connected yet. No database record was deleted.',
+                                      )
+                                    }}
                                   >
-                                    {deletingId ===
-                                    incident.incidentID
-                                      ? 'Deleting…'
-                                      : 'Delete'}
+                                    Delete
                                   </button>
                                 </div>
                               )}
@@ -1906,7 +1765,9 @@ function Incidents({
         </div>
       </main>
 
-      {/* NEW INCIDENT MODAL*/}
+      {/* =====================================================
+          NEW INCIDENT MODAL
+          ===================================================== */}
 
       {isNewIncidentOpen &&
         phase !== 'result' && (
@@ -1924,25 +1785,19 @@ function Incidents({
               aria-labelledby="new-incident-title"
             >
               <header className="new-incident-header">
-                <div className="new-incident-heading">
-                  <span className="new-incident-icon">
-                    <Icon name="incidents" />
-                  </span>
+                <div>
+                  <h2 id="new-incident-title">
+                    Report a Network
+                    Incident
+                  </h2>
 
-                  <div>
-                    <h2 id="new-incident-title">
-                      Report a Network
-                      Incident
-                    </h2>
-
-                    <p>
-                      Fill out the form
-                      below. BatangAI will
-                      analyze and provide
-                      troubleshooting
-                      steps.
-                    </p>
-                  </div>
+                  <p>
+                    Fill out the form
+                    below. BatangAI will
+                    analyze and provide
+                    troubleshooting
+                    steps.
+                  </p>
                 </div>
 
                 <button
@@ -1998,8 +1853,14 @@ function Incidents({
                           value={
                             values.department
                           }
-                          readOnly
-                          disabled
+                          onChange={e =>
+                            handleFieldChange(
+                              'department',
+                              e.target
+                                .value,
+                            )
+                          }
+                          placeholder="Enter department"
                         />
                       </label>
 
@@ -2285,7 +2146,7 @@ function Incidents({
 
                 <footer className="new-incident-footer">
                   <button
-                    className="btn-secondary"
+                    className="btn-secondary btn-block"
                     type="button"
                     onClick={
                       closeNewIncident
@@ -2299,7 +2160,7 @@ function Incidents({
                   </button>
 
                   <button
-                    className="btn-primary"
+                    className="btn-primary btn-block"
                     type="submit"
                     disabled={
                       phase ===
@@ -2323,7 +2184,9 @@ function Incidents({
           </div>
         )}
 
-      {/* AI RESULT*/}
+      {/* =====================================================
+          AI RESULT
+          ===================================================== */}
 
       {isNewIncidentOpen &&
         phase === 'result' &&
@@ -2525,395 +2388,9 @@ function Incidents({
           </div>
         )}
 
-      {/* EDIT INCIDENT*/}
-
-      {editingIncident && (
-        <div
-          className="modal-overlay"
-          onMouseDown={event => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-              closeEditIncident()
-            }
-          }}
-        >
-          <div
-            className="new-incident-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-incident-title"
-          >
-            <header className="new-incident-header">
-              <div className="new-incident-heading">
-                <span className="new-incident-icon">
-                  <Icon name="incidents" />
-                </span>
-
-                <div>
-                  <h2 id="edit-incident-title">
-                    Edit Incident
-                  </h2>
-
-                  <p>
-                    {
-                      editingIncident.incidentID
-                    }{' '}
-                    — update the details
-                    below and save your
-                    changes.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                className="modal-close"
-                type="button"
-                aria-label="Close dialog"
-                onClick={
-                  closeEditIncident
-                }
-              >
-                ×
-              </button>
-            </header>
-
-            <form
-              className="new-incident-body"
-              onSubmit={
-                saveEditIncident
-              }
-              noValidate
-            >
-              <div className="incident-form">
-                <fieldset
-                  className="incident-form-section"
-                  disabled={isSavingEdit}
-                >
-                  <legend className="sr-only">
-                    Incident Details
-                  </legend>
-
-                  <div className="incident-form-section-header">
-                    <span className="incident-form-badge">
-                      1
-                    </span>
-
-                    <h3>
-                      Incident Details
-                    </h3>
-                  </div>
-
-                  <div className="incident-form-grid">
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Department
-                      </span>
-
-                      <input
-                        type="text"
-                        value={
-                          editValues.department
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'department',
-                            e.target
-                              .value,
-                          )
-                        }
-                        placeholder="Enter department"
-                      />
-                    </label>
-
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Location / Room
-                        <em>*</em>
-                      </span>
-
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. 2nd Floor, IT Room"
-                        value={
-                          editValues.location
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'location',
-                            e.target
-                              .value,
-                          )
-                        }
-                      />
-                    </label>
-
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Issue Category
-                        <em>*</em>
-                      </span>
-
-                      <select
-                        required
-                        value={
-                          editValues.issueCategory
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'issueCategory',
-                            e.target
-                              .value,
-                          )
-                        }
-                      >
-                        <option value="">
-                          Select a
-                          category
-                        </option>
-
-                        {ISSUE_CATEGORIES.map(
-                          category => (
-                            <option
-                              key={
-                                category
-                              }
-                              value={
-                                category
-                              }
-                            >
-                              {category}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </label>
-
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Device Type
-                        <em>*</em>
-                      </span>
-
-                      <select
-                        required
-                        value={
-                          editValues.deviceType
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'deviceType',
-                            e.target
-                              .value,
-                          )
-                        }
-                      >
-                        <option value="">
-                          Select a
-                          device type
-                        </option>
-
-                        {DEVICE_TYPES.map(
-                          device => (
-                            <option
-                              key={
-                                device
-                              }
-                              value={
-                                device
-                              }
-                            >
-                              {device}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </label>
-
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Connection Type
-                        <em>*</em>
-                      </span>
-
-                      <select
-                        required
-                        value={
-                          editValues.connectionType
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'connectionType',
-                            e.target
-                              .value,
-                          )
-                        }
-                      >
-                        <option value="">
-                          Select a
-                          connection
-                          type
-                        </option>
-
-                        {CONNECTION_TYPES.map(
-                          connection => (
-                            <option
-                              key={
-                                connection
-                              }
-                              value={
-                                connection
-                              }
-                            >
-                              {connection}
-                            </option>
-                          ),
-                        )}
-                      </select>
-                    </label>
-
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Severity
-                        <em>*</em>
-                      </span>
-
-                      <select
-                        required
-                        value={
-                          editValues.severity
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'severity',
-                            e.target
-                              .value,
-                          )
-                        }
-                      >
-                        <option value="">
-                          Select
-                          severity
-                        </option>
-
-                        <option value="Low">
-                          Low
-                        </option>
-
-                        <option value="Medium">
-                          Medium
-                        </option>
-
-                        <option value="High">
-                          High
-                        </option>
-                      </select>
-                    </label>
-                  </div>
-                </fieldset>
-
-                <fieldset
-                  className="incident-form-section"
-                  disabled={isSavingEdit}
-                >
-                  <legend className="sr-only">
-                    Problem
-                    Description
-                  </legend>
-
-                  <div className="incident-form-section-header">
-                    <span className="incident-form-badge">
-                      2
-                    </span>
-
-                    <h3>
-                      Problem
-                      Description
-                    </h3>
-                  </div>
-
-                  <div className="incident-form-grid incident-form-grid--single">
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Affected Issue /
-                        Service
-                        <em>*</em>
-                      </span>
-
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. Records System login"
-                        value={
-                          editValues.affectedService
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'affectedService',
-                            e.target
-                              .value,
-                          )
-                        }
-                      />
-                    </label>
-
-                    <label className="incident-field">
-                      <span className="incident-field-label">
-                        Detailed Problem
-                        Description
-                        <em>*</em>
-                      </span>
-
-                      <textarea
-                        required
-                        rows={4}
-                        placeholder="Describe what happened, when it started, and any error messages you saw."
-                        value={
-                          editValues.description
-                        }
-                        onChange={e =>
-                          handleEditFieldChange(
-                            'description',
-                            e.target
-                              .value,
-                          )
-                        }
-                      />
-                    </label>
-                  </div>
-                </fieldset>
-              </div>
-
-              <footer className="new-incident-footer">
-                <button
-                  className="btn-secondary"
-                  type="button"
-                  onClick={
-                    closeEditIncident
-                  }
-                  disabled={isSavingEdit}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  className="btn-primary"
-                  type="submit"
-                  disabled={isSavingEdit}
-                >
-                  {isSavingEdit
-                    ? 'Saving…'
-                    : 'Save Changes'}
-                </button>
-              </footer>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* REAL DATABASE INCIDENT DETAILS*/}
+      {/* =====================================================
+          REAL DATABASE INCIDENT DETAIL
+          ===================================================== */}
 
       {viewingIncident && (
         <div
@@ -3183,4 +2660,5 @@ function Incidents({
     </div>
   )
 }
+
 export default Incidents

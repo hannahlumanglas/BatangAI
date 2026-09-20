@@ -7,6 +7,7 @@ import './Dashboard.css'
 import './UserManagement.css'
 import {
   getAuthSession,
+  getProfilePhotoUrl,
   signOut,
 } from '../../auth'
 /* --------- API ---------- */
@@ -600,38 +601,6 @@ function UserCard({
    CHANGE PASSWORD
    Existing UI retained.
    ========================================================= */
-function PasswordVisibilityButton({
-  visible,
-  onClick,
-}: {
-  visible: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      className="password-visibility-button"
-      onClick={onClick}
-      aria-label={visible ? 'Hide password' : 'Show password'}
-      title={visible ? 'Hide password' : 'Show password'}
-    >
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        {visible ? (
-          <>
-            <path d="M3 3l18 18" />
-            <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-            <path d="M9.9 5.1A10.8 10.8 0 0 1 12 5c5.1 0 8.7 4.5 9.5 7-.4 1.2-1.4 2.9-3 4.3M6.3 6.3C4.6 7.7 3.4 9.8 2.5 12c.8 2.5 4.4 7 9.5 7 1 0 1.9-.2 2.7-.5" />
-          </>
-        ) : (
-          <>
-            <path d="M2.5 12S6.1 5 12 5s9.5 7 9.5 7-3.6 7-9.5 7S2.5 12 2.5 12Z" />
-            <circle cx="12" cy="12" r="3" />
-          </>
-        )}
-      </svg>
-    </button>
-  )
-}
 function ChangePasswordCard({
   user,
   onSaved,
@@ -646,8 +615,6 @@ function ChangePasswordCard({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [updating, setUpdating] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const clearForm = () => {
     if (updating) return
@@ -782,46 +749,34 @@ function ChangePasswordCard({
 
       <label className="um-field">
         <span>New Password</span>
-        <span className="password-input-wrap">
-          <input
-            type={showNewPassword ? 'text' : 'password'}
-            value={newPassword}
-            onChange={e => {
-              setNewPassword(e.target.value)
-              setError('')
-              setSuccess('')
-            }}
-            placeholder="Enter new password"
-            autoComplete="new-password"
-            disabled={updating}
-          />
-          <PasswordVisibilityButton
-            visible={showNewPassword}
-            onClick={() => setShowNewPassword(current => !current)}
-          />
-        </span>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={e => {
+            setNewPassword(e.target.value)
+            setError('')
+            setSuccess('')
+          }}
+          placeholder="Enter new password"
+          autoComplete="new-password"
+          disabled={updating}
+        />
       </label>
 
       <label className="um-field">
         <span>Confirm Password</span>
-        <span className="password-input-wrap">
-          <input
-            type={showConfirmPassword ? 'text' : 'password'}
-            value={confirmPassword}
-            onChange={e => {
-              setConfirmPassword(e.target.value)
-              setError('')
-              setSuccess('')
-            }}
-            placeholder="Re-enter new password"
-            autoComplete="new-password"
-            disabled={updating}
-          />
-          <PasswordVisibilityButton
-            visible={showConfirmPassword}
-            onClick={() => setShowConfirmPassword(current => !current)}
-          />
-        </span>
+        <input
+          type="password"
+          value={confirmPassword}
+          onChange={e => {
+            setConfirmPassword(e.target.value)
+            setError('')
+            setSuccess('')
+          }}
+          placeholder="Re-enter new password"
+          autoComplete="new-password"
+          disabled={updating}
+        />
       </label>
 
       {error && (
@@ -1691,10 +1646,12 @@ function ThemeToggle({
 function ProfileMenu({
   name,
   role,
+  avatar,
   onLogout,
 }: {
   name: string
   role: string
+  avatar?: string
   onLogout: () => void
 }) {
   const [open, setOpen] =
@@ -1762,7 +1719,11 @@ function ProfileMenu({
         aria-expanded={open}
       >
         <div className="topbar-avatar">
-          {getInitials(name)}
+          {avatar ? (
+            <img src={avatar} alt="" />
+          ) : (
+            getInitials(name)
+          )}
         </div>
         <div>
           <strong>{name}</strong>
@@ -1936,6 +1897,45 @@ function UserManagement() {
   const adminRole =
     session?.user?.role ||
     'Administrator'
+  const currentUser = session?.user
+  const [profileAvatar, setProfileAvatar] = useState(() =>
+    getProfilePhotoUrl(
+      currentUser?.profilePhoto,
+      currentUser?.fullName,
+      currentUser?.role,
+    ),
+  )
+
+  useEffect(() => {
+    const updateProfilePhoto = () => {
+      const updatedSession = getAuthSession()
+      const updatedUser = updatedSession?.user
+
+      if (!updatedUser) return
+
+      setProfileAvatar(
+        getProfilePhotoUrl(
+          updatedUser.profilePhoto,
+          updatedUser.fullName,
+          updatedUser.role,
+        ),
+      )
+    }
+
+    updateProfilePhoto()
+
+    window.addEventListener(
+      'batangai-auth-updated',
+      updateProfilePhoto,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'batangai-auth-updated',
+        updateProfilePhoto,
+      )
+    }
+  }, [])
   /* LOAD USERS FROM DATABASE */
   const loadUsers = async () => {
     setLoadingUsers(true)
@@ -2439,6 +2439,7 @@ function UserManagement() {
           <ProfileMenu
             name={adminName}
             role={adminRole}
+            avatar={profileAvatar}
             onLogout={
               handleLogout
             }

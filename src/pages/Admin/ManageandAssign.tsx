@@ -8,6 +8,8 @@ import {
   getCurrentUserId,
   getCurrentUserName,
   getCurrentUserRole,
+  getAuthSession,
+  getProfilePhotoUrl,
   signOut,
 } from '../../auth'
 import './Dashboard.css'
@@ -358,12 +360,14 @@ function ThemeToggle({
 function ProfileMenu({
   name,
   role,
+  avatar,
   avatarInitial,
   onLogout,
   profilePath = '/admin/profile',
 }: {
   name: string
   role: string
+  avatar?: string
   avatarInitial: string
   onLogout: () => void
   profilePath?: string
@@ -428,7 +432,11 @@ function ProfileMenu({
         aria-expanded={open}
       >
         <div className="topbar-avatar">
-          {avatarInitial}
+          {avatar ? (
+            <img src={avatar} alt="" />
+          ) : (
+            avatarInitial
+          )}
         </div>
 
         <div>
@@ -776,10 +784,16 @@ function ManageAndAssign({
 
   /* ---------- Authenticated user ---------- */
 
-  const currentUserName = getCurrentUserName()
+  const session = getAuthSession()
+  const currentUser = session?.user
+
+  const currentUserName =
+    currentUser?.fullName ||
+    getCurrentUserName()
 
   const currentUserRole =
-    getCurrentUserRole() ??
+    currentUser?.role ||
+    getCurrentUserRole() ||
     (isSecretary
       ? 'Secretary'
       : isIT
@@ -804,6 +818,45 @@ function ManageAndAssign({
         .toUpperCase() || 'U',
     profilePath,
   }
+
+  const [profileAvatar, setProfileAvatar] = useState(() =>
+    getProfilePhotoUrl(
+      currentUser?.profilePhoto,
+      currentUser?.fullName,
+      currentUser?.role,
+    ),
+  )
+
+  useEffect(() => {
+    const updateProfilePhoto = () => {
+      const updatedSession = getAuthSession()
+      const updatedUser = updatedSession?.user
+
+      if (!updatedUser) return
+
+      setProfileAvatar(
+        getProfilePhotoUrl(
+          updatedUser.profilePhoto,
+          updatedUser.fullName,
+          updatedUser.role,
+        ),
+      )
+    }
+
+    updateProfilePhoto()
+
+    window.addEventListener(
+      'batangai-auth-updated',
+      updateProfilePhoto,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'batangai-auth-updated',
+        updateProfilePhoto,
+      )
+    }
+  }, [])
 
   const currentUserId = getCurrentUserId()
 
@@ -1312,6 +1365,7 @@ function ManageAndAssign({
           <ProfileMenu
             name={user.name}
             role={user.role}
+            avatar={profileAvatar}
             avatarInitial={user.initial}
             profilePath={user.profilePath}
             onLogout={handleLogout}

@@ -1311,12 +1311,44 @@ function Dashboard() {
     currentUser?.role ??
     'Administrator'
 
-  const adminAvatar =
+  const [adminAvatar, setAdminAvatar] = useState(() =>
     getProfilePhotoUrl(
       currentUser?.profilePhoto,
       currentUser?.fullName,
       currentUser?.role,
+    ),
+  )
+
+  useEffect(() => {
+    const updateProfilePhoto = () => {
+      const updatedSession = getAuthSession()
+      const updatedUser = updatedSession?.user
+
+      if (!updatedUser) {
+        return
+      }
+
+      setAdminAvatar(
+        getProfilePhotoUrl(
+          updatedUser.profilePhoto,
+          updatedUser.fullName,
+          updatedUser.role,
+        ),
+      )
+    }
+
+    window.addEventListener(
+      'batangai-auth-updated',
+      updateProfilePhoto,
     )
+
+    return () => {
+      window.removeEventListener(
+        'batangai-auth-updated',
+        updateProfilePhoto,
+      )
+    }
+  }, [])
 
 
   /* ------------------------------------------------------------------------
