@@ -5,8 +5,10 @@ import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { PersonName } from '../../components/PersonName'
 import {
+  getAuthSession,
   getCurrentUserId,
   getCurrentUserName,
+  getProfilePhotoUrl,
   signOut,
 } from '../../auth'
 import '../Admin/Dashboard.css'
@@ -33,7 +35,6 @@ type Ticket = {
   classification?: string
   summary?: string
   troubleshooting?: string[]
-
   resolutionNotes?: string
   resolvedBy?: string
   resolvedAt?: string
@@ -177,13 +178,57 @@ function ITProfileMenu({
 
   const currentUserName = getCurrentUserName()
 
+  const session = getAuthSession()
+  const currentUser = session?.user
+
+  const [profileAvatar, setProfileAvatar] = useState(() =>
+    getProfilePhotoUrl(
+      currentUser?.profilePhoto,
+      currentUser?.fullName,
+      currentUser?.role,
+    ),
+  )
+
+  useEffect(() => {
+    const updateProfilePhoto = () => {
+      const updatedSession = getAuthSession()
+      const updatedUser = updatedSession?.user
+
+      if (!updatedUser) {
+        return
+      }
+
+      setProfileAvatar(
+        getProfilePhotoUrl(
+          updatedUser.profilePhoto,
+          updatedUser.fullName,
+          updatedUser.role,
+        ),
+      )
+    }
+
+    window.addEventListener(
+      'batangai-auth-updated',
+      updateProfilePhoto,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'batangai-auth-updated',
+        updateProfilePhoto,
+      )
+    }
+  }, [])
+
   useEffect(() => {
     if (!open) return
 
     const close = (event: MouseEvent) => {
       if (
         rootRef.current &&
-        !rootRef.current.contains(event.target as Node)
+        !rootRef.current.contains(
+          event.target as Node,
+        )
       ) {
         setOpen(false)
       }
@@ -229,7 +274,14 @@ function ITProfileMenu({
         aria-expanded={open}
       >
         <div className="topbar-avatar">
-          {initials}
+          {profileAvatar ? (
+            <img
+              src={profileAvatar}
+              alt=""
+            />
+          ) : (
+            initials
+          )}
         </div>
 
         <div>
@@ -383,7 +435,6 @@ function MyAssignments() {
   const [error, setError] = useState('')
   const [actionLoading, setActionLoading] =
     useState<string | null>(null)
-
   const [resolutionTicket, setResolutionTicket] =
     useState<Ticket | null>(null)
   const [resolutionNotes, setResolutionNotes] =
@@ -398,14 +449,10 @@ function MyAssignments() {
     loadAssignments()
   }, [])
 
+  // New assignments are made by the admin or secretary in a separate session.
   useEffect(() => {
-    const refreshInterval = window.setInterval(
-      loadAssignments,
-      15000,
-    )
-
-    return () =>
-      window.clearInterval(refreshInterval)
+    const refreshInterval = window.setInterval(loadAssignments, 15000)
+    return () => window.clearInterval(refreshInterval)
   }, [])
 
   const loadAssignments = async () => {
@@ -639,6 +686,11 @@ function MyAssignments() {
         )
       }
 
+      /*
+       * Update the ticket immediately in React.
+       * This makes the status visible without
+       * refreshing the browser.
+       */
       setTickets(current =>
         current.map(ticket =>
           ticket.id === id
@@ -651,6 +703,10 @@ function MyAssignments() {
         ),
       )
 
+      /*
+       * If the report modal is currently open,
+       * update the selected report too.
+       */
       setSelected(current =>
         current && current.id === id
           ? {
@@ -977,9 +1033,7 @@ function MyAssignments() {
                   onTakeAction={takeAction}
                   onResolve={openResolution}
                   actionLoading={actionLoading}
-                  resolutionLoading={
-                    resolutionLoading
-                  }
+                  resolutionLoading={resolutionLoading}
                 />
               )}
 
@@ -992,9 +1046,7 @@ function MyAssignments() {
                   onTakeAction={takeAction}
                   onResolve={openResolution}
                   actionLoading={actionLoading}
-                  resolutionLoading={
-                    resolutionLoading
-                  }
+                  resolutionLoading={resolutionLoading}
                 />
               )}
 
@@ -1007,9 +1059,7 @@ function MyAssignments() {
                   onTakeAction={takeAction}
                   onResolve={openResolution}
                   actionLoading={actionLoading}
-                  resolutionLoading={
-                    resolutionLoading
-                  }
+                  resolutionLoading={resolutionLoading}
                 />
               )}
             </>
@@ -1026,9 +1076,7 @@ function MyAssignments() {
           onTakeAction={takeAction}
           onResolve={openResolution}
           actionLoading={actionLoading}
-          resolutionLoading={
-            resolutionLoading
-          }
+          resolutionLoading={resolutionLoading}
         />
       )}
 
@@ -1102,6 +1150,7 @@ function TicketGroup({
             </b>
           </div>
 
+          {/* STATUS */}
           <div className="ticket-status-row">
             <span
               className={`ticket-status ticket-status--${ticket.status}`}
@@ -1152,8 +1201,7 @@ function TicketGroup({
                 type="button"
                 className="take-action"
                 disabled={
-                  actionLoading === ticket.id ||
-                  resolutionLoading
+                  actionLoading === ticket.id
                 }
                 onClick={() =>
                   onTakeAction(ticket.id)
@@ -1170,9 +1218,7 @@ function TicketGroup({
                 <button
                   type="button"
                   className="take-action"
-                  disabled={
-                    resolutionLoading
-                  }
+                  disabled={resolutionLoading}
                   onClick={() =>
                     onResolve(ticket)
                   }
@@ -1212,13 +1258,6 @@ function ReportModal({
   actionLoading: string | null
   resolutionLoading: boolean
 }) {
-  const statusText =
-    ticket.status === 'available'
-      ? 'Pending'
-      : ticket.status === 'in-progress'
-        ? 'In Progress'
-        : 'Resolved'
-
   return (
     <div
       className="assignment-modal-backdrop"
@@ -1291,7 +1330,11 @@ function ReportModal({
 
             <p>
               <span>Status</span>
-              {statusText}
+              {ticket.status === 'available'
+                ? 'Pending'
+                : ticket.status === 'in-progress'
+                  ? 'In Progress'
+                  : 'Resolved'}
             </p>
           </div>
 
@@ -1342,48 +1385,6 @@ function ReportModal({
                 </ol>
               )}
           </section>
-
-          {ticket.status === 'solved' && (
-            <section className="report-problem">
-              <span>
-                RESOLUTION
-              </span>
-
-              <p>
-                {ticket.resolutionNotes ||
-                  'No resolution notes provided.'}
-              </p>
-
-              {ticket.resolvedBy && (
-                <p>
-                  <strong>
-                    Resolved by:
-                  </strong>{' '}
-                  {ticket.resolvedBy}
-                </p>
-              )}
-
-              {ticket.resolvedAt && (
-                <p>
-                  <strong>
-                    Resolved at:
-                  </strong>{' '}
-                  {formatDateTime(
-                    ticket.resolvedAt,
-                  )}
-                </p>
-              )}
-
-              {ticket.duration && (
-                <p>
-                  <strong>
-                    Resolution duration:
-                  </strong>{' '}
-                  {ticket.duration}
-                </p>
-              )}
-            </section>
-          )}
         </div>
 
         {ticket.status === 'available' && (
@@ -1391,8 +1392,7 @@ function ReportModal({
             <button
               type="button"
               disabled={
-                actionLoading === ticket.id ||
-                resolutionLoading
+                actionLoading === ticket.id
               }
               onClick={() =>
                 onTakeAction(ticket.id)
@@ -1418,21 +1418,11 @@ function ReportModal({
             </button>
           </footer>
         )}
-
-        {ticket.status === 'solved' && (
-          <footer>
-            <button
-              type="button"
-              disabled
-            >
-              ✓ Resolved
-            </button>
-          </footer>
-        )}
       </section>
     </div>
   )
 }
+
 
 function ResolutionModal({
   ticket,
@@ -1444,9 +1434,7 @@ function ResolutionModal({
 }: {
   ticket: Ticket
   resolutionNotes: string
-  setResolutionNotes: (
-    value: string,
-  ) => void
+  setResolutionNotes: (value: string) => void
   onClose: () => void
   onResolve: () => void
   loading: boolean
@@ -1458,7 +1446,7 @@ function ResolutionModal({
       onMouseDown={event => {
         if (
           event.target ===
-          event.currentTarget &&
+            event.currentTarget &&
           !loading
         ) {
           onClose()
@@ -1476,7 +1464,6 @@ function ResolutionModal({
             <h2 id="resolution-title">
               Resolve Incident
             </h2>
-
             <p className="person-line-label">
               {ticket.id} — {ticket.title}
             </p>
@@ -1494,9 +1481,7 @@ function ResolutionModal({
 
         <div className="report-body">
           <section className="report-problem">
-            <span>
-              INCIDENT
-            </span>
+            <span>INCIDENT</span>
 
             <p>
               <strong>
@@ -1545,7 +1530,6 @@ function ResolutionModal({
               <strong>
                 ✓ Ready to Resolve
               </strong>
-
               <span>
                 IT Personnel
               </span>
