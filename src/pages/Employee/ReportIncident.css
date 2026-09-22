@@ -91,6 +91,7 @@
 .employee-report-footer .incident-new { min-width:142px; justify-content:center; }
 
 .employee-report-success { display:flex; align-items:center; gap:8px; margin:0; color:var(--success); font-size:var(--font-body); font-weight:600; }
+.employee-report-error { margin:0; color:#b42318; font-size:var(--font-body); font-weight:600; }
 .employee-report-success .admin-icon { width:18px; height:18px; }
 
 .employee-ai-result { display:grid; gap:16px; }

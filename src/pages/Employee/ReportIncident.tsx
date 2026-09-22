@@ -5,6 +5,7 @@ import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { ProfileMenu } from './Profile'
 import {
+  getAuthSession,
   getCurrentUserId,
   getCurrentUserDepartment,
 } from '../../auth'
@@ -322,10 +323,13 @@ function ReportIncident() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const { theme, toggleTheme } = useTheme()
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const [values, setValues] = useState<IncidentFormValues>(getInitialValues)
   const [phase, setPhase] = useState<'form' | 'result'>('form')
   const [resolutionStatus, setResolutionStatus] = useState<'resolved' | 'unresolved' | null>(null)
   const handleLogout = () => { localStorage.removeItem('batangai-admin-auth'); navigate('/') }
+  const currentUser = getAuthSession()?.user
 
   const analyze = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -333,22 +337,30 @@ function ReportIncident() {
   }
 
   const submit = async () => {
+    setSubmitError('')
+
+    if (submitting) {
+      return
+    }
+
     const userId = getCurrentUserId()
 
-    if (!userId) {
-      alert('Your login session has expired. Please log in again.')
+    if (!userId || currentUser?.role !== 'Employee') {
+      setSubmitError('Your Employee login session has expired. Please log in again.')
       navigate('/')
       return
     }
 
     if (!resolutionStatus) {
-      alert('Please select whether the issue was resolved.')
+      setSubmitError('Please select whether the issue was resolved before submitting.')
       return
     }
 
     const analysis = generateIncidentAnalysis(values)
 
     try {
+      setSubmitting(true)
+
       const response = await fetch(
         `${API_BASE_URL}/create_incident.php`,
         {
@@ -396,7 +408,7 @@ function ReportIncident() {
       }
 
       if (!response.ok || !data.success) {
-        alert(data.message || 'Failed to submit incident.')
+        setSubmitError(data.message || 'Failed to submit incident.')
         console.error('Create incident error:', data)
         return
       }
@@ -415,9 +427,11 @@ function ReportIncident() {
     } catch (error) {
       console.error('Submit incident error:', error)
 
-      alert(
-        'Unable to connect to the server. Please make sure XAMPP Apache and MySQL are running.',
+      setSubmitError(
+        'Unable to submit the report. Please make sure the shared API and database are available.',
       )
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -447,7 +461,12 @@ function ReportIncident() {
           <div className="topbar-title"><h1>Report Incident</h1><p>Submit a new IT incident report.</p></div>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
           <AdminNotifications />
-          <ProfileMenu name="Juan Dela Cruz" role="Employee" avatarInitial="J" onLogout={handleLogout} />
+          <ProfileMenu
+            name={currentUser?.fullName || 'Employee'}
+            role="Employee"
+            avatarInitial={(currentUser?.fullName || 'E').charAt(0).toUpperCase()}
+            onLogout={handleLogout}
+          />
         </header>
 
         <div className="dashboard-content employee-report-page">
@@ -480,7 +499,8 @@ function ReportIncident() {
                 reviewNote="Review the analysis before submitting your incident."
               />
               <section className="employee-resolution-check"><h3>Were you able to resolve the issue?</h3><p>Using the steps above, did you fix the problem? Your answer determines how this report is handled.</p><div className="employee-resolution-options"><button type="button" className={`employee-resolution-option resolved${resolutionStatus === 'resolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('resolved')}><b>✓</b><strong>Yes, Resolved!</strong><span>Mark as resolved by user</span></button><button type="button" className={`employee-resolution-option unresolved${resolutionStatus === 'unresolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('unresolved')}><b>×</b><strong>Not Resolved</strong><span>Assign to IT personnel</span></button></div></section>
-              <div className="employee-ai-actions"><button className="employee-ai-back" type="button" onClick={() => setPhase('form')}>Edit Report</button><button className="incident-new" type="button" onClick={submit} disabled={!resolutionStatus}><Icon name="check" /> Submit Incident</button></div>
+              {submitError && <p className="employee-report-error" role="alert">{submitError}</p>}
+              <div className="employee-ai-actions"><button className="employee-ai-back" type="button" onClick={() => setPhase('form')}>Edit Report</button><button className="incident-new" type="button" onClick={submit} disabled={submitting}><Icon name="check" /> {submitting ? 'Submitting…' : 'Submit Incident'}</button></div>
             </section>}
             </div>
           </article>
