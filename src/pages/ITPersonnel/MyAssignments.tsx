@@ -666,7 +666,7 @@ function MyAssignments() {
       setActionLoading(id)
 
       const response = await fetch(
-        '${API_BASE_URL}/update_incident_status.php',
+        `${API_BASE_URL}/update_incident_status.php`,
         {
           method: 'POST',
           headers: {
@@ -772,7 +772,7 @@ function MyAssignments() {
       setResolutionLoading(true)
 
       const response = await fetch(
-        '${API_BASE_URL}/update_incident_status.php',
+        `${API_BASE_URL}/update_incident_status.php`,
         {
           method: 'POST',
           headers: {

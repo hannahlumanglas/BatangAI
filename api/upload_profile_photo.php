@@ -1,6 +1,6 @@
 <?php
 
-header("Access-Control-Allow-Origin: http://localhost:5173");
+require_once "cors.php";
 header("Access-Control-Allow-Headers: Content-Type");
 header("Access-Control-Allow-Methods: POST, OPTIONS");
 header("Content-Type: application/json; charset=utf-8");
@@ -300,8 +300,13 @@ echo json_encode([
     "success" => true,
     "message" => "Profile photo updated successfully.",
     "profilePhoto" => $newFileName,
+    // Build the URL from the server handling this request, rather than from a
+    // hard-coded localhost address on one developer's computer.
     "profilePhotoUrl" =>
-        "http://localhost/BatangAI/uploads/profile_photos/" . $newFileName
+        ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http') .
+        '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') .
+        rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '/BatangAI/api/upload_profile_photo.php')), '/') .
+        '/uploads/profile_photos/' . rawurlencode($newFileName)
 ]);
 
 $conn->close();

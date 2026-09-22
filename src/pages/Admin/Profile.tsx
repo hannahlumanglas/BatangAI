@@ -863,7 +863,7 @@ function Profile({
 
       const response =
         await fetch(
-          '${API_BASE_URL}/upload_profile_photo.php',
+          `${API_BASE_URL}/upload_profile_photo.php`,
           {
             method: 'POST',
             body: formData,

@@ -1,5 +1,5 @@
 export const AUTH_STORAGE_KEY = 'batangai-admin-auth'
-import { API_BASE_URL } from './apiConfig'
+import { API_BASE_URL, PROFILE_PHOTOS_BASE_URL } from './apiConfig'
 
 export type UserRole =
   | 'Administrator'
@@ -154,8 +154,9 @@ export function getProfilePhotoUrl(
     return profilePhoto
   }
 
-  // Uploaded photo stored in XAMPP
-  return `http://localhost/BatangAI/uploads/profile_photos/${profilePhoto}`
+  // Uploaded photos live on the same shared server as the API.  Using
+  // localhost here would point every teammate to their own computer.
+  return `${PROFILE_PHOTOS_BASE_URL}/${encodeURIComponent(profilePhoto)}`
 }
 
 /**

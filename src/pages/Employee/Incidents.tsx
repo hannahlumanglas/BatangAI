@@ -789,7 +789,7 @@ function Incidents() {
 
         const response =
           await fetch(
-            '${API_BASE_URL}/update_incident.php',
+            `${API_BASE_URL}/update_incident.php`,
             {
               method: 'POST',
               headers: {
@@ -939,7 +939,7 @@ function Incidents() {
 
       const response =
         await fetch(
-          '${API_BASE_URL}/delete_incident.php',
+          `${API_BASE_URL}/delete_incident.php`,
           {
             method: 'POST',
             headers: {
