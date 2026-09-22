@@ -1,6 +1,9 @@
 import { useEffect } from 'react'
 import AppRouter from './routes/AppRouter'
-import { getAuthSession, getDefaultProfileAvatar } from './auth'
+import {
+  getAuthSession,
+  getCurrentUserProfilePhoto,
+} from './auth'
 import './styles/SystemRefresh.css'
 import './styles/AdminDashboardSystem.css'
 import './styles/AdminSidebarFit.css'
@@ -15,9 +18,27 @@ import './styles/UiAuditFixes.css'
 
 function App() {
   useEffect(() => {
-    const avatar = localStorage.getItem(`batangai-avatar-${getAuthSession()?.user.email ?? 'guest'}`) || getDefaultProfileAvatar()
-    document.documentElement.style.setProperty('--saved-profile-avatar', `url("${avatar}")`)
+    const syncProfileAvatar = () => {
+      const avatar = getCurrentUserProfilePhoto()
+      document.documentElement.style.setProperty(
+        '--saved-profile-avatar',
+        `url("${avatar}")`,
+      )
+    }
+
+    syncProfileAvatar()
     document.documentElement.classList.add('has-profile-avatar')
+    window.addEventListener(
+      'batangai-auth-updated',
+      syncProfileAvatar,
+    )
+
+    return () => {
+      window.removeEventListener(
+        'batangai-auth-updated',
+        syncProfileAvatar,
+      )
+    }
   }, [])
 
   useEffect(() => {
@@ -29,6 +50,25 @@ function App() {
     }
     document.addEventListener('click', goHome)
     return () => document.removeEventListener('click', goHome)
+  }, [])
+
+  useEffect(() => {
+    const showKeyboardFocus = (event: KeyboardEvent) => {
+      if (event.key === 'Tab') {
+        document.body.classList.add('keyboard-navigation')
+      }
+    }
+    const hidePointerFocus = () => {
+      document.body.classList.remove('keyboard-navigation')
+    }
+
+    window.addEventListener('keydown', showKeyboardFocus)
+    window.addEventListener('pointerdown', hidePointerFocus)
+
+    return () => {
+      window.removeEventListener('keydown', showKeyboardFocus)
+      window.removeEventListener('pointerdown', hidePointerFocus)
+    }
   }, [])
   return <AppRouter />
 }

@@ -77,32 +77,36 @@ if (!$requester || strtolower(trim((string)$requester['status'])) !== 'active') 
 $role = strtolower(trim((string)$requester['role']));
 $baseSql = "
     SELECT
-        incidentID,
-        affectedIssue,
-        classification,
-        connectionType,
-        createdAt,
-        department,
-        description,
-        deviceType,
-        employeeName,
-        issueCategory,
-        location,
-        resolvedAt,
-        resolvedBy,
-        severity,
-        status,
-        summary,
-        troubleshooting,
-        userId,
-        assigned,
-        assignedAt,
-        assignedTo,
-        assignedToName,
-        durationMinutes,
-        resolutionNotes,
-        startedAt
+        incidents.incidentID,
+        incidents.affectedIssue,
+        incidents.classification,
+        incidents.connectionType,
+        incidents.createdAt,
+        incidents.department,
+        incidents.description,
+        incidents.deviceType,
+        incidents.employeeName,
+        incidents.issueCategory,
+        incidents.location,
+        incidents.resolvedAt,
+        incidents.resolvedBy,
+        incidents.severity,
+        incidents.status,
+        incidents.summary,
+        incidents.troubleshooting,
+        incidents.userId,
+        incidents.assigned,
+        incidents.assignedAt,
+        incidents.assignedTo,
+        incidents.assignedToName,
+        incidents.durationMinutes,
+        incidents.resolutionNotes,
+        incidents.startedAt,
+        reporter.profilePhoto AS reporterProfilePhoto,
+        assignee.profilePhoto AS assignedToProfilePhoto
     FROM incidents
+    LEFT JOIN users AS reporter ON reporter.userID = incidents.userId
+    LEFT JOIN users AS assignee ON assignee.userID = incidents.assignedTo
 ";
 
 if ($role === 'it personnel') {
@@ -182,6 +186,9 @@ while ($row = $result->fetch_assoc()) {
         : null;
 
     $row["employeeName"] = (string)($row["employeeName"] ?? "");
+    $row["reporterProfilePhoto"] = $row["reporterProfilePhoto"] !== null
+        ? (string)$row["reporterProfilePhoto"]
+        : null;
     $row["issueCategory"] = (string)($row["issueCategory"] ?? "");
     $row["location"] = (string)($row["location"] ?? "");
 
@@ -218,6 +225,10 @@ while ($row = $result->fetch_assoc()) {
 
     $row["assignedToName"] = $row["assignedToName"] !== null
         ? (string)$row["assignedToName"]
+        : null;
+
+    $row["assignedToProfilePhoto"] = $row["assignedToProfilePhoto"] !== null
+        ? (string)$row["assignedToProfilePhoto"]
         : null;
 
     $row["durationMinutes"] = $row["durationMinutes"] !== null

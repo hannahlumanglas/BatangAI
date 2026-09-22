@@ -47,8 +47,6 @@ if (!is_array($data)) {
 */
 
 $userId = trim((string)($data["userId"] ?? ""));
-$employeeName = trim((string)($data["employeeName"] ?? ""));
-$department = trim((string)($data["department"] ?? ""));
 $affectedIssue = trim((string)($data["affectedIssue"] ?? ""));
 $description = trim((string)($data["description"] ?? ""));
 $issueCategory = trim((string)($data["issueCategory"] ?? ""));
@@ -68,8 +66,6 @@ $troubleshooting = trim((string)($data["troubleshooting"] ?? ""));
 
 if (
     $userId === "" ||
-    $employeeName === "" ||
-    $department === "" ||
     $affectedIssue === "" ||
     $description === "" ||
     $issueCategory === "" ||

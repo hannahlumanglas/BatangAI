@@ -219,6 +219,7 @@ type Incident = {
   description: string
   deviceType: string | null
   employeeName: string
+  reporterProfilePhoto: string | null
   issueCategory: string
   location: string
   resolvedAt: string | null
@@ -232,6 +233,7 @@ type Incident = {
   assignedAt: string | null
   assignedTo: string | null
   assignedToName: string | null
+  assignedToProfilePhoto: string | null
   durationMinutes: number | null
   resolutionNotes: string | null
   startedAt: string | null
@@ -1587,6 +1589,9 @@ function Incidents({
                               name={
                                 incident.employeeName
                               }
+                              profilePhoto={
+                                incident.reporterProfilePhoto
+                              }
                               compact
                             />
                           </td>
@@ -2472,6 +2477,9 @@ function Incidents({
                     <PersonName
                       name={
                         viewingIncident.employeeName
+                      }
+                      profilePhoto={
+                        viewingIncident.reporterProfilePhoto
                       }
                     />
                   </strong>

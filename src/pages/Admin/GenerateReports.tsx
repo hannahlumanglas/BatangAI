@@ -983,6 +983,7 @@ function GenerateReports() {
   const currentUserRole =
     currentUser?.role ||
     'Administrator'
+  const currentUserId = currentUser?.userID
 
   const [profileAvatar, setProfileAvatar] =
     useState(() =>
@@ -1076,8 +1077,26 @@ function GenerateReports() {
         setLoading(true)
         setMessage('')
 
-        const response = await fetch(
+        if (
+          currentUserId === undefined ||
+          currentUserId === null ||
+          String(currentUserId).trim() === ''
+        ) {
+          throw new Error(
+            'Your session is missing an account ID. Please log in again.',
+          )
+        }
+
+        const incidentsUrl = new URL(
           'http://localhost/BatangAI/api/get_incidents.php',
+        )
+        incidentsUrl.searchParams.set(
+          'userID',
+          String(currentUserId),
+        )
+
+        const response = await fetch(
+          incidentsUrl,
         )
 
         const data = await response.json()
@@ -1118,7 +1137,7 @@ function GenerateReports() {
     return () => {
       active = false
     }
-  }, [])
+  }, [currentUserId])
 
   const handleGenerate = () => {
     if (loading) {

@@ -21,6 +21,7 @@ type Ticket = {
   id: string
   title: string
   reporter: string
+  reporterProfilePhoto?: string | null
   date: string
   office: string
   severity: 'High' | 'Medium' | 'Low'
@@ -552,6 +553,8 @@ function MyAssignments() {
             reporter:
               incident.employeeName ||
               'Unknown Employee',
+            reporterProfilePhoto:
+              incident.reporterProfilePhoto || null,
 
             date: formatDate(
               incident.createdAt,
@@ -1166,6 +1169,7 @@ function TicketGroup({
           <div className="ticket-meta">
             <PersonName
               name={ticket.reporter}
+              profilePhoto={ticket.reporterProfilePhoto}
               compact
             />
 
@@ -1334,6 +1338,7 @@ function ReportModal({
               Submitted by{' '}
               <PersonName
                 name={ticket.reporter}
+                profilePhoto={ticket.reporterProfilePhoto}
                 compact
               />{' '}
               · {ticket.office}

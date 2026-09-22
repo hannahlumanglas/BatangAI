@@ -903,6 +903,11 @@ function Profile({
         ),
       )
 
+      // Let every mounted page refresh its avatar immediately.
+      window.dispatchEvent(
+        new Event('batangai-auth-updated'),
+      )
+
       /*
       |--------------------------------------------------------------------------
       | Build the new photo URL.

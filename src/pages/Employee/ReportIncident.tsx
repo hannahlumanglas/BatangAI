@@ -6,7 +6,6 @@ import { AdminNotifications } from '../Admin/AdminNotifications'
 import { ProfileMenu } from './Profile'
 import {
   getCurrentUserId,
-  getCurrentUserName,
   getCurrentUserDepartment,
 } from '../../auth'
 import '../Admin/Dashboard.css'
@@ -119,6 +118,11 @@ export function IncidentDetailsFields({
             value={values.department}
             readOnly={!departmentEditable}
             disabled={!departmentEditable}
+            title={
+              departmentEditable
+                ? 'Department'
+                : 'Automatically filled from your registered account'
+            }
             onChange={e => onChange('department', e.target.value)}
           />
         </label>
@@ -329,8 +333,6 @@ function ReportIncident() {
 
   const submit = async () => {
     const userId = getCurrentUserId()
-    const employeeName = getCurrentUserName()
-    const department = getCurrentUserDepartment()
 
     if (!userId) {
       alert('Your login session has expired. Please log in again.')
@@ -355,8 +357,6 @@ function ReportIncident() {
           },
           body: JSON.stringify({
             userId: userId,
-            employeeName: employeeName,
-            department: department || values.department,
 
             affectedIssue: values.affectedService,
             description: values.description,

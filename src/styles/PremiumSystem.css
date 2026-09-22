@@ -1219,6 +1219,7 @@ body {
   font-weight: 700 !important;
   letter-spacing: .025em;
 }
+.person-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 
 .person-name--compact { gap: 7px; }
 .person-name--compact .person-avatar { width: 26px; height: 26px; flex-basis: 26px; font-size: 8px; }

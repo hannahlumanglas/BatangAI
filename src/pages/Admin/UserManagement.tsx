@@ -15,7 +15,6 @@ const USERS_API_URL = 'http://localhost/BatangAI/api/users.php'
 const UPDATE_USER_API_URL = 'http://localhost/BatangAI/api/update_user.php'
 const CREATE_USER_API_URL = 'http://localhost/BatangAI/api/create_user.php'
 const UPDATE_USER_STATUS_API_URL = 'http://localhost/BatangAI/api/update_user_status.php'
-const DELETE_USER_API_URL = 'http://localhost/BatangAI/api/delete_user.php'
 /* ---------- Types ---------- */
 type UserRole =
   | 'Employee'
@@ -30,7 +29,6 @@ type UserMenuAction =
   | 'edit'
   | 'reset'
   | 'disable'
-  | 'delete'
 
 type UserPanelMode = 'view' | 'edit' | 'reset'
 
@@ -52,6 +50,7 @@ type CreateUserRole =
   | 'Employee'
   | 'Secretary'
   | 'IT Personnel'
+  | 'Administrator'
 
 type CreateUserForm = {
   fullName: string
@@ -177,41 +176,6 @@ async function updateUserOnServer(payload: Record<string, string>) {
   }
 }
 /* ---------- Avatar ---------- */
-function avatarUrl(name: string) {
-  const colors = [
-    '#0b5cff',
-    '#007f5f',
-    '#7c3aed',
-    '#c2410c',
-    '#be123c',
-  ]
-  const color =
-    colors[
-      [...name].reduce(
-        (total, letter) => total + letter.charCodeAt(0),
-        0,
-      ) % colors.length
-    ]
-  const initials = getInitials(name)
-  return `data:image/svg+xml,${encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-      <rect width="96" height="96" rx="48" fill="${color}"/>
-      <circle cx="48" cy="35" r="17" fill="#fff" fill-opacity=".92"/>
-      <path d="M18 86c4-19 16-29 30-29s26 10 30 29"
-        fill="#fff"
-        fill-opacity=".92"/>
-      <text
-        x="48"
-        y="88"
-        text-anchor="middle"
-        fill="${color}"
-        font-family="Arial,sans-serif"
-        font-size="14"
-        font-weight="700"
-      >${initials}</text>
-    </svg>`,
-  )}`
-}
 /* ---------- Icons ---------- */
 type IconName =
   | 'dashboard'
@@ -455,11 +419,6 @@ function UserMenu({
           ? 'Disable Account'
           : 'Enable Account',
     },
-    {
-      key: 'delete',
-      label: 'Delete Account',
-      danger: true,
-    },
   ]
   return (
     <>
@@ -517,7 +476,7 @@ function UserCard({
     <article
       className={`user-card${
         selected ? ' selected' : ''
-      }`}
+      }${menuOpen ? ' menu-open' : ''}`}
       onClick={() => onSelect(user.id)}
       role="button"
       tabIndex={0}
@@ -536,10 +495,11 @@ function UserCard({
         <div className="user-card-identity">
           <span className="user-card-avatar">
             <img
-              src={
-                user.profilePhoto ||
-                avatarUrl(user.name)
-              }
+              src={getProfilePhotoUrl(
+                user.profilePhoto,
+                user.name,
+                user.role,
+              )}
               alt={`${user.name} profile`}
             />
           </span>
@@ -878,7 +838,11 @@ function UserDetails({
         <div className="um-account-profile">
           <span className="um-account-avatar">
             <img
-              src={user.profilePhoto || avatarUrl(user.name)}
+              src={getProfilePhotoUrl(
+                user.profilePhoto,
+                user.name,
+                user.role,
+              )}
               alt={`${user.name} profile`}
             />
           </span>
@@ -1442,6 +1406,10 @@ function CreateUserModal({
 
               <option value="Secretary">
                 Secretary
+              </option>
+
+              <option value="Administrator">
+                Administrator
               </option>
             </select>
           </label>
@@ -2058,7 +2026,24 @@ function UserManagement() {
     }
   }
   useEffect(() => {
-    loadUsers()
+    const refreshUsers = () => {
+      void loadUsers()
+    }
+
+    refreshUsers()
+    window.addEventListener('focus', refreshUsers)
+    window.addEventListener(
+      'batangai-auth-updated',
+      refreshUsers,
+    )
+
+    return () => {
+      window.removeEventListener('focus', refreshUsers)
+      window.removeEventListener(
+        'batangai-auth-updated',
+        refreshUsers,
+      )
+    }
   }, [])
   /* FILTER USERS */
   useEffect(() => {
@@ -2240,87 +2225,6 @@ function UserManagement() {
             requestError instanceof Error
               ? requestError.message
               : 'Unable to update the account status. Please try again.',
-          )
-        }
-        break
-      }
-      case 'delete': {
-        if (
-          !window.confirm(
-            `Delete ${user.name}? This action cannot be undone.`,
-          )
-        ) {
-          break
-        }
-        const adminUserID = session?.user?.userID
-        const targetUserID = user.userID
-
-        if (
-          adminUserID === undefined ||
-          adminUserID === null ||
-          String(adminUserID).trim() === ''
-        ) {
-          window.alert(
-            'Administrator session not found. Please log in again.',
-          )
-          break
-        }
-        if (
-          targetUserID === undefined ||
-          targetUserID === null ||
-          String(targetUserID).trim() === ''
-        ) {
-          window.alert(
-            'Unable to identify the selected user.',
-          )
-          break
-        }
-        try {
-          const response = await fetch(
-            DELETE_USER_API_URL,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-              },
-              body: JSON.stringify({
-                adminUserID,
-                userID: targetUserID,
-              }),
-            },
-          )
-          const data = await response.json()
-          if (!response.ok || !data.success) {
-            throw new Error(
-              data.message ||
-                'Unable to delete the user account.',
-            )
-          }
-          setUsers(
-            current =>
-              current.filter(
-                u =>
-                  u.id !==
-                  user.id,
-              ),
-          )
-          setSelectedUserId(
-            current =>
-              current ===
-              user.id
-                ? null
-                : current,
-          )
-          window.alert(
-            data.message ||
-              `${user.name}'s account was deleted successfully.`,
-          )
-        } catch (requestError) {
-          window.alert(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to delete the user account. Please try again.',
           )
         }
         break

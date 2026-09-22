@@ -202,12 +202,14 @@ type Incident = IncidentDetail & {
   id: string
   incidentID: string
   reporter: string
+  reporterProfilePhoto: string | null
   reporterEmail: string | null
   department: string
   severity: Severity
   status: Status
   assignedTo: string | null
   assignedToUserId: string | null
+  assignedToProfilePhoto: string | null
   date: string
   time: string
   employeeId: string
@@ -243,6 +245,7 @@ type ApiIncident = {
   description?: string | null
   deviceType?: string | null
   employeeName?: string | null
+  reporterProfilePhoto?: string | null
   issueCategory?: string | null
   location?: string | null
   severity?: string | null
@@ -254,6 +257,7 @@ type ApiIncident = {
   assignedAt?: string | null
   assignedTo?: number | string | null
   assignedToName?: string | null
+  assignedToProfilePhoto?: string | null
   durationMinutes?: number | string | null
   employeeId?: string | null
   reporterEmail?: string | null
@@ -688,6 +692,7 @@ function mapIncident(item: ApiIncident): Incident {
     id: item.incidentID,
     incidentID: item.incidentID,
     reporter: item.employeeName || 'Unknown Reporter',
+    reporterProfilePhoto: item.reporterProfilePhoto || null,
     reporterEmail: item.reporterEmail || null,
     employeeName: item.employeeName || 'Unknown Reporter',
     department: item.department || '—',
@@ -718,6 +723,7 @@ function mapIncident(item: ApiIncident): Incident {
       item.assignedTo !== undefined
         ? String(item.assignedTo)
         : null,
+    assignedToProfilePhoto: item.assignedToProfilePhoto || null,
 
     date: dateTime.date,
     time: dateTime.time,
@@ -1531,6 +1537,7 @@ function ManageAndAssign({
                           <strong>
                             <PersonName
                               name={i.reporter}
+                              profilePhoto={i.reporterProfilePhoto}
                               compact
                             />
                           </strong>
@@ -1576,6 +1583,9 @@ function ManageAndAssign({
                               <PersonName
                                 name={
                                   i.assignedTo
+                                }
+                                profilePhoto={
+                                  i.assignedToProfilePhoto
                                 }
                                 compact
                               />

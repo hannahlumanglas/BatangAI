@@ -116,14 +116,14 @@ if (
  * 3. Validate allowed roles
  * ---------------------------------------------------------
  *
- * Administrator cannot create another Administrator account
- * through this form.
+ * Active Administrators may create accounts for every supported role.
  */
 
 $allowedRoles = [
     "Employee",
     "IT Personnel",
-    "Secretary"
+    "Secretary",
+    "Administrator"
 ];
 
 if (!in_array($role, $allowedRoles, true)) {
@@ -258,6 +258,7 @@ $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
  */
 
 $status = "Active";
+$databaseRole = $role === "Administrator" ? "Admin" : $role;
 
 $stmt = $conn->prepare("
     INSERT INTO users (
@@ -289,7 +290,7 @@ $stmt->bind_param(
     $employeeId,
     $fullName,
     $hashedPassword,
-    $role,
+    $databaseRole,
     $status
 );
 

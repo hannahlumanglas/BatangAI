@@ -40,6 +40,15 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
+/* Clicked controls should not look like text fields. Focus remains visible
+   when navigating with Tab for keyboard accessibility. */
+body:not(.keyboard-navigation) button:focus,
+body:not(.keyboard-navigation) a:focus,
+body:not(.keyboard-navigation) [role="button"]:focus,
+body:not(.keyboard-navigation) [role="menuitem"]:focus {
+  outline: none !important;
+}
+
 /* Keep fixed navigation from covering page content and make it usable on
    shorter screens instead of allowing the final links to fall below the fold. */
 .admin-sidebar,

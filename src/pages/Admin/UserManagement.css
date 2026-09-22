@@ -245,6 +245,11 @@
       rgba(12, 96, 243, 0.16);
 }
 
+/* Keep the open action menu above the cards that follow it in the grid. */
+.user-card.menu-open {
+  z-index: 22;
+}
+
 
 /* =========================================================
    USER CARD HEADER
