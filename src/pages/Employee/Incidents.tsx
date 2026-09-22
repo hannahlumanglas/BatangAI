@@ -5,6 +5,7 @@ import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { ProfileMenu } from './Profile'
 import { getAuthSession } from '../../auth'
+import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import {
   IncidentDetailsFields,
   IncidentDescriptionFields,
@@ -534,7 +535,7 @@ function Incidents() {
 
         const response =
           await fetch(
-            'http://localhost/BatangAI/api/get_incidents.php',
+            `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
             {
               method: 'GET',
               headers: {
@@ -585,24 +586,8 @@ function Incidents() {
               )
             : []
 
-        /*
-         * IMPORTANT:
-         * Only show incidents submitted by
-         * the currently logged-in employee.
-         */
-        const ownIncidents =
-          allIncidents.filter(
-            incident =>
-              String(
-                incident.userId,
-              ) ===
-              String(
-                currentUserId,
-              ),
-          )
-
         setIncidents(
-          ownIncidents,
+          allIncidents,
         )
       } catch (error) {
         console.error(
@@ -1433,6 +1418,13 @@ function Incidents() {
           ===================================================== */}
 
       {viewing && (
+        <IncidentDetailModal
+          incident={viewing}
+          onClose={closeViewing}
+        />
+      )}
+
+      {viewing && false && ((viewing: EmployeeIncident) => (
         <div
           className="employee-modal-overlay"
           onMouseDown={event => {
@@ -1691,14 +1683,14 @@ function Incidents() {
 
                 <p>
                   {formatDate(
-                    viewing.resolvedAt,
+                    viewing.resolvedAt!,
                   )}
                 </p>
               </section>
             )}
           </section>
         </div>
-      )}
+      ))(viewing!)}
 
       {/* =====================================================
           EDIT INCIDENT MODAL

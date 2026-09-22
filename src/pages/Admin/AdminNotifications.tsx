@@ -18,7 +18,7 @@ type Notification = {
   time: string
 }
 
-const INCIDENTS_URL = 'http://localhost/BatangAI/api/incidents.php'
+const INCIDENTS_URL = 'http://localhost/BatangAI/api/get_incidents.php'
 const REFRESH_INTERVAL_MS = 60_000
 
 function relativeTime(value: string | null | undefined) {
@@ -84,7 +84,17 @@ export function AdminNotifications() {
     setError(false)
 
     try {
-      const response = await fetch(INCIDENTS_URL, { signal })
+      const userId = getAuthSession()?.user.userID
+
+      if (userId === undefined || userId === null) {
+        setNotifications([])
+        return
+      }
+
+      const response = await fetch(
+        `${INCIDENTS_URL}?userID=${encodeURIComponent(String(userId))}`,
+        { signal },
+      )
       const data = await response.json() as { success?: boolean; incidents?: IncidentNotificationSource[] }
 
       if (!response.ok || !data.success || !Array.isArray(data.incidents)) {

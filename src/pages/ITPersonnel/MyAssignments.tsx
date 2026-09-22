@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { PersonName } from '../../components/PersonName'
+import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import {
   getAuthSession,
   getCurrentUserId,
@@ -38,6 +39,7 @@ type Ticket = {
   resolutionNotes?: string
   resolvedBy?: string
   resolvedAt?: string
+  assignedToName?: string
 }
 
 type IconName =
@@ -468,7 +470,7 @@ function MyAssignments() {
       }
 
       const response = await fetch(
-        'http://localhost/BatangAI/api/incidents.php',
+        `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
       )
 
       if (!response.ok) {
@@ -488,15 +490,8 @@ function MyAssignments() {
         )
       }
 
-      const myAssignments = data.incidents.filter(
-        (incident: any) =>
-          incident.assignedTo !== null &&
-          String(incident.assignedTo) ===
-            String(currentUserId),
-      )
-
       const mappedTickets: Ticket[] =
-        myAssignments.map((incident: any) => {
+        data.incidents.map((incident: any) => {
           let status: Status = 'available'
 
           const incidentStatus = String(
@@ -625,6 +620,9 @@ function MyAssignments() {
             resolvedAt:
               incident.resolvedAt ||
               undefined,
+            assignedToName:
+              incident.assignedToName ||
+              currentUserName,
           }
         })
 
@@ -673,6 +671,7 @@ function MyAssignments() {
           body: JSON.stringify({
             incidentID: id,
             status: 'In Progress',
+            actorUserId: currentUserId,
           }),
         },
       )
@@ -778,6 +777,7 @@ function MyAssignments() {
           body: JSON.stringify({
             incidentID: resolutionTicket.id,
             status: 'Resolved',
+            actorUserId: currentUserId,
             resolvedBy: currentUserName,
             resolutionNotes: notes,
           }),
@@ -1258,7 +1258,54 @@ function ReportModal({
   actionLoading: string | null
   resolutionLoading: boolean
 }) {
+  const statusText =
+    ticket.status === 'available'
+      ? 'Pending'
+      : ticket.status === 'in-progress'
+        ? 'In Progress'
+        : 'Resolved'
+
+  const footer =
+    ticket.status === 'available' ? (
+      <button className="btn-primary" type="button" disabled={actionLoading === ticket.id || resolutionLoading} onClick={() => onTakeAction(ticket.id)}>
+        {actionLoading === ticket.id ? 'Updating...' : 'Take Action'}
+      </button>
+    ) : ticket.status === 'in-progress' ? (
+      <button className="btn-primary" type="button" disabled={resolutionLoading} onClick={() => onResolve(ticket)}>
+        Resolve Incident
+      </button>
+    ) : undefined
   return (
+    <IncidentDetailModal
+      incident={{
+        incidentID: ticket.id,
+        affectedIssue: ticket.title,
+        classification: ticket.classification,
+        connectionType: ticket.connectionType,
+        createdAt: ticket.date,
+        department: ticket.office,
+        description: ticket.description,
+        deviceType: ticket.deviceType,
+        employeeName: ticket.reporter,
+        issueCategory: ticket.issueCategory,
+        location: ticket.location,
+        resolutionNotes: ticket.resolutionNotes,
+        resolvedAt: ticket.resolvedAt,
+        resolvedBy: ticket.resolvedBy,
+        severity: ticket.severity,
+        status: statusText,
+        summary: ticket.summary,
+        troubleshooting: ticket.troubleshooting,
+        assigned: 'Yes',
+        assignedToName: ticket.assignedToName,
+      }}
+      onClose={onClose}
+      footer={footer}
+    />
+  )
+
+  /* Legacy report markup is retained below only as a migration reference. */
+  return ticket && false && (
     <div
       className="assignment-modal-backdrop"
       role="presentation"
@@ -1372,10 +1419,10 @@ function ReportModal({
             </p>
 
             {ticket.troubleshooting &&
-              ticket.troubleshooting
+              (ticket.troubleshooting ?? [])
                 .length > 0 && (
                 <ol>
-                  {ticket.troubleshooting.map(
+                  {ticket.troubleshooting?.map(
                     (step, index) => (
                       <li key={index}>
                         {step}

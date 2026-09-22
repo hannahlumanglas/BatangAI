@@ -25,13 +25,42 @@ if (!$data) {
 
 $incidentID = trim($data["incidentID"] ?? "");
 $status = trim($data["status"] ?? "");
+$actorUserId = trim((string)($data["actorUserId"] ?? ""));
 
-if ($incidentID === "" || $status === "") {
+if ($incidentID === "" || $status === "" || $actorUserId === "") {
     http_response_code(400);
     echo json_encode([
         "success" => false,
-        "message" => "Incident ID and status are required."
+        "message" => "Incident ID, status, and the current user are required."
     ]);
+    exit;
+}
+
+// Status changes are restricted to the active IT Personnel account to which
+// this incident is assigned. This is enforced before either transition.
+$actorStmt = $conn->prepare("SELECT fullName, role, status FROM users WHERE userID = ? LIMIT 1");
+$actorStmt->bind_param('s', $actorUserId);
+$actorStmt->execute();
+$actor = $actorStmt->get_result()->fetch_assoc();
+$actorStmt->close();
+
+if (!$actor || strtolower(trim((string)$actor['role'])) !== 'it personnel' || strtolower(trim((string)$actor['status'])) !== 'active') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Only the assigned active IT Personnel may update this incident.']);
+    $conn->close();
+    exit;
+}
+
+$assignmentStmt = $conn->prepare('SELECT incidentID FROM incidents WHERE incidentID = ? AND assignedTo = ? LIMIT 1');
+$assignmentStmt->bind_param('ss', $incidentID, $actorUserId);
+$assignmentStmt->execute();
+$assignment = $assignmentStmt->get_result()->fetch_assoc();
+$assignmentStmt->close();
+
+if (!$assignment) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'This incident is not assigned to the current IT Personnel account.']);
+    $conn->close();
     exit;
 }
 
@@ -117,9 +146,7 @@ if ($status === "In Progress") {
 
 if ($status === "Resolved") {
 
-    $resolvedBy = trim(
-        $data["resolvedBy"] ?? ""
-    );
+    $resolvedBy = (string)$actor['fullName'];
 
     $resolutionNotes = trim(
         $data["resolutionNotes"] ?? ""

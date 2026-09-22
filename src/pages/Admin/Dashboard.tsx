@@ -459,6 +459,7 @@ const navigation: {
 
 
 const periodOptions = [
+  'All Time',
   'This Month',
   'Last Month',
   'This Quarter',
@@ -1008,6 +1009,14 @@ function isWithinPeriod(
   dateString: string | undefined,
   period: string,
 ) {
+  // The dashboard summaries use the complete incident collection.  Keep the
+  // charts on that same collection unless an administrator explicitly picks a
+  // date range. This also prevents an older, but otherwise valid, dataset from
+  // rendering as an empty chart on first load.
+  if (period === 'All Time') {
+    return true
+  }
+
   const date =
     getDateValue(dateString)
 
@@ -1235,6 +1244,27 @@ function displaySeverity(
   return 'Low'
 }
 
+function normalizeSeverity(
+  severity?: string,
+) {
+  const value =
+    severity
+      ?.trim()
+      .toLowerCase()
+
+  if (value === 'high') {
+    return 'high'
+  }
+
+  if (value === 'medium') {
+    return 'medium'
+  }
+
+  // This matches the existing display behaviour: absent or legacy/unrecognised
+  // severity values are presented as Low instead of being silently omitted.
+  return 'low'
+}
+
 
 /* --------------------------------------------------------------------------
    DASHBOARD
@@ -1256,14 +1286,14 @@ function Dashboard() {
     chartPeriod,
     setChartPeriod,
   ] = useState(
-    'This Month',
+    'All Time',
   )
 
   const [
     severityPeriod,
     setSeverityPeriod,
   ] = useState(
-    'This Month',
+    'All Time',
   )
 
   const [
@@ -1369,7 +1399,7 @@ function Dashboard() {
             devicesResponse,
           ] = await Promise.all([
             fetch(
-              'http://localhost/BatangAI/api/incidents.php',
+              `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUser?.userID ?? ''))}`,
             ),
             fetch(
               'http://localhost/BatangAI/api/devices.php',
@@ -1640,7 +1670,7 @@ function Dashboard() {
     const high =
       filtered.filter(
         incident =>
-          normalizeStatus(
+          normalizeSeverity(
             incident.severity,
           ) === 'high',
       ).length
@@ -1648,7 +1678,7 @@ function Dashboard() {
     const medium =
       filtered.filter(
         incident =>
-          normalizeStatus(
+          normalizeSeverity(
             incident.severity,
           ) === 'medium',
       ).length
@@ -1656,10 +1686,9 @@ function Dashboard() {
     const low =
       filtered.filter(
         incident =>
-          normalizeStatus(
+          normalizeSeverity(
             incident.severity,
-          ) === 'low' ||
-          !incident.severity,
+          ) === 'low',
       ).length
 
     const total =
@@ -1786,7 +1815,7 @@ function Dashboard() {
 
   const CHART_MAX =
     Math.max(
-      5,
+      1,
       ...departmentData.map(
         item => item.value,
       ),

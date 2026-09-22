@@ -27,15 +27,55 @@ require_once "config.php";
 
 /*
 |--------------------------------------------------------------------------
-| Get all incidents
+| Resolve the requesting account and build its incident queue.
 |--------------------------------------------------------------------------
 |
-| The All Incidents page needs the complete incident record from MySQL.
-| Results are ordered from newest to oldest.
+| Visibility is enforced here, at the data source:
+| - Administrators and Secretaries can review the full queue.
+| - IT Personnel receive only incidents assigned to their user ID.
+| - Employees receive only reports they submitted.
 |
+| The frontend session supplies the account ID, but the role is always read
+| from the database rather than trusted from a browser value.
 */
 
-$sql = "
+$requesterId = trim((string)($_GET['userID'] ?? ''));
+
+if ($requesterId === '') {
+    http_response_code(401);
+    echo json_encode([
+        'success' => false,
+        'message' => 'A logged-in user is required to retrieve incidents.'
+    ]);
+    $conn->close();
+    exit;
+}
+
+$userStmt = $conn->prepare(
+    'SELECT userID, role, status FROM users WHERE userID = ? LIMIT 1'
+);
+
+if (!$userStmt) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Failed to verify the current user.']);
+    $conn->close();
+    exit;
+}
+
+$userStmt->bind_param('s', $requesterId);
+$userStmt->execute();
+$requester = $userStmt->get_result()->fetch_assoc();
+$userStmt->close();
+
+if (!$requester || strtolower(trim((string)$requester['status'])) !== 'active') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Your account is not allowed to retrieve incidents.']);
+    $conn->close();
+    exit;
+}
+
+$role = strtolower(trim((string)$requester['role']));
+$baseSql = "
     SELECT
         incidentID,
         affectedIssue,
@@ -63,10 +103,41 @@ $sql = "
         resolutionNotes,
         startedAt
     FROM incidents
-    ORDER BY createdAt DESC
 ";
 
-$result = $conn->query($sql);
+if ($role === 'it personnel') {
+    $stmt = $conn->prepare($baseSql . ' WHERE assignedTo = ? ORDER BY createdAt DESC');
+} elseif ($role === 'employee') {
+    $stmt = $conn->prepare($baseSql . ' WHERE userId = ? ORDER BY createdAt DESC');
+} elseif ($role === 'admin' || $role === 'administrator' || $role === 'secretary') {
+    $stmt = $conn->prepare($baseSql . ' ORDER BY createdAt DESC');
+} else {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Your account role is not allowed to retrieve incidents.']);
+    $conn->close();
+    exit;
+}
+
+if (!$stmt) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'count' => 0, 'incidents' => [], 'message' => 'Failed to retrieve incident reports.']);
+    $conn->close();
+    exit;
+}
+
+if ($role === 'it personnel' || $role === 'employee') {
+    $stmt->bind_param('s', $requesterId);
+}
+
+if (!$stmt->execute()) {
+    http_response_code(500);
+    echo json_encode(['success' => false, 'count' => 0, 'incidents' => [], 'message' => 'Failed to retrieve incident reports.']);
+    $stmt->close();
+    $conn->close();
+    exit;
+}
+
+$result = $stmt->get_result();
 
 if (!$result) {
     http_response_code(500);
@@ -177,6 +248,7 @@ echo json_encode([
 ]);
 
 $result->free();
+$stmt->close();
 $conn->close();
 
 ?>

@@ -2,8 +2,14 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import type { FormEvent, JSX, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
-import { getAuthSession, getProfilePhotoUrl, signOut } from '../../auth'
+import {
+  getAuthSession,
+  getCurrentUserId,
+  getProfilePhotoUrl,
+  signOut,
+} from '../../auth'
 import { PersonName } from '../../components/PersonName'
+import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
@@ -888,8 +894,14 @@ function Incidents({
       setLoading(true)
       setApiError('')
 
+      const currentUserId = getCurrentUserId()
+
+      if (currentUserId === null) {
+        throw new Error('Your login session could not be verified. Please log in again.')
+      }
+
       const response = await fetch(
-        'http://localhost/BatangAI/api/get_incidents.php',
+        `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
         {
           method: 'GET',
           headers: {
@@ -2393,6 +2405,13 @@ function Incidents({
           ===================================================== */}
 
       {viewingIncident && (
+        <IncidentDetailModal
+          incident={viewingIncident}
+          onClose={closeViewing}
+        />
+      )}
+
+      {viewingIncident && false && ((viewingIncident: Incident) => (
         <div
           className="modal-overlay"
           onMouseDown={event => {
@@ -2439,6 +2458,10 @@ function Incidents({
             </header>
 
             <div className="incident-detail-body">
+              <h3 className="incident-detail-group-title">
+                Incident Information
+              </h3>
+
               <div className="incident-detail-grid">
                 <div className="incident-detail-field">
                   <span>
@@ -2581,7 +2604,7 @@ function Incidents({
                 </div>
               </div>
 
-              <section className="incident-detail-section">
+              <section className="incident-detail-section incident-detail-section--service">
                 <h3>
                   Affected Issue /
                   Service
@@ -2594,7 +2617,7 @@ function Incidents({
                 </p>
               </section>
 
-              <section className="incident-detail-section">
+              <section className="incident-detail-section incident-detail-section--description">
                 <h3>
                   Detailed Problem
                   Description
@@ -2607,36 +2630,60 @@ function Incidents({
                 </p>
               </section>
 
-              {viewingIncident.summary && (
-                <section className="incident-detail-section">
-                  <h3>
-                    Incident Summary
+              {(viewingIncident.classification ||
+                viewingIncident.summary ||
+                viewingIncident.troubleshooting) && (
+                <section className="incident-ai-analysis">
+                  <h3 className="incident-ai-analysis-title">
+                    AI Analysis
                   </h3>
 
-                  <p>
-                    {
-                      viewingIncident.summary
-                    }
-                  </p>
-                </section>
-              )}
+                  {viewingIncident.classification && (
+                    <div className="incident-ai-block">
+                      <span>
+                        Classification
+                      </span>
 
-              {viewingIncident.troubleshooting && (
-                <section className="incident-detail-section">
-                  <h3>
-                    Troubleshooting
-                  </h3>
+                      <p>
+                        {
+                          viewingIncident.classification
+                        }
+                      </p>
+                    </div>
+                  )}
 
-                  <p
-                    style={{
-                      whiteSpace:
-                        'pre-line',
-                    }}
-                  >
-                    {
-                      viewingIncident.troubleshooting
-                    }
-                  </p>
+                  {viewingIncident.summary && (
+                    <div className="incident-ai-block">
+                      <span>
+                        Incident Summary
+                      </span>
+
+                      <p>
+                        {
+                          viewingIncident.summary
+                        }
+                      </p>
+                    </div>
+                  )}
+
+                  {viewingIncident.troubleshooting && (
+                    <div className="incident-ai-block">
+                      <span>
+                        Troubleshooting
+                      </span>
+
+                      <p
+                        style={{
+                          whiteSpace:
+                            'pre-line',
+                        }}
+                      >
+                        {
+                          viewingIncident.troubleshooting
+                        }
+                      </p>
+                    </div>
+                  )}
                 </section>
               )}
 
@@ -2654,11 +2701,22 @@ function Incidents({
                 </section>
               )}
             </div>
+
+            <footer className="incident-detail-footer">
+              <button
+                className="btn-secondary"
+                type="button"
+                onClick={
+                  closeViewing
+                }
+              >
+                Close
+              </button>
+            </footer>
           </div>
         </div>
-      )}
+      ))(viewingIncident!)}
     </div>
   )
 }
-
 export default Incidents

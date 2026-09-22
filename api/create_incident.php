@@ -85,6 +85,25 @@ if (
     exit;
 }
 
+// The authenticated employee identity is the database source of truth for
+// reporter name and department. This prevents a browser payload from filing a
+// report under another employee while retaining all report fields.
+$employeeStmt = $conn->prepare('SELECT userID, fullName, department, role, status FROM users WHERE userID = ? LIMIT 1');
+$employeeStmt->bind_param('s', $userId);
+$employeeStmt->execute();
+$employee = $employeeStmt->get_result()->fetch_assoc();
+$employeeStmt->close();
+
+if (!$employee || strtolower(trim((string)$employee['role'])) !== 'employee' || strtolower(trim((string)$employee['status'])) !== 'active') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Only an active Employee account may submit an incident report.']);
+    $conn->close();
+    exit;
+}
+
+$employeeName = (string)$employee['fullName'];
+$department = (string)$employee['department'];
+
 /*
 |--------------------------------------------------------------------------
 | Validate severity

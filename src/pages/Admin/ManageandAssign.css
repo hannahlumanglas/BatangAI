@@ -216,6 +216,12 @@
   box-shadow:var(--card-shadow-hover);
 }
 
+/* Keep the assignment dialog compact when global dialog sizing is loaded. */
+.maa-modal-overlay .maa-modal:not(.maa-modal--view) {
+  width:min(100%, 586px);
+  max-width:586px;
+}
+
 .maa-modal-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; }
 .maa-modal-header h2 { margin:0; color:var(--text-heading); font-size:var(--font-heading); font-weight:800; }
 
@@ -254,6 +260,25 @@
 }
 
 .maa-modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:4px; }
+
+.maa-detail-action {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  color:var(--text-secondary);
+  font-size:var(--font-secondary);
+  font-weight:700;
+}
+
+.maa-detail-action select {
+  height:36px;
+  padding:0 28px 0 10px;
+  color:var(--text-heading);
+  font:inherit;
+  background:var(--input-bg);
+  border:1px solid var(--border-color);
+  border-radius:8px;
+}
 
 /* ---------- View Incident details list ---------- */
 

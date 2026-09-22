@@ -3,6 +3,10 @@ import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { PersonName } from '../../components/PersonName'
+import {
+  IncidentDetailModal,
+  type IncidentDetail,
+} from '../../components/IncidentDetailModal'
 import { AdminNotifications } from './AdminNotifications'
 import {
   getCurrentUserId,
@@ -194,9 +198,11 @@ type Status = 'Pending' | 'In Progress' | 'Resolved'
 
 type Channel = 'Phone Call' | 'Walk-in' | 'Web Form' | 'Email'
 
-type Incident = {
+type Incident = IncidentDetail & {
   id: string
+  incidentID: string
   reporter: string
+  reporterEmail: string | null
   department: string
   severity: Severity
   status: Status
@@ -252,6 +258,9 @@ type ApiIncident = {
   employeeId?: string | null
   reporterEmail?: string | null
   encodedBy?: string | null
+  resolutionNotes?: string | null
+  resolvedAt?: string | null
+  resolvedBy?: string | null
 }
 
 const statusTagClass: Record<Status, string> = {
@@ -677,10 +686,26 @@ function mapIncident(item: ApiIncident): Incident {
 
   return {
     id: item.incidentID,
+    incidentID: item.incidentID,
     reporter: item.employeeName || 'Unknown Reporter',
+    reporterEmail: item.reporterEmail || null,
+    employeeName: item.employeeName || 'Unknown Reporter',
     department: item.department || '—',
     severity: mapSeverity(item.severity),
     status: mapStatus(item.status),
+    assigned: item.assigned || (item.assignedToName ? 'Yes' : 'No'),
+    assignedToName: item.assignedToName || null,
+    affectedIssue: item.affectedIssue || 'Not specified',
+    classification: item.classification || null,
+    connectionType: item.connectionType || null,
+    createdAt: `${dateTime.date} at ${dateTime.time}`,
+    issueCategory: item.issueCategory || null,
+    resolutionNotes: item.resolutionNotes || null,
+    resolvedAt: item.resolvedAt || null,
+    resolvedBy: item.resolvedBy || null,
+    durationMinutes: item.durationMinutes ?? null,
+    summary: item.summary || null,
+    troubleshooting: item.troubleshooting || null,
 
     assignedTo:
       item.assignedToName &&
@@ -923,7 +948,7 @@ function ManageAndAssign({
         personnelResponse,
       ] = await Promise.all([
         fetch(
-          'http://localhost/BatangAI/api/incidents.php',
+          `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId ?? ''))}`,
         ),
 
         fetch(
@@ -1137,6 +1162,7 @@ function ManageAndAssign({
             assignedTo: selectedPersonnel.userID,
             assignedToName:
               selectedPersonnel.fullName,
+            actorUserId: currentUserId,
           }),
         },
       )
@@ -1198,8 +1224,6 @@ function ManageAndAssign({
       incident?.severity ?? '',
     )
 
-    setDetailsExpanded(false)
-    setAnalysisExpanded(false)
     setViewingId(id)
   }
 
@@ -1207,8 +1231,6 @@ function ManageAndAssign({
     if (savingSeverity) return
 
     setViewingId(null)
-    setDetailsExpanded(false)
-    setAnalysisExpanded(false)
   }
 
   const viewingIncident =
@@ -1738,6 +1760,47 @@ function ManageAndAssign({
       {/* ---------- View Modal ---------- */}
 
       {viewingIncident && (
+        <IncidentDetailModal
+          incident={viewingIncident}
+          onClose={closeView}
+          footer={
+            !isIT && viewingIncident.status !== 'Resolved' ? (
+              <>
+                <label className="maa-detail-action">
+                  Severity
+                  <select
+                    value={selectedSeverity}
+                    onChange={event =>
+                      void updateSeverity(
+                        viewingIncident.id,
+                        event.target.value as Severity,
+                      )
+                    }
+                    disabled={savingSeverity}
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </label>
+
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => openAssign(viewingIncident.id)}
+                  disabled={savingSeverity}
+                >
+                  {viewingIncident.assignedTo
+                    ? 'Reassign IT Personnel'
+                    : 'Assign IT Personnel'}
+                </button>
+              </>
+            ) : null
+          }
+        />
+      )}
+
+      {false && viewingIncident && ((viewingIncident: Incident) => (
         <div
           className="maa-modal-overlay"
           role="dialog"
@@ -2097,7 +2160,7 @@ function ManageAndAssign({
             )}
           </div>
         </div>
-      )}
+      ))(viewingIncident!)}
     </div>
   )
 }

@@ -214,8 +214,8 @@
   align-items:center;
   justify-content:center;
   padding:24px;
-  background:var(--overlay, rgba(15,23,42,.5));
-  backdrop-filter:blur(2px);
+  background:var(--overlay, rgba(15,23,42,.56));
+  backdrop-filter:blur(3px);
   animation:overlay-in .15s ease-out;
 }
 
@@ -619,13 +619,14 @@
 .incident-detail-modal{
   display:flex;
   flex-direction:column;
-  width:min(100%,680px);
-  max-height:calc(100vh - 40px);
-  background:var(--card-bg);
+  width:min(100%,720px);
+  max-height:calc(100dvh - 40px);
+  background-color:var(--card-bg);
   border:1px solid var(--border-color);
   border-radius:18px;
   box-shadow:var(--card-shadow-hover);
   animation:modal-in .18s ease-out;
+  isolation:isolate;
   overflow:hidden;
 }
 
@@ -635,6 +636,7 @@
   justify-content:space-between;
   gap:16px;
   padding:20px 22px;
+  background-color:var(--card-bg);
   border-bottom:1px solid var(--border-color);
 }
 
@@ -666,9 +668,21 @@
 .incident-detail-body{
   display:flex;
   flex-direction:column;
+  flex:1;
+  min-height:0;
   gap:18px;
   overflow-y:auto;
+  overscroll-behavior:contain;
   padding:20px 22px 22px;
+}
+
+.incident-detail-group-title{
+  margin:0 0 -6px;
+  color:var(--text-secondary);
+  font-size:var(--font-secondary);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.03em;
 }
 
 .incident-detail-grid{
@@ -678,16 +692,20 @@
 }
 
 .incident-detail-field{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  min-height:74px;
   padding:13px 14px;
-  background:#F3F4F7;
-  border:1px solid #DDE1E8;
+  background:#f2f8ff;
+  border:1px solid #d6e7f8;
   border-radius:10px;
 }
 
 .incident-detail-field > span{
   display:block;
   margin-bottom:4px;
-  color:var(--text-secondary);
+  color:#5c91c5;
   font-size:var(--font-secondary);
 }
 
@@ -697,6 +715,13 @@
   font-weight:700;
 }
 .incident-detail-field strong > .tag{ display:inline-block; margin:0; }
+
+.incident-detail-section{
+  padding:15px 16px;
+  background:#f7fbff;
+  border:1px solid #d8e9f8;
+  border-radius:12px;
+}
 
 .incident-detail-section h3{
   margin:0 0 6px;
@@ -714,14 +739,91 @@
   line-height:1.55;
 }
 
+.incident-detail-section--service{ background:#f2f8ff; border-color:#d6e7f8; }
+.incident-detail-section--service h3{ color:#075f9f; }
+.incident-detail-section--description{ background:#f8f7ff; border-color:#e1dcfa; }
+.incident-detail-section--description h3{ color:#51459c; }
+
+.incident-ai-analysis{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  padding:16px 18px;
+  background:#effdf6;
+  border:1px solid #c7f1dd;
+  border-radius:14px;
+}
+
+.incident-ai-analysis-title{
+  margin:0;
+  color:#07885d;
+  font-size:var(--font-secondary);
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+
+.incident-ai-block{
+  padding:12px 14px;
+  background:#fbfffd;
+  border:1px solid #c7f1dd;
+  border-radius:10px;
+}
+
+.incident-ai-block > span{
+  display:block;
+  margin-bottom:4px;
+  color:#07885d;
+  font-size:var(--font-secondary);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.02em;
+}
+
+.incident-ai-block p{
+  margin:0;
+  color:var(--text-heading);
+  font-size:var(--font-body);
+  line-height:1.55;
+}
+
+
+.incident-detail-footer{
+  display:flex;
+  flex:none;
+  justify-content:flex-end;
+  gap:10px;
+  padding:16px 22px 20px;
+  background-color:var(--card-bg);
+  border-top:1px solid var(--border-color);
+}
+
 /* Detail/View modal uses the same quiet field palette as New Incident. */
 :root[data-theme="dark"] .incident-detail-field{
   background:var(--input-bg);
   border-color:var(--border-color);
 }
 
+:root[data-theme="dark"] .incident-detail-section{
+  background:var(--input-bg);
+  border-color:var(--border-color);
+}
+
+:root[data-theme="dark"] .incident-ai-block{
+  background:var(--input-bg);
+  border-color:var(--border-color);
+}
+
+:root[data-theme="dark"] .incident-detail-section--service,
+:root[data-theme="dark"] .incident-detail-section--description,
+:root[data-theme="dark"] .incident-ai-analysis,
+:root[data-theme="dark"] .incident-ai-block{
+  background:var(--input-bg);
+  border-color:var(--border-color);
+}
+
 @media(max-width:640px){
-  .incident-detail-header, .incident-detail-body{ padding-left:18px; padding-right:18px; }
+  .incident-detail-header, .incident-detail-body, .incident-detail-footer{ padding-left:18px; padding-right:18px; }
   .incident-detail-grid{ grid-template-columns:1fr; }
 }
 

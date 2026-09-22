@@ -38,18 +38,51 @@ if (!$data) {
 
 $incidentID = trim($data['incidentID'] ?? '');
 $assignedTo = trim((string)($data['assignedTo'] ?? ''));
-$assignedToName = trim($data['assignedToName'] ?? '');
+$actorUserId = trim((string)($data['actorUserId'] ?? ''));
 
-if ($incidentID === '' || $assignedTo === '' || $assignedToName === '') {
+if ($incidentID === '' || $assignedTo === '' || $actorUserId === '') {
     http_response_code(400);
 
     echo json_encode([
         "success" => false,
-        "message" => "Incident ID, assigned personnel, and personnel name are required."
+        "message" => "Incident ID, assigned personnel, and the current user are required."
     ]);
 
     exit;
 }
+
+// Only an active Administrator or Secretary may assign a report. The role and
+// assignee name are looked up server-side so browser-provided values cannot
+// grant assignment access or corrupt the saved personnel record.
+$actorStmt = $conn->prepare('SELECT role, status FROM users WHERE userID = ? LIMIT 1');
+$actorStmt->bind_param('s', $actorUserId);
+$actorStmt->execute();
+$actor = $actorStmt->get_result()->fetch_assoc();
+$actorStmt->close();
+
+$actorRole = strtolower(trim((string)($actor['role'] ?? '')));
+if (!$actor || strtolower(trim((string)$actor['status'])) !== 'active' || !in_array($actorRole, ['admin', 'administrator', 'secretary'], true)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'Only an Administrator or Secretary may assign incidents.']);
+    $conn->close();
+    exit;
+}
+
+$personnelStmt = $conn->prepare("SELECT userID, fullName FROM users WHERE userID = ? AND role = 'IT Personnel' AND LOWER(status) = 'active' LIMIT 1");
+$personnelStmt->bind_param('s', $assignedTo);
+$personnelStmt->execute();
+$personnel = $personnelStmt->get_result()->fetch_assoc();
+$personnelStmt->close();
+
+if (!$personnel) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'The selected account is not an active IT Personnel user.']);
+    $conn->close();
+    exit;
+}
+
+$assignedTo = (string)$personnel['userID'];
+$assignedToName = (string)$personnel['fullName'];
 
 /*
 |--------------------------------------------------------------------------
