@@ -18,6 +18,7 @@ import {
 } from '../../auth'
 import './Dashboard.css'
 import './ManageandAssign.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IconName =
   | 'dashboard'
@@ -954,11 +955,11 @@ function ManageAndAssign({
         personnelResponse,
       ] = await Promise.all([
         fetch(
-          `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId ?? ''))}`,
+          `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId ?? ''))}`,
         ),
 
         fetch(
-          'http://localhost/BatangAI/api/it_personnel.php',
+          `${API_BASE_URL}/it_personnel.php`,
         ),
       ])
 
@@ -1157,7 +1158,7 @@ function ManageAndAssign({
 
     try {
       const response = await fetch(
-        'http://localhost/BatangAI/api/assign_incident.php',
+        `${API_BASE_URL}/assign_incident.php`,
         {
           method: 'POST',
           headers: {
@@ -1255,7 +1256,7 @@ function ManageAndAssign({
 
     try {
       const response = await fetch(
-        'http://localhost/BatangAI/api/update_incident.php',
+        `${API_BASE_URL}/update_incident.php`,
         {
           method: 'POST',
           headers: {

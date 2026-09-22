@@ -14,6 +14,7 @@ import {
 } from '../../auth'
 import '../Admin/Dashboard.css'
 import './MyAssignments.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type Status = 'available' | 'in-progress' | 'solved'
 
@@ -471,7 +472,7 @@ function MyAssignments() {
       }
 
       const response = await fetch(
-        `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
+        `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
       )
 
       if (!response.ok) {
@@ -665,7 +666,7 @@ function MyAssignments() {
       setActionLoading(id)
 
       const response = await fetch(
-        'http://localhost/BatangAI/api/update_incident_status.php',
+        '${API_BASE_URL}/update_incident_status.php',
         {
           method: 'POST',
           headers: {
@@ -771,7 +772,7 @@ function MyAssignments() {
       setResolutionLoading(true)
 
       const response = await fetch(
-        'http://localhost/BatangAI/api/update_incident_status.php',
+        '${API_BASE_URL}/update_incident_status.php',
         {
           method: 'POST',
           headers: {

@@ -10,6 +10,7 @@ import {
 } from '../../auth'
 import '../Admin/Dashboard.css'
 import './ReportIncident.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IconName = 'report' | 'incidents' | 'profile' | 'menu' | 'logout' | 'check' | 'sparkle'
 
@@ -349,7 +350,7 @@ function ReportIncident() {
 
     try {
       const response = await fetch(
-        'http://localhost/BatangAI/api/create_incident.php',
+        `${API_BASE_URL}/create_incident.php`,
         {
           method: 'POST',
           headers: {

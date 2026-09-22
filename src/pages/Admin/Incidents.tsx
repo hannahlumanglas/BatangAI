@@ -13,6 +13,7 @@ import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IconName =
   | 'dashboard'
@@ -903,7 +904,7 @@ function Incidents({
       }
 
       const response = await fetch(
-        `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
+        `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
         {
           method: 'GET',
           headers: {

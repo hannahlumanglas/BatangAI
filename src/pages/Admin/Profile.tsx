@@ -12,6 +12,7 @@ import logo from '../../assets/logo.png'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Profile.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type Audience =
   | 'administrator'
@@ -44,7 +45,7 @@ type NavIconName =
   | 'profile'
   | 'settings'
 
-const UPDATE_USER_API_URL = 'http://localhost/BatangAI/api/update_user.php'
+const UPDATE_USER_API_URL = `${API_BASE_URL}/update_user.php`
 
 function PasswordVisibilityButton({ visible, onClick }: { visible: boolean; onClick: () => void }) {
   return <button type="button" className="password-visibility-button" onClick={onClick} aria-label={visible ? 'Hide password' : 'Show password'} title={visible ? 'Hide password' : 'Show password'}>
@@ -862,7 +863,7 @@ function Profile({
 
       const response =
         await fetch(
-          'http://localhost/BatangAI/api/upload_profile_photo.php',
+          '${API_BASE_URL}/upload_profile_photo.php',
           {
             method: 'POST',
             body: formData,

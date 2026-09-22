@@ -110,9 +110,9 @@ $baseSql = "
 ";
 
 if ($role === 'it personnel') {
-    $stmt = $conn->prepare($baseSql . ' WHERE assignedTo = ? ORDER BY createdAt DESC');
+    $stmt = $conn->prepare($baseSql . ' WHERE incidents.assignedTo = ? ORDER BY incidents.createdAt DESC');
 } elseif ($role === 'employee') {
-    $stmt = $conn->prepare($baseSql . ' WHERE userId = ? ORDER BY createdAt DESC');
+    $stmt = $conn->prepare($baseSql . ' WHERE incidents.userId = ? ORDER BY incidents.createdAt DESC');
 } elseif ($role === 'admin' || $role === 'administrator' || $role === 'secretary') {
     $stmt = $conn->prepare($baseSql . ' ORDER BY createdAt DESC');
 } else {

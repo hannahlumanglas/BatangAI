@@ -9,6 +9,7 @@ import {
   signOut,
 } from '../../auth'
 import './Dashboard.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IconName =
   | 'dashboard'
@@ -1399,10 +1400,10 @@ function Dashboard() {
             devicesResponse,
           ] = await Promise.all([
             fetch(
-              `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUser?.userID ?? ''))}`,
+              `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUser?.userID ?? ''))}`,
             ),
             fetch(
-              'http://localhost/BatangAI/api/devices.php',
+              `${API_BASE_URL}/devices.php`,
             ).catch(
               () => null,
             ),

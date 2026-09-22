@@ -16,6 +16,7 @@ import type { IncidentFormValues } from './ReportIncident'
 import '../Admin/Dashboard.css'
 import './Incidents.css'
 import './ReportIncident.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IconName =
   | 'report'
@@ -535,7 +536,7 @@ function Incidents() {
 
         const response =
           await fetch(
-            `http://localhost/BatangAI/api/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
+            `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
             {
               method: 'GET',
               headers: {
@@ -788,7 +789,7 @@ function Incidents() {
 
         const response =
           await fetch(
-            'http://localhost/BatangAI/api/update_incident.php',
+            '${API_BASE_URL}/update_incident.php',
             {
               method: 'POST',
               headers: {
@@ -938,7 +939,7 @@ function Incidents() {
 
       const response =
         await fetch(
-          'http://localhost/BatangAI/api/delete_incident.php',
+          '${API_BASE_URL}/delete_incident.php',
           {
             method: 'POST',
             headers: {

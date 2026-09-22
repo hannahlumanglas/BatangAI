@@ -16,6 +16,7 @@ import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './DeviceMonitoring.css'
 import './DeviceMonitoringOverrides.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IconName =
   | 'dashboard'
@@ -554,10 +555,10 @@ type UserOption = {
 }
 
 const DEVICES_URL =
-  'http://localhost/BatangAI/api/devices.php'
+  `${API_BASE_URL}/devices.php`
 
 const USERS_URL =
-  'http://localhost/BatangAI/api/users.php'
+  `${API_BASE_URL}/users.php`
 
 const deviceTypes: DeviceType[] = [
   'Router',

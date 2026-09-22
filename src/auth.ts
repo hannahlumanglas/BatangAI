@@ -1,4 +1,5 @@
 export const AUTH_STORAGE_KEY = 'batangai-admin-auth'
+import { API_BASE_URL } from './apiConfig'
 
 export type UserRole =
   | 'Administrator'
@@ -166,7 +167,7 @@ export async function signIn(
 ): Promise<SignInResult> {
   try {
     const response = await fetch(
-      'http://localhost/BatangAI/api/login.php',
+      `${API_BASE_URL}/login.php`,
       {
         method: 'POST',
         headers: {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAuthSession } from '../../auth'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IncidentNotificationSource = {
   incidentID: string | number
@@ -18,7 +19,7 @@ type Notification = {
   time: string
 }
 
-const INCIDENTS_URL = 'http://localhost/BatangAI/api/get_incidents.php'
+const INCIDENTS_URL = `${API_BASE_URL}/get_incidents.php`
 const REFRESH_INTERVAL_MS = 60_000
 
 function relativeTime(value: string | null | undefined) {

@@ -10,11 +10,13 @@ import {
   getProfilePhotoUrl,
   signOut,
 } from '../../auth'
+import { API_BASE_URL } from '../../apiConfig'
+
 /* --------- API ---------- */
-const USERS_API_URL = 'http://localhost/BatangAI/api/users.php'
-const UPDATE_USER_API_URL = 'http://localhost/BatangAI/api/update_user.php'
-const CREATE_USER_API_URL = 'http://localhost/BatangAI/api/create_user.php'
-const UPDATE_USER_STATUS_API_URL = 'http://localhost/BatangAI/api/update_user_status.php'
+const USERS_API_URL = `${API_BASE_URL}/users.php`
+const UPDATE_USER_API_URL = `${API_BASE_URL}/update_user.php`
+const CREATE_USER_API_URL = `${API_BASE_URL}/create_user.php`
+const UPDATE_USER_STATUS_API_URL = `${API_BASE_URL}/update_user_status.php`
 /* ---------- Types ---------- */
 type UserRole =
   | 'Employee'
@@ -646,7 +648,7 @@ function ChangePasswordCard({
 
     try {
       const response = await fetch(
-        'http://localhost/BatangAI/api/change_password.php',
+        'fetch(`${API_BASE_URL}/change_password.php`, ...)',
         {
           method: 'POST',
           headers: {

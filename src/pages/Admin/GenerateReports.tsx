@@ -9,6 +9,7 @@ import {
 } from '../../auth'
 import './Dashboard.css'
 import './GenerateReports.css'
+import { API_BASE_URL } from '../../apiConfig'
 
 type IconName =
   | 'dashboard'
@@ -1088,7 +1089,7 @@ function GenerateReports() {
         }
 
         const incidentsUrl = new URL(
-          'http://localhost/BatangAI/api/get_incidents.php',
+          `${API_BASE_URL}/get_incidents.php`,
         )
         incidentsUrl.searchParams.set(
           'userID',
