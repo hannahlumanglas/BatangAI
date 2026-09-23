@@ -1,81 +1,136 @@
 <?php
 
-require_once "cors.php";
+header("Access-Control-Allow-Origin: http://localhost:5173");
 header("Access-Control-Allow-Methods: GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Accept");
+header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json; charset=UTF-8");
 
-// Handle browser preflight request
 if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
-    http_response_code(200);
+    http_response_code(204);
     exit;
 }
 
-// Only allow GET requests
 if ($_SERVER["REQUEST_METHOD"] !== "GET") {
     http_response_code(405);
-
     echo json_encode([
         "success" => false,
-        "message" => "Only GET requests are allowed."
+        "message" => "Method not allowed."
     ]);
-
     exit;
 }
 
 require_once "config.php";
 
-/*
-|--------------------------------------------------------------------------
-| Resolve the requesting account and build its incident queue.
-|--------------------------------------------------------------------------
-|
-| Visibility is enforced here, at the data source:
-| - Administrators and Secretaries can review the full queue.
-| - IT Personnel receive only incidents assigned to their user ID.
-| - Employees receive only reports they submitted.
-|
-| The frontend session supplies the account ID, but the role is always read
-| from the database rather than trusted from a browser value.
-*/
+$userID = isset($_GET["userID"]) ? trim($_GET["userID"]) : "";
 
-$requesterId = trim((string)($_GET['userID'] ?? ''));
-
-if ($requesterId === '') {
-    http_response_code(401);
+if ($userID === "") {
+    http_response_code(400);
     echo json_encode([
-        'success' => false,
-        'message' => 'A logged-in user is required to retrieve incidents.'
+        "success" => false,
+        "message" => "userID is required."
     ]);
     $conn->close();
     exit;
 }
 
-$userStmt = $conn->prepare(
-    'SELECT userID, role, status FROM users WHERE userID = ? LIMIT 1'
-);
+/*
+|--------------------------------------------------------------------------
+| Get logged-in user's role
+|--------------------------------------------------------------------------
+*/
+
+$userSql = "
+    SELECT userID, role, status
+    FROM users
+    WHERE userID = ?
+    LIMIT 1
+";
+
+$userStmt = $conn->prepare($userSql);
 
 if (!$userStmt) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Failed to verify the current user.']);
+    echo json_encode([
+        "success" => false,
+        "message" => "Unable to prepare user query.",
+        "error" => $conn->error
+    ]);
     $conn->close();
     exit;
 }
 
-$userStmt->bind_param('s', $requesterId);
-$userStmt->execute();
-$requester = $userStmt->get_result()->fetch_assoc();
+$userStmt->bind_param("s", $userID);
+
+if (!$userStmt->execute()) {
+    http_response_code(500);
+    echo json_encode([
+        "success" => false,
+        "message" => "Unable to execute user query.",
+        "error" => $userStmt->error
+    ]);
+    $userStmt->close();
+    $conn->close();
+    exit;
+}
+
+$userStmt->store_result();
+
+if ($userStmt->num_rows === 0) {
+    http_response_code(404);
+    echo json_encode([
+        "success" => false,
+        "message" => "User not found."
+    ]);
+    $userStmt->close();
+    $conn->close();
+    exit;
+}
+
+$userStmt->bind_result(
+    $dbUserID,
+    $dbRole,
+    $dbStatus
+);
+
+$userStmt->fetch();
+
 $userStmt->close();
 
-if (!$requester || strtolower(trim((string)$requester['status'])) !== 'active') {
+/*
+|--------------------------------------------------------------------------
+| Block inactive users
+|--------------------------------------------------------------------------
+*/
+
+if (strcasecmp((string)$dbStatus, "Active") !== 0) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Your account is not allowed to retrieve incidents.']);
+    echo json_encode([
+        "success" => false,
+        "message" => "User account is inactive."
+    ]);
     $conn->close();
     exit;
 }
 
-$role = strtolower(trim((string)$requester['role']));
-$baseSql = "
+/*
+|--------------------------------------------------------------------------
+| Normalize role
+|--------------------------------------------------------------------------
+*/
+
+$role = trim((string)$dbRole);
+
+if (strcasecmp($role, "Admin") === 0) {
+    $role = "Administrator";
+}
+
+/*
+|--------------------------------------------------------------------------
+| Build incident query according to role
+|--------------------------------------------------------------------------
+*/
+
+$sql = "
     SELECT
         incidents.incidentID,
         incidents.affectedIssue,
@@ -105,150 +160,161 @@ $baseSql = "
         reporter.profilePhoto AS reporterProfilePhoto,
         assignee.profilePhoto AS assignedToProfilePhoto
     FROM incidents
-    LEFT JOIN users AS reporter ON reporter.userID = incidents.userId
-    LEFT JOIN users AS assignee ON assignee.userID = incidents.assignedTo
+    LEFT JOIN users AS reporter
+        ON reporter.userID = incidents.userId
+    LEFT JOIN users AS assignee
+        ON assignee.userID = incidents.assignedTo
 ";
 
-if ($role === 'it personnel') {
-    $stmt = $conn->prepare($baseSql . ' WHERE incidents.assignedTo = ? ORDER BY incidents.createdAt DESC');
-} elseif ($role === 'employee') {
-    $stmt = $conn->prepare($baseSql . ' WHERE incidents.userId = ? ORDER BY incidents.createdAt DESC');
-} elseif ($role === 'admin' || $role === 'administrator' || $role === 'secretary') {
-    $stmt = $conn->prepare($baseSql . ' ORDER BY createdAt DESC');
+if (strcasecmp($role, "Employee") === 0) {
+
+    $sql .= "
+        WHERE incidents.userId = ?
+        ORDER BY incidents.createdAt DESC
+    ";
+
+} elseif (strcasecmp($role, "IT Personnel") === 0) {
+
+    $sql .= "
+        WHERE incidents.assignedTo = ?
+        ORDER BY incidents.createdAt DESC
+    ";
+
 } else {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Your account role is not allowed to retrieve incidents.']);
-    $conn->close();
-    exit;
+
+    // Administrator and Secretary can view all incidents.
+
+    $sql .= "
+        ORDER BY incidents.createdAt DESC
+    ";
 }
+
+/*
+|--------------------------------------------------------------------------
+| Prepare incident query
+|--------------------------------------------------------------------------
+*/
+
+$stmt = $conn->prepare($sql);
 
 if (!$stmt) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'count' => 0, 'incidents' => [], 'message' => 'Failed to retrieve incident reports.']);
+    echo json_encode([
+        "success" => false,
+        "message" => "Unable to prepare incident query.",
+        "error" => $conn->error
+    ]);
     $conn->close();
     exit;
 }
 
-if ($role === 'it personnel' || $role === 'employee') {
-    $stmt->bind_param('s', $requesterId);
+/*
+|--------------------------------------------------------------------------
+| Bind user ID only for Employee / IT Personnel
+|--------------------------------------------------------------------------
+*/
+
+if (
+    strcasecmp($role, "Employee") === 0 ||
+    strcasecmp($role, "IT Personnel") === 0
+) {
+    $stmt->bind_param("s", $userID);
 }
+
+/*
+|--------------------------------------------------------------------------
+| Execute incident query
+|--------------------------------------------------------------------------
+*/
 
 if (!$stmt->execute()) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'count' => 0, 'incidents' => [], 'message' => 'Failed to retrieve incident reports.']);
+    echo json_encode([
+        "success" => false,
+        "message" => "Unable to retrieve incident reports.",
+        "error" => $stmt->error
+    ]);
     $stmt->close();
     $conn->close();
     exit;
 }
 
-$result = $stmt->get_result();
-
-if (!$result) {
-    http_response_code(500);
-
-    echo json_encode([
-        "success" => false,
-        "count" => 0,
-        "incidents" => [],
-        "message" => "Failed to retrieve incident reports.",
-        "error" => $conn->error
-    ]);
-
-    $conn->close();
-    exit;
-}
-
 /*
 |--------------------------------------------------------------------------
-| Build incident list
+| Retrieve results
 |--------------------------------------------------------------------------
 */
 
+$stmt->store_result();
+
+$stmt->bind_result(
+    $incidentID,
+    $affectedIssue,
+    $classification,
+    $connectionType,
+    $createdAt,
+    $department,
+    $description,
+    $deviceType,
+    $employeeName,
+    $issueCategory,
+    $location,
+    $resolvedAt,
+    $resolvedBy,
+    $severity,
+    $status,
+    $summary,
+    $troubleshooting,
+    $incidentUserId,
+    $assigned,
+    $assignedAt,
+    $assignedTo,
+    $assignedToName,
+    $durationMinutes,
+    $resolutionNotes,
+    $startedAt,
+    $reporterProfilePhoto,
+    $assignedToProfilePhoto
+);
+
 $incidents = [];
 
-while ($row = $result->fetch_assoc()) {
+while ($stmt->fetch()) {
 
-    $row["incidentID"] = (string)($row["incidentID"] ?? "");
-    $row["affectedIssue"] = (string)($row["affectedIssue"] ?? "");
-    $row["classification"] = $row["classification"] !== null
-        ? (string)$row["classification"]
-        : null;
-
-    $row["connectionType"] = $row["connectionType"] !== null
-        ? (string)$row["connectionType"]
-        : null;
-
-    $row["createdAt"] = (string)($row["createdAt"] ?? "");
-    $row["department"] = (string)($row["department"] ?? "");
-    $row["description"] = (string)($row["description"] ?? "");
-    $row["deviceType"] = $row["deviceType"] !== null
-        ? (string)$row["deviceType"]
-        : null;
-
-    $row["employeeName"] = (string)($row["employeeName"] ?? "");
-    $row["reporterProfilePhoto"] = $row["reporterProfilePhoto"] !== null
-        ? (string)$row["reporterProfilePhoto"]
-        : null;
-    $row["issueCategory"] = (string)($row["issueCategory"] ?? "");
-    $row["location"] = (string)($row["location"] ?? "");
-
-    $row["resolvedAt"] = $row["resolvedAt"] !== null
-        ? (string)$row["resolvedAt"]
-        : null;
-
-    $row["resolvedBy"] = $row["resolvedBy"] !== null
-        ? (string)$row["resolvedBy"]
-        : null;
-
-    $row["severity"] = (string)($row["severity"] ?? "Low");
-    $row["status"] = (string)($row["status"] ?? "Pending");
-
-    $row["summary"] = $row["summary"] !== null
-        ? (string)$row["summary"]
-        : null;
-
-    $row["troubleshooting"] = $row["troubleshooting"] !== null
-        ? (string)$row["troubleshooting"]
-        : null;
-
-    $row["userId"] = (string)($row["userId"] ?? "");
-
-    $row["assigned"] = (string)($row["assigned"] ?? "No");
-
-    $row["assignedAt"] = $row["assignedAt"] !== null
-        ? (string)$row["assignedAt"]
-        : null;
-
-    $row["assignedTo"] = $row["assignedTo"] !== null
-        ? (string)$row["assignedTo"]
-        : null;
-
-    $row["assignedToName"] = $row["assignedToName"] !== null
-        ? (string)$row["assignedToName"]
-        : null;
-
-    $row["assignedToProfilePhoto"] = $row["assignedToProfilePhoto"] !== null
-        ? (string)$row["assignedToProfilePhoto"]
-        : null;
-
-    $row["durationMinutes"] = $row["durationMinutes"] !== null
-        ? (int)$row["durationMinutes"]
-        : null;
-
-    $row["resolutionNotes"] = $row["resolutionNotes"] !== null
-        ? (string)$row["resolutionNotes"]
-        : null;
-
-    $row["startedAt"] = $row["startedAt"] !== null
-        ? (string)$row["startedAt"]
-        : null;
-
-    $incidents[] = $row;
+    $incidents[] = [
+        "incidentID" => $incidentID,
+        "affectedIssue" => $affectedIssue,
+        "classification" => $classification,
+        "connectionType" => $connectionType,
+        "createdAt" => $createdAt,
+        "department" => $department,
+        "description" => $description,
+        "deviceType" => $deviceType,
+        "employeeName" => $employeeName,
+        "issueCategory" => $issueCategory,
+        "location" => $location,
+        "resolvedAt" => $resolvedAt,
+        "resolvedBy" => $resolvedBy,
+        "severity" => $severity,
+        "status" => $status,
+        "summary" => $summary,
+        "troubleshooting" => $troubleshooting,
+        "userId" => $incidentUserId,
+        "assigned" => $assigned,
+        "assignedAt" => $assignedAt,
+        "assignedTo" => $assignedTo,
+        "assignedToName" => $assignedToName,
+        "durationMinutes" => $durationMinutes,
+        "resolutionNotes" => $resolutionNotes,
+        "startedAt" => $startedAt,
+        "reporterProfilePhoto" => $reporterProfilePhoto,
+        "assignedToProfilePhoto" => $assignedToProfilePhoto
+    ];
 }
 
 /*
 |--------------------------------------------------------------------------
-| Successful response
+| Return JSON
 |--------------------------------------------------------------------------
 */
 
@@ -258,7 +324,6 @@ echo json_encode([
     "incidents" => $incidents
 ]);
 
-$result->free();
 $stmt->close();
 $conn->close();
 
