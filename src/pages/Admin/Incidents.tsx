@@ -9,7 +9,6 @@ import {
   signOut,
 } from '../../auth'
 import { PersonName } from '../../components/PersonName'
-import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
@@ -743,6 +742,51 @@ function ProfileMenu({
         </div>
       )}
     </div>
+  )
+}
+
+function getBasicSelfHelpText(
+  troubleshooting: string | null,
+): string {
+  if (!troubleshooting) {
+    return 'No basic self-help guidance was recorded.'
+  }
+
+  const marker = 'IT Troubleshooting Suggestions:'
+  const markerIndex = troubleshooting.indexOf(marker)
+
+  if (markerIndex === -1) {
+    return troubleshooting.replace(/^Basic Self-Help:\s*/i, '').trim()
+  }
+
+  return (
+    troubleshooting
+      .slice(0, markerIndex)
+      .replace(/^Basic Self-Help:\s*/i, '')
+      .trim() ||
+    'No basic self-help guidance was recorded.'
+  )
+}
+
+function getITTroubleshootingText(
+  troubleshooting: string | null,
+): string {
+  if (!troubleshooting) {
+    return 'No IT troubleshooting suggestions were recorded.'
+  }
+
+  const marker = 'IT Troubleshooting Suggestions:'
+  const markerIndex = troubleshooting.indexOf(marker)
+
+  if (markerIndex === -1) {
+    return 'No IT troubleshooting suggestions were recorded.'
+  }
+
+  return (
+    troubleshooting
+      .slice(markerIndex + marker.length)
+      .trim() ||
+    'No IT troubleshooting suggestions were recorded.'
   )
 }
 
@@ -2410,14 +2454,7 @@ function Incidents({
           REAL DATABASE INCIDENT DETAIL
           ===================================================== */}
 
-      {viewingIncident && (
-        <IncidentDetailModal
-          incident={viewingIncident}
-          onClose={closeViewing}
-        />
-      )}
-
-      {viewingIncident && false && ((viewingIncident: Incident) => (
+      {viewingIncident && ((viewingIncident: Incident) => (
         <div
           className="modal-overlay"
           onMouseDown={event => {
@@ -2678,7 +2715,7 @@ function Incidents({
                   {viewingIncident.troubleshooting && (
                     <div className="incident-ai-block">
                       <span>
-                        Troubleshooting
+                        Basic Self-Help
                       </span>
 
                       <p
@@ -2687,10 +2724,84 @@ function Incidents({
                             'pre-line',
                         }}
                       >
-                        {
-                          viewingIncident.troubleshooting
-                        }
+                        {getBasicSelfHelpText(
+                          viewingIncident.troubleshooting,
+                        )}
                       </p>
+
+                      {!isSecretary && (
+                        <div
+                          style={{
+                            marginTop: '24px',
+                            padding: '20px',
+                            border: '2px solid currentColor',
+                            borderRadius: '12px',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              justifyContent: 'space-between',
+                              gap: '16px',
+                              marginBottom: '12px',
+                            }}
+                          >
+                            <div>
+                              <h4
+                                style={{
+                                  margin: 0,
+                                  fontSize: '1.05rem',
+                                  fontWeight: 900,
+                                  letterSpacing: '0.02em',
+                                }}
+                              >
+                                AI-Generated Troubleshooting Suggestion – For IT Support Review
+                              </h4>
+                            </div>
+
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minWidth: '42px',
+                                minHeight: '30px',
+                                padding: '4px 10px',
+                                border: '1px solid currentColor',
+                                borderRadius: '999px',
+                                fontSize: '0.75rem',
+                                fontWeight: 900,
+                              }}
+                            >
+                              IT
+                            </span>
+                          </div>
+
+                          <p
+                            style={{
+                              margin: '0 0 16px',
+                              fontSize: '0.9rem',
+                              fontWeight: 600,
+                            }}
+                          >
+                            IT-only technical guidance. Review and validate these suggestions before taking technical action.
+                          </p>
+
+                          <div
+                            style={{
+                              paddingTop: '16px',
+                              borderTop: '1px solid currentColor',
+                              whiteSpace: 'pre-line',
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {getITTroubleshootingText(
+                              viewingIncident.troubleshooting,
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </section>

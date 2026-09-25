@@ -36,30 +36,80 @@ if ($incidentID === "" || $status === "" || $actorUserId === "") {
     exit;
 }
 
-// Status changes are restricted to the active IT Personnel account to which
-// this incident is assigned. This is enforced before either transition.
-$actorStmt = $conn->prepare("SELECT fullName, role, status FROM users WHERE userID = ? LIMIT 1");
-$actorStmt->bind_param('s', $actorUserId);
+/*
+|--------------------------------------------------------------------------
+| VERIFY ACTIVE IT PERSONNEL
+|--------------------------------------------------------------------------
+|
+| Only the active IT Personnel account assigned to the incident
+| may update its status.
+|
+*/
+
+$actorStmt = $conn->prepare(
+    "SELECT fullName, role, status
+     FROM users
+     WHERE userID = ?
+     LIMIT 1"
+);
+
+$actorStmt->bind_param("s", $actorUserId);
 $actorStmt->execute();
+
 $actor = $actorStmt->get_result()->fetch_assoc();
+
 $actorStmt->close();
 
-if (!$actor || strtolower(trim((string)$actor['role'])) !== 'it personnel' || strtolower(trim((string)$actor['status'])) !== 'active') {
+if (
+    !$actor ||
+    strtolower(trim((string)$actor["role"])) !== "it personnel" ||
+    strtolower(trim((string)$actor["status"])) !== "active"
+) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Only the assigned active IT Personnel may update this incident.']);
+
+    echo json_encode([
+        "success" => false,
+        "message" => "Only the assigned active IT Personnel may update this incident."
+    ]);
+
     $conn->close();
     exit;
 }
 
-$assignmentStmt = $conn->prepare('SELECT incidentID FROM incidents WHERE incidentID = ? AND assignedTo = ? LIMIT 1');
-$assignmentStmt->bind_param('ss', $incidentID, $actorUserId);
+/*
+|--------------------------------------------------------------------------
+| VERIFY INCIDENT ASSIGNMENT
+|--------------------------------------------------------------------------
+*/
+
+$assignmentStmt = $conn->prepare(
+    "SELECT incidentID
+     FROM incidents
+     WHERE incidentID = ?
+       AND assignedTo = ?
+     LIMIT 1"
+);
+
+$assignmentStmt->bind_param(
+    "ss",
+    $incidentID,
+    $actorUserId
+);
+
 $assignmentStmt->execute();
+
 $assignment = $assignmentStmt->get_result()->fetch_assoc();
+
 $assignmentStmt->close();
 
 if (!$assignment) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'This incident is not assigned to the current IT Personnel account.']);
+
+    echo json_encode([
+        "success" => false,
+        "message" => "This incident is not assigned to the current IT Personnel account."
+    ]);
+
     $conn->close();
     exit;
 }
@@ -69,12 +119,9 @@ if (!$assignment) {
 | TAKE ACTION
 |--------------------------------------------------------------------------
 |
-| When IT Personnel takes an assigned incident:
-|
 | Pending -> In Progress
 |
-| startedAt is recorded only if it has not
-| already been recorded.
+| startedAt is recorded only if it has not already been recorded.
 |
 */
 
@@ -92,10 +139,13 @@ if ($status === "In Progress") {
 
     if (!$stmt) {
         http_response_code(500);
+
         echo json_encode([
             "success" => false,
             "message" => "Failed to prepare database query."
         ]);
+
+        $conn->close();
         exit;
     }
 
@@ -130,8 +180,6 @@ if ($status === "In Progress") {
 | RESOLVE INCIDENT
 |--------------------------------------------------------------------------
 |
-| When IT Personnel resolves an incident:
-|
 | In Progress -> Resolved
 |
 | The system records:
@@ -142,11 +190,15 @@ if ($status === "In Progress") {
 | - resolutionNotes
 | - durationMinutes
 |
+| IMPORTANT:
+| Duration is calculated by MariaDB using the same clock used
+| for startedAt and resolvedAt.
+|
 */
 
 if ($status === "Resolved") {
 
-    $resolvedBy = (string)$actor['fullName'];
+    $resolvedBy = (string)$actor["fullName"];
 
     $resolutionNotes = trim(
         $data["resolutionNotes"] ?? ""
@@ -160,18 +212,18 @@ if ($status === "Resolved") {
             "message" => "Resolution notes are required."
         ]);
 
+        $conn->close();
         exit;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Get the incident's startedAt first.
+    | GET STARTED TIME
     |--------------------------------------------------------------------------
     */
 
     $selectSql = "
-        SELECT
-            startedAt
+        SELECT startedAt
         FROM incidents
         WHERE incidentID = ?
         LIMIT 1
@@ -187,6 +239,7 @@ if ($status === "Resolved") {
             "message" => "Failed to prepare incident lookup."
         ]);
 
+        $conn->close();
         exit;
     }
 
@@ -196,6 +249,7 @@ if ($status === "Resolved") {
     );
 
     if (!$selectStmt->execute()) {
+
         $selectStmt->close();
 
         http_response_code(500);
@@ -205,15 +259,18 @@ if ($status === "Resolved") {
             "message" => "Failed to retrieve incident."
         ]);
 
+        $conn->close();
         exit;
     }
 
     $result = $selectStmt->get_result();
+
     $incident = $result->fetch_assoc();
 
     $selectStmt->close();
 
     if (!$incident) {
+
         http_response_code(404);
 
         echo json_encode([
@@ -221,48 +278,21 @@ if ($status === "Resolved") {
             "message" => "Incident not found."
         ]);
 
+        $conn->close();
         exit;
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Calculate duration
+    | UPDATE INCIDENT
     |--------------------------------------------------------------------------
     |
-    | If startedAt exists:
+    | TIMESTAMPDIFF calculates the number of complete minutes between
+    | startedAt and the database's current time.
     |
-    | durationMinutes = minutes between startedAt and NOW()
+    | Both timestamps come from MariaDB, so there is no PHP/MySQL
+    | timezone mismatch.
     |
-    | If startedAt is missing, duration is stored as 0.
-    |
-    */
-
-    $durationMinutes = 0;
-
-    if (!empty($incident["startedAt"])) {
-
-        $startTime = new DateTime(
-            $incident["startedAt"]
-        );
-
-        $endTime = new DateTime();
-
-        $durationSeconds =
-            $endTime->getTimestamp() -
-            $startTime->getTimestamp();
-
-        $durationMinutes = max(
-            0,
-            (int) floor(
-                $durationSeconds / 60
-            )
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Update the incident
-    |--------------------------------------------------------------------------
     */
 
     $updateSql = "
@@ -272,15 +302,25 @@ if ($status === "Resolved") {
             resolvedAt = NOW(),
             resolvedBy = ?,
             resolutionNotes = ?,
-            durationMinutes = ?
+            durationMinutes =
+                CASE
+                    WHEN startedAt IS NULL THEN 0
+                    ELSE GREATEST(
+                        0,
+                        TIMESTAMPDIFF(
+                            MINUTE,
+                            startedAt,
+                            NOW()
+                        )
+                    )
+                END
         WHERE incidentID = ?
     ";
 
-    $updateStmt = $conn->prepare(
-        $updateSql
-    );
+    $updateStmt = $conn->prepare($updateSql);
 
     if (!$updateStmt) {
+
         http_response_code(500);
 
         echo json_encode([
@@ -288,30 +328,20 @@ if ($status === "Resolved") {
             "message" => "Failed to prepare resolution query."
         ]);
 
+        $conn->close();
         exit;
     }
 
     $updateStmt->bind_param(
-        "ssis",
+        "sss",
         $resolvedBy,
         $resolutionNotes,
-        $durationMinutes,
         $incidentID
     );
 
-    if ($updateStmt->execute()) {
+    if (!$updateStmt->execute()) {
 
-        echo json_encode([
-            "success" => true,
-            "message" => "Incident resolved successfully.",
-            "incidentID" => $incidentID,
-            "status" => "Resolved",
-            "resolvedBy" => $resolvedBy,
-            "resolvedAt" => date("Y-m-d H:i:s"),
-            "durationMinutes" => $durationMinutes
-        ]);
-
-    } else {
+        $updateStmt->close();
 
         http_response_code(500);
 
@@ -319,9 +349,62 @@ if ($status === "Resolved") {
             "success" => false,
             "message" => "Failed to resolve incident."
         ]);
+
+        $conn->close();
+        exit;
     }
 
     $updateStmt->close();
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET THE ACTUAL VALUES SAVED BY MYSQL
+    |--------------------------------------------------------------------------
+    */
+
+    $resultStmt = $conn->prepare(
+        "SELECT
+            resolvedAt,
+            durationMinutes
+         FROM incidents
+         WHERE incidentID = ?
+         LIMIT 1"
+    );
+
+    if (!$resultStmt) {
+
+        http_response_code(500);
+
+        echo json_encode([
+            "success" => false,
+            "message" => "Incident was resolved, but the saved resolution details could not be retrieved."
+        ]);
+
+        $conn->close();
+        exit;
+    }
+
+    $resultStmt->bind_param(
+        "s",
+        $incidentID
+    );
+
+    $resultStmt->execute();
+
+    $savedResult = $resultStmt->get_result()->fetch_assoc();
+
+    $resultStmt->close();
+
+    echo json_encode([
+        "success" => true,
+        "message" => "Incident resolved successfully.",
+        "incidentID" => $incidentID,
+        "status" => "Resolved",
+        "resolvedBy" => $resolvedBy,
+        "resolvedAt" => $savedResult["resolvedAt"] ?? null,
+        "durationMinutes" => (int)($savedResult["durationMinutes"] ?? 0)
+    ]);
+
     $conn->close();
     exit;
 }
@@ -338,8 +421,8 @@ if ($status === "Resolved") {
 | Resolved
 | Closed
 |
-| Resolution is handled separately above so that
-| resolution information is also saved.
+| Resolution is handled separately above so that resolution
+| information is also saved.
 |
 */
 
@@ -363,6 +446,7 @@ if (!in_array(
         "message" => "Invalid incident status."
     ]);
 
+    $conn->close();
     exit;
 }
 
@@ -375,6 +459,7 @@ $sql = "
 $stmt = $conn->prepare($sql);
 
 if (!$stmt) {
+
     http_response_code(500);
 
     echo json_encode([
@@ -382,6 +467,7 @@ if (!$stmt) {
         "message" => "Failed to prepare database query."
     ]);
 
+    $conn->close();
     exit;
 }
 

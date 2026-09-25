@@ -9,7 +9,6 @@ import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import {
   IncidentDetailsFields,
   IncidentDescriptionFields,
-  IncidentAnalysisResult,
   generateIncidentAnalysis,
 } from './ReportIncident'
 import type { IncidentFormValues } from './ReportIncident'
@@ -204,9 +203,14 @@ type Theme = 'light' | 'dark'
 const THEME_STORAGE_KEY = 'batangai-theme'
 
 function readStoredTheme(): Theme {
-  const stored = localStorage.getItem(THEME_STORAGE_KEY)
+  const stored = localStorage.getItem(
+    THEME_STORAGE_KEY,
+  )
 
-  if (stored === 'light' || stored === 'dark') {
+  if (
+    stored === 'light' ||
+    stored === 'dark'
+  ) {
     return stored
   }
 
@@ -214,7 +218,10 @@ function readStoredTheme(): Theme {
 }
 
 function useTheme() {
-  const [theme, setTheme] = useState<Theme>(readStoredTheme)
+  const [theme, setTheme] =
+    useState<Theme>(
+      readStoredTheme,
+    )
 
   useEffect(() => {
     document.documentElement.setAttribute(
@@ -230,7 +237,9 @@ function useTheme() {
 
   const toggleTheme = () => {
     setTheme(current =>
-      current === 'dark' ? 'light' : 'dark',
+      current === 'dark'
+        ? 'light'
+        : 'dark',
     )
   }
 
@@ -247,7 +256,8 @@ function ThemeToggle({
   theme: Theme
   onToggle: () => void
 }) {
-  const isDark = theme === 'dark'
+  const isDark =
+    theme === 'dark'
 
   return (
     <button
@@ -307,21 +317,9 @@ function ThemeToggle({
 
 /* ---------- Helpers ---------- */
 
-function formatDate(value: string) {
-  if (!value) {
-    return 'Not available'
-  }
-
-  const parsed = new Date(value)
-
-  if (Number.isNaN(parsed.getTime())) {
-    return value
-  }
-
-  return parsed.toLocaleString()
-}
-
-function normalizeStatus(value: unknown): Status {
+function normalizeStatus(
+  value: unknown,
+): Status {
   if (
     value === 'Pending' ||
     value === 'In Progress' ||
@@ -353,7 +351,8 @@ function normalizeIncident(
 ): EmployeeIncident {
   return {
     incidentID: String(
-      incident.incidentID ?? '',
+      incident.incidentID ??
+        '',
     ),
 
     userId: String(
@@ -375,9 +374,10 @@ function normalizeIncident(
     connectionType:
       incident.connectionType ?? '',
 
-    severity: normalizeSeverity(
-      incident.severity,
-    ),
+    severity:
+      normalizeSeverity(
+        incident.severity,
+      ),
 
     affectedIssue:
       incident.affectedIssue ?? '',
@@ -385,9 +385,10 @@ function normalizeIncident(
     description:
       incident.description ?? '',
 
-    status: normalizeStatus(
-      incident.status,
-    ),
+    status:
+      normalizeStatus(
+        incident.status,
+      ),
 
     createdAt:
       incident.createdAt ?? '',
@@ -396,13 +397,15 @@ function normalizeIncident(
       incident.employeeName ?? '',
 
     classification:
-      incident.classification ?? null,
+      incident.classification ??
+      null,
 
     summary:
       incident.summary ?? null,
 
     troubleshooting:
-      incident.troubleshooting ?? null,
+      incident.troubleshooting ??
+      null,
 
     assigned:
       incident.assigned === 'Yes'
@@ -410,29 +413,180 @@ function normalizeIncident(
         : 'No',
 
     assignedTo:
-      incident.assignedTo ?? null,
+      incident.assignedTo ??
+      null,
 
     assignedToName:
-      incident.assignedToName ?? null,
+      incident.assignedToName ??
+      null,
 
     resolutionNotes:
-      incident.resolutionNotes ?? null,
+      incident.resolutionNotes ??
+      null,
 
     resolvedAt:
-      incident.resolvedAt ?? null,
+      incident.resolvedAt ??
+      null,
 
     resolvedBy:
-      incident.resolvedBy ?? null,
+      incident.resolvedBy ??
+      null,
 
     startedAt:
-      incident.startedAt ?? null,
+      incident.startedAt ??
+      null,
 
     assignedAt:
-      incident.assignedAt ?? null,
+      incident.assignedAt ??
+      null,
 
     durationMinutes:
-      incident.durationMinutes ?? null,
+      incident.durationMinutes ??
+      null,
   }
+}
+
+/*
+ * Converts the new BatangAI analysis structure into the existing
+ * database troubleshooting field.
+ *
+ * The database continues to store both:
+ * - Basic Self-Help
+ * - IT Troubleshooting Suggestions
+ *
+ * This information is intentionally kept intact so IT Personnel
+ * can use the technical suggestions.
+ */
+function formatTroubleshootingForStorage(
+  analysis: ReturnType<
+    typeof generateIncidentAnalysis
+  >,
+): string {
+  return [
+    'Basic Self-Help:',
+    analysis.basicSelfHelp,
+    '',
+    'IT Troubleshooting Suggestions:',
+    analysis.itTroubleshooting,
+  ].join('\n')
+}
+
+/*
+ * SECURITY / ROLE VISIBILITY:
+ *
+ * Employees must never see the technical IT troubleshooting section.
+ *
+ * The complete troubleshooting value remains stored in the database.
+ * This helper extracts only the Basic Self-Help portion for Employee
+ * display.
+ */
+function getEmployeeTroubleshooting(
+  troubleshooting: string | null,
+): string | null {
+  if (!troubleshooting) {
+    return null
+  }
+
+  const itSectionMarker =
+    'IT Troubleshooting Suggestions:'
+
+  const markerIndex =
+    troubleshooting.indexOf(
+      itSectionMarker,
+    )
+
+  if (markerIndex === -1) {
+    return troubleshooting.trim()
+  }
+
+  const basicSelfHelp =
+    troubleshooting
+      .slice(0, markerIndex)
+      .trim()
+
+  return basicSelfHelp || null
+}
+
+/*
+ * Employee-only analysis display.
+ *
+ * This intentionally does NOT display:
+ * - itTroubleshooting
+ * - "AI-Generated Troubleshooting Suggestion – For IT Support Review"
+ *
+ * IT troubleshooting remains available in the generated analysis
+ * for storage and for IT Personnel interfaces.
+ */
+function EmployeeAnalysisResult({
+  analysis,
+  reviewNote,
+}: {
+  analysis: ReturnType<
+    typeof generateIncidentAnalysis
+  >
+  reviewNote?: string
+}) {
+  return (
+    <div
+      className="incident-analysis-result"
+      aria-live="polite"
+    >
+      <section
+        className="incident-analysis-section"
+      >
+        <h3>
+          Incident Summary
+        </h3>
+
+        <p>
+          {analysis.summary}
+        </p>
+      </section>
+
+      <section
+        className="incident-analysis-section"
+      >
+        <h3>
+          Possible Interpretation
+        </h3>
+
+        <p>
+          {analysis.possibleInterpretation}
+        </p>
+      </section>
+
+      <section
+        className="incident-analysis-section"
+      >
+        <h3>
+          Basic Self-Help
+        </h3>
+
+        <p
+          style={{
+            whiteSpace:
+              'pre-line',
+          }}
+        >
+          {analysis.basicSelfHelp}
+        </p>
+      </section>
+
+      {reviewNote && (
+        <p
+          style={{
+            marginTop: '12px',
+            fontSize:
+              'var(--font-secondary)',
+            color:
+              'var(--text-muted)',
+          }}
+        >
+          {reviewNote}
+        </p>
+      )}
+    </div>
+  )
 }
 
 /* ---------- Page ---------- */
@@ -440,16 +594,22 @@ function normalizeIncident(
 function Incidents() {
   const navigate = useNavigate()
 
-  const [sidebarCollapsed, setSidebarCollapsed] =
-    useState(false)
+  const [
+    sidebarCollapsed,
+    setSidebarCollapsed,
+  ] = useState(false)
 
   const {
     theme,
     toggleTheme,
   } = useTheme()
 
-  const [incidents, setIncidents] =
-    useState<EmployeeIncident[]>([])
+  const [
+    incidents,
+    setIncidents,
+  ] = useState<EmployeeIncident[]>(
+    [],
+  )
 
   const [loading, setLoading] =
     useState(true)
@@ -458,43 +618,63 @@ function Incidents() {
     useState('')
 
   const [viewing, setViewing] =
-    useState<EmployeeIncident | null>(null)
+    useState<EmployeeIncident | null>(
+      null,
+    )
 
-  const [menuOpenId, setMenuOpenId] =
-    useState<string | null>(null)
+  const [
+    menuOpenId,
+    setMenuOpenId,
+  ] = useState<string | null>(
+    null,
+  )
 
   const [editing, setEditing] =
-    useState<EmployeeIncident | null>(null)
+    useState<EmployeeIncident | null>(
+      null,
+    )
 
-  const [editForm, setEditForm] =
-    useState<IncidentFormValues>({
-      department: '',
-      location: '',
-      issueCategory: '',
-      deviceType: '',
-      connectionType: '',
-      affectedService: '',
-      description: '',
-    })
+  const [
+    editForm,
+    setEditForm,
+  ] = useState<IncidentFormValues>({
+    department: '',
+    location: '',
+    issueCategory: '',
+    deviceType: '',
+    connectionType: '',
+    affectedService: '',
+    description: '',
+  })
 
   /*
-   * Edit Incident mirrors Report Incident's two-step flow: fill in the
-   * (pre-filled) form, then "Analyze with BatangAI" before saving. The
-   * analysis itself is always derived from editForm at render time (see
-   * generateIncidentAnalysis below), so it can never go stale relative to
-   * what's on screen.
+   * Edit Incident mirrors Report Incident's two-step flow:
+   * fill in the pre-filled form, then Analyze with BatangAI
+   * before saving.
    */
-  const [editPhase, setEditPhase] =
-    useState<'form' | 'result'>('form')
+  const [
+    editPhase,
+    setEditPhase,
+  ] = useState<
+    'form' | 'result'
+  >('form')
 
-  const [savingEdit, setSavingEdit] =
-    useState(false)
+  const [
+    savingEdit,
+    setSavingEdit,
+  ] = useState(false)
 
-  const [editError, setEditError] =
-    useState('')
+  const [
+    editError,
+    setEditError,
+  ] = useState('')
 
-  const [deletingId, setDeletingId] =
-    useState<string | null>(null)
+  const [
+    deletingId,
+    setDeletingId,
+  ] = useState<string | null>(
+    null,
+  )
 
   const handleLogout = () => {
     localStorage.removeItem(
@@ -521,9 +701,12 @@ function Incidents() {
           session?.user?.userID
 
         if (
-          currentUserId === undefined ||
+          currentUserId ===
+            undefined ||
           currentUserId === null ||
-          String(currentUserId).trim() === ''
+          String(
+            currentUserId,
+          ).trim() === ''
         ) {
           setIncidents([])
 
@@ -536,7 +719,11 @@ function Incidents() {
 
         const response =
           await fetch(
-            `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
+            `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(
+              String(
+                currentUserId,
+              ),
+            )}`,
             {
               method: 'GET',
               headers: {
@@ -622,7 +809,9 @@ function Incidents() {
         setMenuOpenId(null)
       }
 
-    if (menuOpenId === null) {
+    if (
+      menuOpenId === null
+    ) {
       return
     }
 
@@ -691,6 +880,23 @@ function Incidents() {
     setViewing(null)
   }
 
+  /*
+   * Create an Employee-safe version of the incident.
+   *
+   * The original incident remains untouched in state.
+   * Only the value passed to IncidentDetailModal is sanitized.
+   */
+  const employeeViewingIncident =
+    viewing
+      ? {
+          ...viewing,
+          troubleshooting:
+            getEmployeeTroubleshooting(
+              viewing.troubleshooting,
+            ),
+        }
+      : null
+
   /* =========================================================
      EDIT INCIDENT
      ========================================================= */
@@ -700,7 +906,10 @@ function Incidents() {
   ) => {
     setMenuOpenId(null)
 
-    if (incident.status !== 'Pending') {
+    if (
+      incident.status !==
+      'Pending'
+    ) {
       alert(
         'This incident is already being worked on, so it can no longer be edited. Please contact IT Personnel or the Administrator for changes.',
       )
@@ -752,9 +961,8 @@ function Incidents() {
   }
 
   /*
-   * Step 1 of Edit Incident: pressing "Analyze with BatangAI" does NOT
-   * save anything yet — it just moves to the result step, where the
-   * analysis is computed fresh from the current editForm values.
+   * Step 1 of Edit Incident:
+   * Analyze the current form without saving.
    */
   const handleEditAnalyze = (
     event: FormEvent<HTMLFormElement>,
@@ -763,14 +971,17 @@ function Incidents() {
     setEditPhase('result')
   }
 
-  const handleEditBackToForm = () => {
-    setEditPhase('form')
-  }
+  const handleEditBackToForm =
+    () => {
+      setEditPhase('form')
+    }
 
   /*
-   * Step 2 of Edit Incident: only after the user has reviewed the NEW
-   * BatangAI analysis does "Save Changes" persist the updated incident
-   * information together with that new analysis.
+   * Step 2 of Edit Incident:
+   * Save the newly generated analysis and updated incident.
+   *
+   * The complete troubleshooting data is still stored.
+   * Employees simply do not receive/display the IT section.
    */
   const handleSaveEditChanges =
     async () => {
@@ -816,11 +1027,13 @@ function Incidents() {
                 description:
                   editForm.description,
                 classification:
-                  analysis.classification,
+                  editForm.issueCategory,
                 summary:
                   analysis.summary,
                 troubleshooting:
-                  analysis.troubleshooting,
+                  formatTroubleshootingForStorage(
+                    analysis,
+                  ),
               }),
             },
           )
@@ -879,11 +1092,13 @@ function Incidents() {
                   description:
                     editForm.description,
                   classification:
-                    analysis.classification,
+                    editForm.issueCategory,
                   summary:
                     analysis.summary,
                   troubleshooting:
-                    analysis.troubleshooting,
+                    formatTroubleshootingForStorage(
+                      analysis,
+                    ),
                 }
               : item,
           ),
@@ -916,7 +1131,10 @@ function Incidents() {
   ) => {
     setMenuOpenId(null)
 
-    if (incident.status !== 'Pending') {
+    if (
+      incident.status !==
+      'Pending'
+    ) {
       alert(
         'This incident is already being worked on, so it can no longer be deleted. Please contact IT Personnel or the Administrator.',
       )
@@ -924,9 +1142,10 @@ function Incidents() {
       return
     }
 
-    const confirmed = window.confirm(
-      `Delete incident ${incident.incidentID}? This cannot be undone.`,
-    )
+    const confirmed =
+      window.confirm(
+        `Delete incident ${incident.incidentID}? This cannot be undone.`,
+      )
 
     if (!confirmed) {
       return
@@ -1034,7 +1253,8 @@ function Incidents() {
       .trim()
       .split(/\s+/)
       .map(
-        part => part.charAt(0),
+        part =>
+          part.charAt(0),
       )
       .slice(0, 2)
       .join('')
@@ -1418,280 +1638,16 @@ function Incidents() {
           VIEW INCIDENT MODAL
           ===================================================== */}
 
-      {viewing && (
+      {employeeViewingIncident && (
         <IncidentDetailModal
-          incident={viewing}
-          onClose={closeViewing}
+          incident={
+            employeeViewingIncident
+          }
+          onClose={
+            closeViewing
+          }
         />
       )}
-
-      {viewing && false && ((viewing: EmployeeIncident) => (
-        <div
-          className="employee-modal-overlay"
-          onMouseDown={event => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-              closeViewing()
-            }
-          }}
-        >
-          <section
-            className="employee-incident-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="employee-view-title"
-          >
-            <header>
-              <div>
-                <h2 id="employee-view-title">
-                  {
-                    viewing.incidentID
-                  }
-                </h2>
-
-                <p>
-                  Reported{' '}
-                  {formatDate(
-                    viewing.createdAt,
-                  )}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={
-                  closeViewing
-                }
-                aria-label="Close"
-              >
-                <Icon name="close" />
-              </button>
-            </header>
-
-            <div className="employee-detail-grid">
-              <div>
-                <span>
-                  Reporter
-                </span>
-
-                <strong>
-                  {
-                    viewing.employeeName
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Department
-                </span>
-
-                <strong>
-                  {
-                    viewing.department
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Location / Room
-                </span>
-
-                <strong>
-                  {
-                    viewing.location
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Issue Category
-                </span>
-
-                <strong>
-                  {
-                    viewing.issueCategory
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Device Type
-                </span>
-
-                <strong>
-                  {
-                    viewing.deviceType ||
-                    'Not specified'
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Connection Type
-                </span>
-
-                <strong>
-                  {
-                    viewing.connectionType ||
-                    'Not specified'
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Status
-                </span>
-
-                <strong>
-                  <span
-                    className={`tag ${statusTagClass[viewing.status]}`}
-                  >
-                    {
-                      viewing.status
-                    }
-                  </span>
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Assigned
-                </span>
-
-                <strong>
-                  {
-                    viewing.assigned
-                  }
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Assigned To
-                </span>
-
-                <strong>
-                  {viewing.assignedToName ||
-                    viewing.assignedTo ||
-                    'Not assigned'}
-                </strong>
-              </div>
-            </div>
-
-            <section>
-              <h3>
-                Affected Issue / Service
-              </h3>
-
-              <p>
-                {
-                  viewing.affectedIssue
-                }
-              </p>
-            </section>
-
-            <section>
-              <h3>
-                Detailed Problem Description
-              </h3>
-
-              <p>
-                {
-                  viewing.description
-                }
-              </p>
-            </section>
-
-            {viewing.classification && (
-              <section>
-                <h3>
-                  Classification
-                </h3>
-
-                <p>
-                  {
-                    viewing.classification
-                  }
-                </p>
-              </section>
-            )}
-
-            {viewing.summary && (
-              <section>
-                <h3>
-                  Incident Summary
-                </h3>
-
-                <p>
-                  {
-                    viewing.summary
-                  }
-                </p>
-              </section>
-            )}
-
-            {viewing.troubleshooting && (
-              <section>
-                <h3>
-                  Troubleshooting
-                </h3>
-
-                <p
-                  style={{
-                    whiteSpace:
-                      'pre-line',
-                  }}
-                >
-                  {
-                    viewing.troubleshooting
-                  }
-                </p>
-              </section>
-            )}
-
-            {viewing.resolutionNotes && (
-              <section>
-                <h3>
-                  Resolution Notes
-                </h3>
-
-                <p
-                  style={{
-                    whiteSpace:
-                      'pre-line',
-                  }}
-                >
-                  {
-                    viewing.resolutionNotes
-                  }
-                </p>
-              </section>
-            )}
-
-            {viewing.resolvedAt && (
-              <section>
-                <h3>
-                  Resolved At
-                </h3>
-
-                <p>
-                  {formatDate(
-                    viewing.resolvedAt!,
-                  )}
-                </p>
-              </section>
-            )}
-          </section>
-        </div>
-      ))(viewing!)}
 
       {/* =====================================================
           EDIT INCIDENT MODAL
@@ -1725,7 +1681,8 @@ function Incidents() {
                 </h2>
 
                 <p>
-                  {editPhase === 'form'
+                  {editPhase ===
+                  'form'
                     ? 'Update the report details below, then analyze again with BatangAI.'
                     : 'Review the new BatangAI analysis, then save your changes.'}
                 </p>
@@ -1768,7 +1725,8 @@ function Incidents() {
               </div>
             )}
 
-            {editPhase === 'form' ? (
+            {editPhase ===
+            'form' ? (
               <form
                 id="employee-edit-form"
                 className="incident-form"
@@ -1796,7 +1754,7 @@ function Incidents() {
                 className="employee-ai-result"
                 aria-live="polite"
               >
-                <IncidentAnalysisResult
+                <EmployeeAnalysisResult
                   analysis={generateIncidentAnalysis(
                     editForm,
                   )}
@@ -1806,7 +1764,8 @@ function Incidents() {
             )}
 
             <footer>
-              {editPhase === 'form' ? (
+              {editPhase ===
+              'form' ? (
                 <>
                   <button
                     type="button"
@@ -1859,6 +1818,7 @@ function Incidents() {
                     }
                   >
                     <Icon name="check" />
+
                     {savingEdit
                       ? 'Saving...'
                       : 'Save Changes'}
