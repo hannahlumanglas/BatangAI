@@ -71,6 +71,7 @@ export type IncidentFormValues = {
 export type IncidentAnalysis = {
   classification: string
   summary: string
+  possibleCause?: string
   troubleshooting: string
 }
 
@@ -88,6 +89,58 @@ export function generateIncidentAnalysis(values: IncidentFormValues): IncidentAn
       '1. Check the device and its network connection.\n' +
       '2. Restart the device, then try again.\n' +
       '3. Record any error message and send the report to IT.',
+  }
+}
+
+async function analyzeIncidentWithAI(
+    values: IncidentFormValues,
+  ): Promise<IncidentAnalysis> {
+    const response = await fetch(
+      `${API_BASE_URL}/analyze_incident.php`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          department: values.department,
+          location: values.location,
+          issueCategory: values.issueCategory,
+          deviceType: values.deviceType,
+          connectionType: values.connectionType,
+          affectedService: values.affectedService,
+          description: values.description,
+        }),
+      },
+    )
+
+    const responseText = await response.text()
+
+    console.log('Gemini PHP Response:', responseText)
+
+    let data
+
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      throw new Error(
+        'The AI server returned an invalid response.',
+      )
+    }
+
+    if (!response.ok || !data.success || !data.analysis) {
+      console.error('Gemini analysis error:', data)
+
+      throw new Error(
+        data.message || 'Unable to analyze the incident with BatangAI.',
+      )
+  }
+
+  return {
+    classification: data.analysis.classification || '',
+    summary: data.analysis.summary || '',
+    possibleCause: data.analysis.possibleCause || '',
+    troubleshooting: data.analysis.troubleshooting || '',
   }
 }
 
@@ -249,7 +302,10 @@ export function IncidentAnalysisResult({
       </div>
       <div className="employee-ai-block">
         <span>Possible Cause</span>
-        <p>The issue may be caused by a device, connection, or service configuration problem in the reporting location.</p>
+        <p>
+          {analysis.possibleCause ||
+            'BatangAI could not determine a possible cause from the provided information.'}
+        </p>
       </div>
       <div className="employee-ai-block">
         <span>Recommended Troubleshooting Steps</span>
@@ -324,16 +380,45 @@ function ReportIncident() {
   const { theme, toggleTheme } = useTheme()
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [analyzing, setAnalyzing] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [analysisError, setAnalysisError] = useState('')
   const [values, setValues] = useState<IncidentFormValues>(getInitialValues)
   const [phase, setPhase] = useState<'form' | 'result'>('form')
   const [resolutionStatus, setResolutionStatus] = useState<'resolved' | 'unresolved' | null>(null)
+  const [aiAnalysis, setAiAnalysis] = useState<IncidentAnalysis | null>(null)
   const handleLogout = () => { localStorage.removeItem('batangai-admin-auth'); navigate('/') }
   const currentUser = getAuthSession()?.user
 
-  const analyze = (event: FormEvent<HTMLFormElement>) => {
+  const analyze = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setPhase('result')
+
+    if (analyzing) {
+      return
+    }
+
+    setAnalysisError('')
+    setSubmitError('')
+    setAiAnalysis(null)
+
+    try {
+      setAnalyzing(true)
+
+      const analysis = await analyzeIncidentWithAI(values)
+
+      setAiAnalysis(analysis)
+      setPhase('result')
+    } catch (error) {
+      console.error('AI analysis error:', error)
+
+      setAnalysisError(
+        error instanceof Error
+          ? error.message
+          : 'Unable to analyze the incident with BatangAI.',
+      )
+    } finally {
+      setAnalyzing(false)
+    }
   }
 
   const submit = async () => {
@@ -356,7 +441,14 @@ function ReportIncident() {
       return
     }
 
-    const analysis = generateIncidentAnalysis(values)
+    if (!aiAnalysis) {
+      setSubmitError(
+        'Please analyze the incident with BatangAI before submitting.',
+      )
+      return
+    }
+
+    const analysis = aiAnalysis
 
     try {
       setSubmitting(true)
@@ -419,6 +511,8 @@ function ReportIncident() {
       setValues(getInitialValues())
       setPhase('form')
       setResolutionStatus(null)
+      setAiAnalysis(null)
+      setAnalysisError('')
 
       alert(
         `Incident submitted successfully!\nIncident ID: ${data.incidentID}`,
@@ -490,17 +584,51 @@ function ReportIncident() {
               />
               <footer className="employee-report-footer">
                 <button className="btn-secondary" type="button" onClick={closeReport}>Cancel</button>
-                <button className="incident-new" type="submit"><Icon name="sparkle" /> Analyze with BatangAI</button>
+                <button className="incident-new" type="submit" disabled={analyzing}> <Icon name="sparkle" /> {analyzing ? 'Analyzing with BatangAI…' : 'Analyze with BatangAI'}</button>
               </footer>
-              {submitted && <p className="employee-report-success"><Icon name="check" /> Your incident report has been submitted.</p>}
+              {analysisError && ( 
+                <p className="employee-report-error" role="alert"> 
+                  {analysisError} 
+                </p>
+              )}
+              {submitted && (
+                <p className="employee-report-success">
+                  <Icon name="check" /> Your incident report has been submitted.
+                  </p>
+                )}
             </form> : <section className="employee-ai-result" aria-live="polite">
-              <IncidentAnalysisResult
-                analysis={generateIncidentAnalysis(values)}
-                reviewNote="Review the analysis before submitting your incident."
-              />
+              {aiAnalysis && (
+                <IncidentAnalysisResult
+                  analysis={aiAnalysis}
+                  reviewNote="Review the AI analysis before submitting your incident."
+                />
+              )}
               <section className="employee-resolution-check"><h3>Were you able to resolve the issue?</h3><p>Using the steps above, did you fix the problem? Your answer determines how this report is handled.</p><div className="employee-resolution-options"><button type="button" className={`employee-resolution-option resolved${resolutionStatus === 'resolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('resolved')}><b>✓</b><strong>Yes, Resolved!</strong><span>Mark as resolved by user</span></button><button type="button" className={`employee-resolution-option unresolved${resolutionStatus === 'unresolved' ? ' selected' : ''}`} onClick={() => setResolutionStatus('unresolved')}><b>×</b><strong>Not Resolved</strong><span>Assign to IT personnel</span></button></div></section>
               {submitError && <p className="employee-report-error" role="alert">{submitError}</p>}
-              <div className="employee-ai-actions"><button className="employee-ai-back" type="button" onClick={() => setPhase('form')}>Edit Report</button><button className="incident-new" type="button" onClick={submit} disabled={submitting}><Icon name="check" /> {submitting ? 'Submitting…' : 'Submit Incident'}</button></div>
+              <div className="employee-ai-actions">
+                <button
+                  className="employee-ai-back"
+                  type="button"
+                  onClick={() => {
+                    setAiAnalysis(null)
+                    setAnalysisError('')
+                    setPhase('form')
+                  }}
+                >
+                  Edit Report
+                </button>
+
+                <button
+                  className="incident-new"
+                  type="button"
+                  onClick={submit}
+                  disabled={submitting}
+                >
+                  <Icon name="check" />
+                  {submitting ? 'Submitting…' : 'Submit Incident'}
+                </button>
+
+              </div>
             </section>}
             </div>
           </article>
