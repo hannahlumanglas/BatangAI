@@ -165,7 +165,7 @@ export function generateIncidentAnalysis(
     possibleInterpretation:
       'No AI interpretation is available. IT Support should review the reported symptoms and determine the appropriate technical assessment.',
     basicSelfHelp:
-      'Check that the device is properly connected and try restarting the affected device if appropriate. If the problem continues, submit the incident for IT Support review.',
+      '1. Check that the device is properly connected and powered on.\n2. Restart the affected device if appropriate, then try the affected service again.\n3. If the problem continues, submit the incident for IT Support review.',
     itTroubleshooting:
       'AI assistance was unavailable. IT Support should manually assess the incident based on the reported symptoms and available network information.',
   }
@@ -481,11 +481,13 @@ export function IncidentAnalysisResult({
       </div>
 
       <div className="employee-ai-block">
-        <span>Basic Self-Help</span>
+        <span>Troubleshooting Steps</span>
 
         <p>
+          <span style={{ whiteSpace: 'pre-line' }}>
           {analysis.basicSelfHelp ||
             'No basic self-help steps were generated. Please wait for IT Support assistance.'}
+          </span>
         </p>
       </div>
     </>
@@ -691,13 +693,10 @@ function ReportIncident() {
         error,
       )
 
-      setAnalysisError(
-        error instanceof Error
-          ? error.message
-          : 'AI assistance is currently unavailable.',
-      )
-
+      setAnalysisError('')
+      setAiAnalysis(generateIncidentAnalysis(values))
       setAiWasUnavailable(true)
+      setPhase('result')
     } finally {
       setAnalyzing(false)
     }

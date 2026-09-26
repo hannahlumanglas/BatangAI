@@ -9,6 +9,7 @@ import {
   getAuthSession,
   getCurrentUserId,
   getCurrentUserName,
+  getDefaultProfileAvatar,
   getProfilePhotoUrl,
   signOut,
 } from '../../auth'
@@ -282,6 +283,14 @@ function ITProfileMenu({
             <img
               src={profileAvatar}
               alt=""
+              onError={() =>
+                setProfileAvatar(
+                  getDefaultProfileAvatar(
+                    currentUserName,
+                    currentUser?.role,
+                  ),
+                )
+              }
             />
           ) : (
             initials

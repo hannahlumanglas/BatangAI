@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { getProfilePhotoUrl } from '../auth'
 
 type PersonNameProps = {
@@ -10,6 +10,8 @@ type PersonNameProps = {
 
 /** Consistent, deterministic initials avatar for names shown in lists and details. */
 export function PersonName({ name, className = '', compact = false, profilePhoto = null }: PersonNameProps) {
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null)
+  const photoUrl = profilePhoto ? getProfilePhotoUrl(profilePhoto) : null
   const identityName = name.split(/\s+-\s+/)[0].trim()
   const initials = identityName
     .split(/\s+/)
@@ -24,8 +26,8 @@ export function PersonName({ name, className = '', compact = false, profilePhoto
   return (
     <span className={`person-name${compact ? ' person-name--compact' : ''}${className ? ` ${className}` : ''}`}>
       <span className="person-avatar" style={style} aria-hidden="true">
-        {profilePhoto ? (
-          <img src={getProfilePhotoUrl(profilePhoto)} alt="" />
+        {photoUrl && failedPhotoUrl !== photoUrl ? (
+          <img src={photoUrl} alt="" onError={() => setFailedPhotoUrl(photoUrl)} />
         ) : initials}
       </span>
       <span className="person-name-label">{name}</span>

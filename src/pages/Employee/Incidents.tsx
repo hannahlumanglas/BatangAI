@@ -451,7 +451,7 @@ function normalizeIncident(
  * database troubleshooting field.
  *
  * The database continues to store both:
- * - Basic Self-Help
+ * - Employee troubleshooting steps
  * - IT Troubleshooting Suggestions
  *
  * This information is intentionally kept intact so IT Personnel
@@ -477,7 +477,7 @@ function formatTroubleshootingForStorage(
  * Employees must never see the technical IT troubleshooting section.
  *
  * The complete troubleshooting value remains stored in the database.
- * This helper extracts only the Basic Self-Help portion for Employee
+ * This helper extracts only the employee troubleshooting portion for Employee
  * display.
  */
 function getEmployeeTroubleshooting(
@@ -559,7 +559,7 @@ function EmployeeAnalysisResult({
         className="incident-analysis-section"
       >
         <h3>
-          Basic Self-Help
+          Troubleshooting Steps
         </h3>
 
         <p

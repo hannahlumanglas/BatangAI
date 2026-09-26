@@ -33,9 +33,17 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     exit;
 }
 
-require_once __DIR__ . "/gemini_config.php";
+$geminiConfig = __DIR__ . "/gemini_config.php";
+if (is_file($geminiConfig)) {
+    require_once $geminiConfig;
+}
 
-$apiKey = GEMINI_API_KEY;
+$apiKey = defined("GEMINI_API_KEY")
+    ? trim((string) constant("GEMINI_API_KEY"))
+    : "";
+if ($apiKey === "") {
+    $apiKey = trim((string) (getenv("GEMINI_API_KEY") ?: ""));
+}
 
 if (!$apiKey) {
     http_response_code(503);
@@ -125,7 +133,7 @@ Analyze the network incident information provided below.
 Your purpose is limited to:
 1. Summarizing the reported incident.
 2. Providing a cautious possible interpretation of the issue based only on the information provided.
-3. Providing basic and safe self-help steps that a normal employee may try before IT intervention.
+3. Providing safe, practical troubleshooting steps that a normal employee may try before IT intervention.
 4. Providing technical troubleshooting suggestions intended for IT Support review.
 
 Important rules:
@@ -134,6 +142,9 @@ Important rules:
 - Do not invent technical information that was not provided.
 - Clearly distinguish possible interpretations from confirmed facts.
 - Basic self-help must be safe and appropriate for a normal employee.
+- Write the employee troubleshooting as a numbered sequence, with one clear action per step (1., 2., 3., and so on).
+- Start with simple checks, then give safe next actions. Include what the employee should observe after each action and when to stop and contact IT Support.
+- Do not return a generic category label in place of actionable steps.
 - Do not instruct employees to change router, switch, server, firewall, DNS, DHCP, or other network infrastructure settings.
 - Technical troubleshooting may include network diagnostic procedures appropriate for IT personnel.
 - Technical troubleshooting suggestions are advisory only and must be reviewed by IT Support.
@@ -178,6 +189,7 @@ PROMPT;
 $requestBody = [
     "model" => "gemini-3.5-flash",
     "input" => $prompt,
+    "store" => false,
 ];
 
 $jsonRequestBody = json_encode($requestBody);

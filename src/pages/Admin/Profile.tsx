@@ -358,6 +358,10 @@ function ProfileMenu({
             <img
               src={avatar}
               alt=""
+              onError={event => {
+                event.currentTarget.onerror = null
+                event.currentTarget.src = getDefaultProfileAvatar(account.name)
+              }}
             />
           ) : (
             account.initial
@@ -543,6 +547,17 @@ function Profile({
       currentSession.user.role,
     )
   })
+
+  const handleAvatarLoadError = () => {
+    const currentUser = getAuthSession()?.user
+
+    setAvatar(
+      getDefaultProfileAvatar(
+        currentUser?.fullName,
+        currentUser?.role,
+      ),
+    )
+  }
 
   /*
   |--------------------------------------------------------------------------
@@ -1247,6 +1262,7 @@ function Profile({
                     <img
                       src={avatar}
                       alt="Profile"
+                      onError={handleAvatarLoadError}
                     />
                   ) : (
                     account.initial

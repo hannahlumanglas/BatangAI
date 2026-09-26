@@ -1,10 +1,11 @@
 /**
  * API server used by the BatangAI web application.
- * The production build uses the shared InfinityFree server.
+ * Development serves PHP from the workspace on port 8000. Production uses
+ * the shared InfinityFree server configured in .env.production.
  */
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
-  'http://localhost/BatangAI/api'
+  'http://127.0.0.1:8000/api'
 ).replace(/\/$/, '')
 
 /**
