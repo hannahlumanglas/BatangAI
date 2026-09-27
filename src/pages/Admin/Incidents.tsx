@@ -790,6 +790,74 @@ function getITTroubleshootingText(
   )
 }
 
+function parseDatabaseDate(value: string | null): Date | null {
+  if (!value) return null
+
+  const normalized = value.trim().replace(' ', 'T')
+  const parsed = new Date(normalized)
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatIncidentDateTime(value: string | null): string {
+  const parsed = parseDatabaseDate(value)
+
+  if (!parsed) return 'Not recorded'
+
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(parsed)
+}
+
+function formatElapsedDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+  const seconds = safeSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`
+  }
+
+  return `${minutes}m ${seconds}s`
+}
+
+function getIncidentDurationText(
+  incident: Incident,
+  nowMs: number,
+): string {
+  if (
+    incident.status === 'In Progress' &&
+    incident.startedAt
+  ) {
+    const startedAt = parseDatabaseDate(
+      incident.startedAt,
+    )
+
+    if (startedAt) {
+      const elapsedSeconds =
+        (nowMs - startedAt.getTime()) / 1000
+
+      return `${formatElapsedDuration(elapsedSeconds)} (live)`
+    }
+  }
+
+  if (
+    (incident.status === 'Resolved' ||
+      incident.status === 'Closed') &&
+    incident.durationMinutes !== null
+  ) {
+    return `${incident.durationMinutes} min`
+  }
+
+  return 'Not started'
+}
+
 /* ===========================================================
    PAGE
    =========================================================== */
@@ -1118,6 +1186,39 @@ function Incidents({
         incident.incidentID ===
         viewingId,
     ) ?? null
+
+  const [liveNow, setLiveNow] =
+    useState(() => Date.now())
+
+  useEffect(() => {
+    if (
+      !viewingIncident ||
+      viewingIncident.status !== 'In Progress' ||
+      !viewingIncident.startedAt
+    ) {
+      setLiveNow(Date.now())
+      return
+    }
+
+    const updateLiveTime = () => {
+      setLiveNow(Date.now())
+    }
+
+    updateLiveTime()
+
+    const intervalId = window.setInterval(
+      updateLiveTime,
+      1000,
+    )
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [
+    viewingIncident?.incidentID,
+    viewingIncident?.status,
+    viewingIncident?.startedAt,
+  ])
 
   const closeViewing = () => {
     setViewingId(null)
@@ -2482,9 +2583,9 @@ function Incidents({
 
                 <p>
                   Reported{' '}
-                  {
-                    viewingIncident.createdAt
-                  }
+                  {formatIncidentDateTime(
+                    viewingIncident.createdAt,
+                  )}
                 </p>
               </div>
 
@@ -2649,6 +2750,88 @@ function Incidents({
                   </strong>
                 </div>
               </div>
+
+              <section className="incident-detail-section">
+                <h3>
+                  Incident Timeline
+                </h3>
+
+                <div className="incident-detail-grid">
+                  <div className="incident-detail-field">
+                    <span>
+                      Reported At
+                    </span>
+
+                    <strong>
+                      {formatIncidentDateTime(
+                        viewingIncident.createdAt,
+                      )}
+                    </strong>
+                  </div>
+
+                  <div className="incident-detail-field">
+                    <span>
+                      Assigned At
+                    </span>
+
+                    <strong>
+                      {formatIncidentDateTime(
+                        viewingIncident.assignedAt,
+                      )}
+                    </strong>
+                  </div>
+
+                  <div className="incident-detail-field">
+                    <span>
+                      Started At
+                    </span>
+
+                    <strong>
+                      {formatIncidentDateTime(
+                        viewingIncident.startedAt,
+                      )}
+                    </strong>
+                  </div>
+
+                  <div className="incident-detail-field">
+                    <span>
+                      Resolved At
+                    </span>
+
+                    <strong>
+                      {formatIncidentDateTime(
+                        viewingIncident.resolvedAt,
+                      )}
+                    </strong>
+                  </div>
+
+                  <div className="incident-detail-field">
+                    <span>
+                      Duration
+                    </span>
+
+                    <strong>
+                      {getIncidentDurationText(
+                        viewingIncident,
+                        liveNow,
+                      )}
+                    </strong>
+                  </div>
+                </div>
+
+                {viewingIncident.status === 'In Progress' &&
+                  viewingIncident.startedAt && (
+                    <p
+                      style={{
+                        margin: '12px 0 0',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                      }}
+                    >
+                      Duration updates automatically while this incident is in progress.
+                    </p>
+                  )}
+              </section>
 
               <section className="incident-detail-section incident-detail-section--service">
                 <h3>
