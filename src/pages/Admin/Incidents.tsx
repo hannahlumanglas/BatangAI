@@ -27,6 +27,9 @@ type IconName =
   | 'search'
   | 'view'
   | 'more'
+  | 'sparkle'
+  | 'check-circle'
+  | 'x-circle'
   | 'walk'
   | 'assign'
   | 'close'
@@ -113,6 +116,23 @@ function Icon({ name }: { name: IconName }) {
       </>
     ),
 
+    sparkle: (
+      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
+    ),
+
+    'check-circle': (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="m8.3 12.3 2.4 2.4L15.8 9.6" />
+      </>
+    ),
+
+    'x-circle': (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="m9.2 9.2 5.6 5.6M14.8 9.2l-5.6 5.6" />
+      </>
+    ),
 
     walk: (
       <>
@@ -592,6 +612,16 @@ function ProfileMenu({
   )
 }
 
+function repairTextEncoding(value: string): string {
+  return value
+    .replace(/â€“/g, '–')
+    .replace(/â€”/g, '—')
+    .replace(/â€¦/g, '…')
+    .replace(/â€¹/g, '‹')
+    .replace(/â€º/g, '›')
+    .replace(/Ã—/g, '×')
+}
+
 function getBasicSelfHelpText(
   troubleshooting: string | null,
 ): string {
@@ -603,10 +633,10 @@ function getBasicSelfHelpText(
   const markerIndex = troubleshooting.indexOf(marker)
 
   if (markerIndex === -1) {
-    return troubleshooting.replace(/^Basic Self-Help:\s*/i, '').trim()
+    return repairTextEncoding(troubleshooting.replace(/^Basic Self-Help:\s*/i, '').trim())
   }
 
-  return (
+  return repairTextEncoding(
     troubleshooting
       .slice(0, markerIndex)
       .replace(/^Basic Self-Help:\s*/i, '')
@@ -629,12 +659,106 @@ function getITTroubleshootingText(
     return 'No IT troubleshooting suggestions were recorded.'
   }
 
-  return (
+  return repairTextEncoding(
     troubleshooting
       .slice(markerIndex + marker.length)
       .trim() ||
     'No IT troubleshooting suggestions were recorded.'
   )
+}
+
+function splitTroubleshootingSteps(text: string): string[] {
+  const normalized = repairTextEncoding(text)
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .trim()
+
+  if (!normalized) return []
+
+  const withoutLeadingLabel = normalized
+    .replace(/^IT Troubleshooting Suggestions:\s*/i, '')
+    .replace(/^Basic Self-Help:\s*/i, '')
+    .trim()
+
+  const withBoundaries = withoutLeadingLabel
+    .replace(/\s+(?=\d+\.\s+)/g, '\n')
+    .replace(/^\s*[-•]\s+/gm, '')
+
+  const steps = withBoundaries
+    .split(/\n+/)
+    .map(step => step.trim())
+    .map(step => step.replace(/^\d+[.)]\s*/, '').trim())
+    .filter(Boolean)
+
+  return steps
+}
+
+function parseDatabaseDate(value: string | null): Date | null {
+  if (!value) return null
+
+  const normalized = value.trim().replace(' ', 'T')
+  const parsed = new Date(normalized)
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatIncidentDateTime(value: string | null): string {
+  const parsed = parseDatabaseDate(value)
+
+  if (!parsed) return 'Not recorded'
+
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(parsed)
+}
+
+function formatElapsedDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+  const seconds = safeSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`
+  }
+
+  return `${minutes}m ${seconds}s`
+}
+
+function getIncidentDurationText(
+  incident: Incident,
+  nowMs: number,
+): string {
+  if (
+    incident.status === 'In Progress' &&
+    incident.startedAt
+  ) {
+    const startedAt = parseDatabaseDate(
+      incident.startedAt,
+    )
+
+    if (startedAt) {
+      const elapsedSeconds =
+        (nowMs - startedAt.getTime()) / 1000
+
+      return `${formatElapsedDuration(elapsedSeconds)} (live)`
+    }
+  }
+
+  if (
+    (incident.status === 'Resolved' ||
+      incident.status === 'Closed') &&
+    incident.durationMinutes !== null
+  ) {
+    return `${incident.durationMinutes} min`
+  }
+
+  return 'Not started'
 }
 
 /* ===========================================================
@@ -1011,7 +1135,6 @@ function Incidents({
   const [isNewIncidentOpen, setIsNewIncidentOpen] =
     useState(false)
 
-
   const [values, setValues] =
     useState<IncidentFormValues>(
       initialIncidentFormValues,
@@ -1027,16 +1150,11 @@ function Incidents({
       >
     >({})
 
-
-
   const overlayRef =
     useRef<HTMLDivElement>(null)
 
   const openNewIncident = () => {
-    setValues(
-      initialIncidentFormValues,
-    )
-
+    setValues(initialIncidentFormValues)
     setErrors({})
     setIsNewIncidentOpen(true)
   }
@@ -1649,7 +1767,7 @@ function Incidents({
                   type="button"
                   disabled
                 >
-                  â€¹
+                  ‹
                 </button>
 
                 <button
@@ -1663,7 +1781,7 @@ function Incidents({
                   type="button"
                   disabled
                 >
-                  â€º
+                  ›
                 </button>
               </div>
             </footer>
@@ -1711,7 +1829,7 @@ function Incidents({
                     closeNewIncident
                   }
                 >
-                  Ã—
+                  ×
                 </button>
               </header>
 
@@ -2026,9 +2144,7 @@ function Incidents({
                   <button
                     className="btn-secondary btn-block"
                     type="button"
-                    onClick={
-                      closeNewIncident
-                    }
+                    onClick={closeNewIncident}
                   >
                     Cancel
                   </button>
@@ -2077,9 +2193,9 @@ function Incidents({
 
                 <p>
                   Reported{' '}
-                  {
-                    viewingIncident.createdAt
-                  }
+                  {formatIncidentDateTime(
+                    viewingIncident.createdAt,
+                  )}
                 </p>
               </div>
 
@@ -2390,96 +2506,61 @@ function Incidents({
                   )}
 
                   {viewingIncident.troubleshooting && (
-                    <div className="incident-ai-block">
-                      <span>
-                        Basic Self-Help
-                      </span>
+                    <section className="incident-ai-analysis incident-troubleshooting-section">
+                      <h3 className="incident-ai-analysis-title">
+                        TROUBLESHOOTING SUGGESTION
+                      </h3>
 
-                      <p
-                        style={{
-                          whiteSpace:
-                            'pre-line',
-                        }}
-                      >
-                        {getBasicSelfHelpText(
-                          viewingIncident.troubleshooting,
+                      <div className="incident-ai-block">
+                        <span>EMPLOYEE - BASIC SELF-HELP</span>
+
+                        {splitTroubleshootingSteps(
+                          getBasicSelfHelpText(
+                            viewingIncident.troubleshooting,
+                          ),
+                        ).length > 0 ? (
+                          <ol className="incident-ai-steps">
+                            {splitTroubleshootingSteps(
+                              getBasicSelfHelpText(
+                                viewingIncident.troubleshooting,
+                              ),
+                            ).map((step, index) => (
+                              <li key={`basic-${index}`}>{step}</li>
+                            ))}
+                          </ol>
+                        ) : (
+                          <p>No basic self-help guidance was recorded.</p>
                         )}
-                      </p>
+                      </div>
 
                       {!isSecretary && (
-                        <div
-                          style={{
-                            marginTop: '24px',
-                            padding: '20px',
-                            border: '2px solid currentColor',
-                            borderRadius: '12px',
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              justifyContent: 'space-between',
-                              gap: '16px',
-                              marginBottom: '12px',
-                            }}
-                          >
-                            <div>
-                              <h4
-                                style={{
-                                  margin: 0,
-                                  fontSize: '1.05rem',
-                                  fontWeight: 900,
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                AI-Generated Troubleshooting Suggestion â€“ For IT Support Review
-                              </h4>
-                            </div>
-
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                minWidth: '42px',
-                                minHeight: '30px',
-                                padding: '4px 10px',
-                                border: '1px solid currentColor',
-                                borderRadius: '999px',
-                                fontSize: '0.75rem',
-                                fontWeight: 900,
-                              }}
-                            >
-                              IT
-                            </span>
+                        <div className="incident-ai-block incident-it-review-panel">
+                          <div className="incident-it-review-heading">
+                            <h4>
+                              IT SUPPORT - TECHNICAL SUGGESTIONS
+                            </h4>
                           </div>
 
-                          <p
-                            style={{
-                              margin: '0 0 16px',
-                              fontSize: '0.9rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            IT-only technical guidance. Review and validate these suggestions before taking technical action.
-                          </p>
-
-                          <div
-                            style={{
-                              paddingTop: '16px',
-                              borderTop: '1px solid currentColor',
-                              whiteSpace: 'pre-line',
-                              lineHeight: 1.6,
-                            }}
-                          >
-                            {getITTroubleshootingText(
+                          {splitTroubleshootingSteps(
+                            getITTroubleshootingText(
                               viewingIncident.troubleshooting,
-                            )}
-                          </div>
+                            ),
+                          ).length > 0 ? (
+                            <ol className="incident-ai-steps">
+                              {splitTroubleshootingSteps(
+                                getITTroubleshootingText(
+                                  viewingIncident.troubleshooting,
+                                ),
+                              ).map((step, index) => (
+                                <li key={`it-${index}`}>{step}</li>
+                              ))}
+                            </ol>
+                          ) : (
+                            <p>No technical suggestions were recorded.</p>
+                          )}
                         </div>
                       )}
-                    </div>
+                    </section>
                   )}
                 </section>
               )}
@@ -2517,71 +2598,3 @@ function Incidents({
   )
 }
 export default Incidents
-function parseDatabaseDate(value: string | null): Date | null {
-  if (!value) return null
-
-  const normalized = value.trim().replace(' ', 'T')
-  const parsed = new Date(normalized)
-
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
-function formatIncidentDateTime(value: string | null): string {
-  const parsed = parseDatabaseDate(value)
-
-  if (!parsed) return 'Not recorded'
-
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(parsed)
-}
-
-function formatElapsedDuration(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
-  const hours = Math.floor(safeSeconds / 3600)
-  const minutes = Math.floor((safeSeconds % 3600) / 60)
-  const seconds = safeSeconds % 60
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`
-  }
-
-  return `${minutes}m ${seconds}s`
-}
-
-function getIncidentDurationText(
-  incident: Incident,
-  nowMs: number,
-): string {
-  if (
-    incident.status === 'In Progress' &&
-    incident.startedAt
-  ) {
-    const startedAt = parseDatabaseDate(
-      incident.startedAt,
-    )
-
-    if (startedAt) {
-      const elapsedSeconds =
-        (nowMs - startedAt.getTime()) / 1000
-
-      return `${formatElapsedDuration(elapsedSeconds)} (live)`
-    }
-  }
-
-  if (
-    (incident.status === 'Resolved' ||
-      incident.status === 'Closed') &&
-    incident.durationMinutes !== null
-  ) {
-    return `${incident.durationMinutes} min`
-  }
-
-  return 'Not started'
-}
-
