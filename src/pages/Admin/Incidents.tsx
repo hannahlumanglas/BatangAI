@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+﻿import { useState, useEffect, useRef, useMemo } from 'react'
 import type { FormEvent, JSX, MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -27,9 +27,6 @@ type IconName =
   | 'search'
   | 'view'
   | 'more'
-  | 'sparkle'
-  | 'check-circle'
-  | 'x-circle'
   | 'walk'
   | 'assign'
   | 'close'
@@ -116,23 +113,6 @@ function Icon({ name }: { name: IconName }) {
       </>
     ),
 
-    sparkle: (
-      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" />
-    ),
-
-    'check-circle': (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="m8.3 12.3 2.4 2.4L15.8 9.6" />
-      </>
-    ),
-
-    'x-circle': (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="m9.2 9.2 5.6 5.6M14.8 9.2l-5.6 5.6" />
-      </>
-    ),
 
     walk: (
       <>
@@ -318,139 +298,6 @@ const CONNECTION_TYPES = [
   'LAN',
   'Wi-Fi',
 ]
-
-/* ===========================================================
-   AI ANALYSIS
-   =========================================================== */
-
-interface AIAnalysisResult {
-  summary: string
-  classification: string
-  possibleCause: string
-  troubleshootingSteps: string[]
-  confidenceScore: number
-}
-
-type ModalPhase = 'form' | 'analyzing' | 'result'
-
-const CAUSES_BY_CATEGORY: Record<string, string> = {
-  'Network Connectivity':
-    'Intermittent packet loss on the local switch, or a weak Wi-Fi signal in the reporting location.',
-
-  'Hardware Malfunction':
-    'A failing internal component or a loose physical connection on the affected device.',
-
-  'Software / Application Error':
-    'An outdated client version or a corrupted local configuration file.',
-
-  'Email / Communication':
-    'Mail server sync delay, or the mailbox has reached its storage limit.',
-
-  'Printer / Peripheral':
-    'A stalled print spooler service or an outdated printer driver.',
-
-  'Server / System Downtime':
-    'Scheduled maintenance overlap or an unresponsive backend service.',
-
-  'Security / Access Issue':
-    'An expired credential, or a permissions change that has not propagated yet.',
-
-  Other:
-    'The symptoms do not map cleanly to a known category and may need on-site inspection.',
-}
-
-const STEPS_BY_CATEGORY: Record<string, string[]> = {
-  'Network Connectivity': [
-    'Restart the router or switch nearest to the reporting location.',
-    'Confirm the device is on the correct VLAN or Wi-Fi network.',
-    'Run a ping/traceroute to the affected server to isolate the failing hop.',
-    'Escalate to Network Operations if the issue persists after restart.',
-  ],
-
-  'Hardware Malfunction': [
-    'Power-cycle the device and check all physical cable connections.',
-    'Test the device on a different port or peripheral to isolate the fault.',
-    'Check the device event log for recurring hardware errors.',
-    'Schedule a technician visit if the fault is confirmed.',
-  ],
-
-  'Software / Application Error': [
-    'Clear the application cache and restart the affected program.',
-    'Confirm the software is on the latest supported version.',
-    'Reproduce the error and capture the exact error message.',
-    'Reinstall the application if the update does not resolve it.',
-  ],
-
-  'Email / Communication': [
-    'Verify the mailbox is under its storage quota.',
-    'Force a manual sync and check the outbox for stuck messages.',
-    'Confirm mail server status with IT Operations.',
-    'Reset the email client profile if syncing continues to fail.',
-  ],
-
-  'Printer / Peripheral': [
-    'Restart the print spooler service.',
-    'Update or reinstall the printer driver.',
-    'Confirm the printer is reachable on the network.',
-    'Print a test page to confirm the fix.',
-  ],
-
-  'Server / System Downtime': [
-    'Check the system status dashboard for ongoing maintenance windows.',
-    'Restart the affected service if it is safe to do so.',
-    'Review server logs around the time of the failure.',
-    'Escalate to the Systems team if downtime exceeds SLA.',
-  ],
-
-  'Security / Access Issue': [
-    'Confirm the account credentials have not expired.',
-    "Verify the user's access group has the correct permissions.",
-    'Reset and reissue credentials if necessary.',
-    'Escalate to the Security team for audit if unauthorized access is suspected.',
-  ],
-
-  Other: [
-    'Gather additional details and screenshots from the reporter.',
-    'Cross-check with recent related incident reports.',
-    'Assign to the relevant department for on-site inspection.',
-    'Update this report once a root cause is confirmed.',
-  ],
-}
-
-function generateMockAnalysis(
-  values: IncidentFormValues,
-): AIAnalysisResult {
-  const seed =
-    values.description.length +
-    values.affectedService.length +
-    values.location.length
-
-  const classification =
-    values.issueCategory || 'Network Connectivity Issue'
-
-  const possibleCause =
-    CAUSES_BY_CATEGORY[values.issueCategory] ??
-    CAUSES_BY_CATEGORY.Other
-
-  const troubleshootingSteps =
-    STEPS_BY_CATEGORY[values.issueCategory] ??
-    STEPS_BY_CATEGORY.Other
-
-  const confidenceScore = 78 + (seed % 18)
-
-  const trimmedDescription =
-    values.description.length > 140
-      ? `${values.description.slice(0, 140)}…`
-      : values.description
-
-  return {
-    summary: `${values.affectedService} is affected by a reported issue at ${values.location}. Reporter notes: "${trimmedDescription}"`,
-    classification,
-    possibleCause,
-    troubleshootingSteps,
-    confidenceScore,
-  }
-}
 
 /* ===========================================================
    THEME
@@ -788,74 +635,6 @@ function getITTroubleshootingText(
       .trim() ||
     'No IT troubleshooting suggestions were recorded.'
   )
-}
-
-function parseDatabaseDate(value: string | null): Date | null {
-  if (!value) return null
-
-  const normalized = value.trim().replace(' ', 'T')
-  const parsed = new Date(normalized)
-
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
-function formatIncidentDateTime(value: string | null): string {
-  const parsed = parseDatabaseDate(value)
-
-  if (!parsed) return 'Not recorded'
-
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(parsed)
-}
-
-function formatElapsedDuration(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
-  const hours = Math.floor(safeSeconds / 3600)
-  const minutes = Math.floor((safeSeconds % 3600) / 60)
-  const seconds = safeSeconds % 60
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`
-  }
-
-  return `${minutes}m ${seconds}s`
-}
-
-function getIncidentDurationText(
-  incident: Incident,
-  nowMs: number,
-): string {
-  if (
-    incident.status === 'In Progress' &&
-    incident.startedAt
-  ) {
-    const startedAt = parseDatabaseDate(
-      incident.startedAt,
-    )
-
-    if (startedAt) {
-      const elapsedSeconds =
-        (nowMs - startedAt.getTime()) / 1000
-
-      return `${formatElapsedDuration(elapsedSeconds)} (live)`
-    }
-  }
-
-  if (
-    (incident.status === 'Resolved' ||
-      incident.status === 'Closed') &&
-    incident.durationMinutes !== null
-  ) {
-    return `${incident.durationMinutes} min`
-  }
-
-  return 'Not started'
 }
 
 /* ===========================================================
@@ -1232,8 +1011,6 @@ function Incidents({
   const [isNewIncidentOpen, setIsNewIncidentOpen] =
     useState(false)
 
-  const [phase, setPhase] =
-    useState<ModalPhase>('form')
 
   const [values, setValues] =
     useState<IncidentFormValues>(
@@ -1250,17 +1027,7 @@ function Incidents({
       >
     >({})
 
-  const [result, setResult] =
-    useState<AIAnalysisResult | null>(
-      null,
-    )
 
-  const [
-    resolutionStatus,
-    setResolutionStatus,
-  ] = useState<
-    'resolved' | 'unresolved' | null
-  >(null)
 
   const overlayRef =
     useRef<HTMLDivElement>(null)
@@ -1271,17 +1038,11 @@ function Incidents({
     )
 
     setErrors({})
-    setResult(null)
-    setResolutionStatus(null)
-    setPhase('form')
     setIsNewIncidentOpen(true)
   }
 
   const closeNewIncident = () => {
     setIsNewIncidentOpen(false)
-    setPhase('form')
-    setResult(null)
-    setResolutionStatus(null)
   }
 
   useEffect(() => {
@@ -1376,8 +1137,8 @@ function Incidents({
     )
   }
 
-  const handleAnalyze = (
-    event: FormEvent,
+  const handleSubmitNewIncident = (
+    event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
 
@@ -1385,15 +1146,9 @@ function Incidents({
       return
     }
 
-    setPhase('analyzing')
-
-    setTimeout(() => {
-      setResult(
-        generateMockAnalysis(values),
-      )
-
-      setPhase('result')
-    }, 1500)
+    alert(
+      'The Admin New Incident form is not connected to the database yet.',
+    )
   }
 
   const handleOverlayMouseDown = (
@@ -1407,18 +1162,6 @@ function Incidents({
     }
   }
 
-  /* =========================================================
-     IMPORTANT:
-     New Incident creation is intentionally not connected
-     to MySQL yet. We are first completing the real
-     All Incidents database display.
-     ========================================================= */
-
-  const submitIncident = () => {
-    alert(
-      'The Admin New Incident form will be connected to the database in the next step.',
-    )
-  }
 
   return (
     <div
@@ -1906,7 +1649,7 @@ function Incidents({
                   type="button"
                   disabled
                 >
-                  ‹
+                  â€¹
                 </button>
 
                 <button
@@ -1920,7 +1663,7 @@ function Incidents({
                   type="button"
                   disabled
                 >
-                  ›
+                  â€º
                 </button>
               </div>
             </footer>
@@ -1932,8 +1675,7 @@ function Incidents({
           NEW INCIDENT MODAL
           ===================================================== */}
 
-      {isNewIncidentOpen &&
-        phase !== 'result' && (
+      {isNewIncidentOpen && (
           <div
             className="modal-overlay"
             ref={overlayRef}
@@ -1955,11 +1697,9 @@ function Incidents({
                   </h2>
 
                   <p>
-                    Fill out the form
-                    below. BatangAI will
-                    analyze and provide
-                    troubleshooting
-                    steps.
+                    Fill out the form below to
+                    prepare a network incident
+                    record.
                   </p>
                 </div>
 
@@ -1971,24 +1711,20 @@ function Incidents({
                     closeNewIncident
                   }
                 >
-                  ×
+                  Ã—
                 </button>
               </header>
 
               <form
                 className="new-incident-body"
                 onSubmit={
-                  handleAnalyze
+                  handleSubmitNewIncident
                 }
                 noValidate
               >
                 <div className="incident-form">
                   <fieldset
                     className="incident-form-section"
-                    disabled={
-                      phase ===
-                      'analyzing'
-                    }
                   >
                     <legend className="sr-only">
                       Incident Details
@@ -2219,10 +1955,6 @@ function Incidents({
 
                   <fieldset
                     className="incident-form-section"
-                    disabled={
-                      phase ===
-                      'analyzing'
-                    }
                   >
                     <legend className="sr-only">
                       Problem
@@ -2290,33 +2022,12 @@ function Incidents({
                   </fieldset>
                 </div>
 
-                {phase ===
-                  'analyzing' && (
-                  <div
-                    className="analyzing-overlay"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <span className="analyzing-spinner" />
-
-                    <p>
-                      BatangAI is
-                      analyzing the
-                      report…
-                    </p>
-                  </div>
-                )}
-
                 <footer className="new-incident-footer">
                   <button
                     className="btn-secondary btn-block"
                     type="button"
                     onClick={
                       closeNewIncident
-                    }
-                    disabled={
-                      phase ===
-                      'analyzing'
                     }
                   >
                     Cancel
@@ -2325,228 +2036,11 @@ function Incidents({
                   <button
                     className="btn-primary btn-block"
                     type="submit"
-                    disabled={
-                      phase ===
-                      'analyzing'
-                    }
                   >
-                    {phase ===
-                    'analyzing' ? (
-                      'Analyzing…'
-                    ) : (
-                      <>
-                        <Icon name="sparkle" />
-                        Analyze with
-                        BatangAI
-                      </>
-                    )}
+                    Save Incident
                   </button>
                 </footer>
               </form>
-            </div>
-          </div>
-        )}
-
-      {/* =====================================================
-          AI RESULT
-          ===================================================== */}
-
-      {isNewIncidentOpen &&
-        phase === 'result' &&
-        result && (
-          <div
-            className="modal-overlay"
-            onMouseDown={event => {
-              if (
-                event.target ===
-                event.currentTarget
-              ) {
-                closeNewIncident()
-              }
-            }}
-          >
-            <div
-              className="ai-analysis-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="ai-analysis-title"
-            >
-              <header className="ai-analysis-header">
-                <h2 id="ai-analysis-title">
-                  AI Analysis Result
-                </h2>
-
-                <button
-                  className="modal-close"
-                  type="button"
-                  aria-label="Close dialog"
-                  onClick={
-                    closeNewIncident
-                  }
-                >
-                  ×
-                </button>
-              </header>
-
-              <div className="ai-analysis-body">
-                <section className="ai-analysis-block">
-                  <h3>
-                    Incident Summary
-                  </h3>
-
-                  <p>
-                    {result.summary}
-                  </p>
-                </section>
-
-                <section className="ai-analysis-block">
-                  <h3>
-                    AI Classification
-                  </h3>
-
-                  <span className="ai-classification-tag">
-                    {
-                      result.classification
-                    }
-                  </span>
-                </section>
-
-                <section className="ai-analysis-block">
-                  <h3>
-                    Possible Cause
-                  </h3>
-
-                  <p>
-                    {
-                      result.possibleCause
-                    }
-                  </p>
-                </section>
-
-                <section className="ai-analysis-block">
-                  <h3>
-                    Recommended
-                    Troubleshooting
-                    Steps
-                  </h3>
-
-                  <ol className="ai-steps-list">
-                    {result.troubleshootingSteps.map(
-                      step => (
-                        <li
-                          key={step}
-                        >
-                          {step}
-                        </li>
-                      ),
-                    )}
-                  </ol>
-                </section>
-
-                <section className="ai-resolution-check">
-                  <h3>
-                    Were you able to
-                    resolve the issue?
-                  </h3>
-
-                  <p>
-                    Using the steps
-                    above, did you fix
-                    the problem?
-                  </p>
-
-                  <div className="ai-resolution-options">
-                    <button
-                      type="button"
-                      className={`ai-resolution-option ai-resolution-option--resolved${
-                        resolutionStatus ===
-                        'resolved'
-                          ? ' is-selected'
-                          : ''
-                      }`}
-                      onClick={() =>
-                        setResolutionStatus(
-                          'resolved',
-                        )
-                      }
-                    >
-                      <Icon name="check-circle" />
-
-                      <strong>
-                        Yes, Resolved!
-                      </strong>
-
-                      <span>
-                        Mark as resolved
-                        by user
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`ai-resolution-option ai-resolution-option--unresolved${
-                        resolutionStatus ===
-                        'unresolved'
-                          ? ' is-selected'
-                          : ''
-                      }`}
-                      onClick={() =>
-                        setResolutionStatus(
-                          'unresolved',
-                        )
-                      }
-                    >
-                      <Icon name="x-circle" />
-
-                      <strong>
-                        Not Resolved
-                      </strong>
-
-                      <span>
-                        Assign to IT
-                        personnel
-                      </span>
-                    </button>
-                  </div>
-                </section>
-              </div>
-
-              <footer className="ai-analysis-footer">
-                <button
-                  className="btn-ghost"
-                  type="button"
-                  onClick={() =>
-                    setPhase('form')
-                  }
-                >
-                  Edit Report
-                </button>
-
-                <div className="ai-analysis-footer-right">
-                  <button
-                    className="btn-secondary"
-                    type="button"
-                    onClick={
-                      closeNewIncident
-                    }
-                  >
-                    Close
-                  </button>
-
-                  <button
-                    className="btn-primary"
-                    type="button"
-                    onClick={
-                      submitIncident
-                    }
-                    disabled={
-                      !resolutionStatus
-                    }
-                  >
-                    Submit Incident
-                  </button>
-                </div>
-              </footer>
             </div>
           </div>
         )}
@@ -2583,9 +2077,9 @@ function Incidents({
 
                 <p>
                   Reported{' '}
-                  {formatIncidentDateTime(
-                    viewingIncident.createdAt,
-                  )}
+                  {
+                    viewingIncident.createdAt
+                  }
                 </p>
               </div>
 
@@ -2939,7 +2433,7 @@ function Incidents({
                                   letterSpacing: '0.02em',
                                 }}
                               >
-                                AI-Generated Troubleshooting Suggestion – For IT Support Review
+                                AI-Generated Troubleshooting Suggestion â€“ For IT Support Review
                               </h4>
                             </div>
 
@@ -3023,3 +2517,71 @@ function Incidents({
   )
 }
 export default Incidents
+function parseDatabaseDate(value: string | null): Date | null {
+  if (!value) return null
+
+  const normalized = value.trim().replace(' ', 'T')
+  const parsed = new Date(normalized)
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatIncidentDateTime(value: string | null): string {
+  const parsed = parseDatabaseDate(value)
+
+  if (!parsed) return 'Not recorded'
+
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(parsed)
+}
+
+function formatElapsedDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+  const seconds = safeSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`
+  }
+
+  return `${minutes}m ${seconds}s`
+}
+
+function getIncidentDurationText(
+  incident: Incident,
+  nowMs: number,
+): string {
+  if (
+    incident.status === 'In Progress' &&
+    incident.startedAt
+  ) {
+    const startedAt = parseDatabaseDate(
+      incident.startedAt,
+    )
+
+    if (startedAt) {
+      const elapsedSeconds =
+        (nowMs - startedAt.getTime()) / 1000
+
+      return `${formatElapsedDuration(elapsedSeconds)} (live)`
+    }
+  }
+
+  if (
+    (incident.status === 'Resolved' ||
+      incident.status === 'Closed') &&
+    incident.durationMinutes !== null
+  ) {
+    return `${incident.durationMinutes} min`
+  }
+
+  return 'Not started'
+}
+
