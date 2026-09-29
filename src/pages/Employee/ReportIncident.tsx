@@ -61,7 +61,7 @@ function Icon({ name }: { name: IconName }) {
     sparkle: (
       <>
         <path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z" />
-        <path d="m19 16 .6 2.4L22 19l-2.4.6L19 16Z" />
+        <path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6L19 16Z" />
       </>
     ),
   }
@@ -139,10 +139,6 @@ export type IncidentFormValues = {
  *
  * Gemini provides assistance only. It does not resolve,
  * assign, close, or determine the final status of an incident.
- *
- * The IT troubleshooting field is retained internally so
- * that it can be stored with the incident for IT Personnel.
- * It is NOT displayed to Employees.
  */
 export type IncidentAnalysis = {
   summary: string
@@ -152,27 +148,10 @@ export type IncidentAnalysis = {
 }
 
 /*
- * Generates a non-AI fallback representation of the incident.
- *
- * This is intentionally not presented as an AI-generated analysis.
- * It allows normal incident submission when Gemini is unavailable.
- */
-export function generateIncidentAnalysis(
-  values: IncidentFormValues,
-): IncidentAnalysis {
-  return {
-    summary: `${values.affectedService} — ${values.description}`,
-    possibleInterpretation:
-      'No AI interpretation is available. IT Support should review the reported symptoms and determine the appropriate technical assessment.',
-    basicSelfHelp:
-      '1. Check that the device is properly connected and powered on.\n2. Restart the affected device if appropriate, then try the affected service again.\n3. If the problem continues, submit the incident for IT Support review.',
-    itTroubleshooting:
-      'AI assistance was unavailable. IT Support should manually assess the incident based on the reported symptoms and available network information.',
-  }
-}
-
-/*
  * Calls the PHP Gemini API.
+ *
+ * Gemini is the only source of the incident analysis
+ * and troubleshooting suggestions.
  */
 async function analyzeIncidentWithAI(
   values: IncidentFormValues,
@@ -215,7 +194,7 @@ async function analyzeIncidentWithAI(
 
     throw new Error(
       data.message ||
-        'AI assistance is currently unavailable.',
+        'AI assistance is currently unavailable. Please try again.',
     )
   }
 
@@ -232,9 +211,6 @@ async function analyzeIncidentWithAI(
 /*
  * Combines the AI troubleshooting sections for storage
  * in the existing incidents.troubleshooting field.
- *
- * IT troubleshooting is stored for IT Personnel review.
- * It is not displayed to Employees.
  */
 function formatTroubleshootingForStorage(
   analysis: IncidentAnalysis,
@@ -431,15 +407,6 @@ export function IncidentDescriptionFields({
   )
 }
 
-/*
- * Employee-facing AI analysis result.
- *
- * IMPORTANT:
- * IT troubleshooting suggestions are intentionally NOT
- * rendered here. They remain available inside the
- * IncidentAnalysis object and are stored in the database
- * for IT Personnel review.
- */
 export function IncidentAnalysisResult({
   analysis,
   reviewNote,
@@ -456,7 +423,7 @@ export function IncidentAnalysisResult({
           aria-hidden="true"
         >
           <path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z" />
-          <path d="m19 16 .6 2.4L22 19l-2.4.6L19 16Z" />
+          <path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6L19 16Z" />
         </svg>
 
         <div>
@@ -467,13 +434,11 @@ export function IncidentAnalysisResult({
 
       <div className="employee-ai-block">
         <span>Incident Summary</span>
-
         <p>{analysis.summary}</p>
       </div>
 
       <div className="employee-ai-block">
         <span>Possible Interpretation</span>
-
         <p>
           {analysis.possibleInterpretation ||
             'No possible interpretation was generated from the provided information.'}
@@ -481,13 +446,10 @@ export function IncidentAnalysisResult({
       </div>
 
       <div className="employee-ai-block">
-        <span>Troubleshooting Steps</span>
-
+        <span>Basic Self-Help</span>
         <p>
-          <span style={{ whiteSpace: 'pre-line' }}>
           {analysis.basicSelfHelp ||
             'No basic self-help steps were generated. Please wait for IT Support assistance.'}
-          </span>
         </p>
       </div>
     </>
@@ -651,9 +613,6 @@ function ReportIncident() {
   const [aiAnalysis, setAiAnalysis] =
     useState<IncidentAnalysis | null>(null)
 
-  const [aiWasUnavailable, setAiWasUnavailable] =
-    useState(false)
-
   const handleLogout = () => {
     localStorage.removeItem(
       'batangai-admin-auth',
@@ -677,7 +636,6 @@ function ReportIncident() {
     setAnalysisError('')
     setSubmitError('')
     setAiAnalysis(null)
-    setAiWasUnavailable(false)
 
     try {
       setAnalyzing(true)
@@ -693,28 +651,14 @@ function ReportIncident() {
         error,
       )
 
-      setAnalysisError('')
-      setAiAnalysis(generateIncidentAnalysis(values))
-      setAiWasUnavailable(true)
-      setPhase('result')
+      setAnalysisError(
+        error instanceof Error
+          ? error.message
+          : 'AI assistance is currently unavailable. Please try again.',
+      )
     } finally {
       setAnalyzing(false)
     }
-  }
-
-  /*
-   * Allows normal incident reporting even when Gemini
-   * is unavailable.
-   */
-  const continueWithoutAI = () => {
-    setAnalysisError('')
-
-    const fallbackAnalysis =
-      generateIncidentAnalysis(values)
-
-    setAiAnalysis(fallbackAnalysis)
-    setAiWasUnavailable(true)
-    setPhase('result')
   }
 
   const submit = async () => {
@@ -805,9 +749,8 @@ function ReportIncident() {
 
             /*
              * Both employee-safe self-help and IT-only
-             * troubleshooting are stored in the database.
-             *
-             * The employee UI does not display the IT section.
+             * troubleshooting are generated by Gemini
+             * and stored in the database.
              */
             troubleshooting:
               formatTroubleshootingForStorage(
@@ -876,8 +819,6 @@ function ReportIncident() {
 
       setAiAnalysis(null)
 
-      setAiWasUnavailable(false)
-
       setAnalysisError('')
 
       alert(
@@ -908,7 +849,7 @@ function ReportIncident() {
 
     setAiAnalysis(null)
 
-    setAiWasUnavailable(false)
+    setAnalysisError('')
 
     navigate('/employee/incidents')
   }
@@ -981,6 +922,7 @@ function ReportIncident() {
 
           <div className="topbar-title">
             <h1>Report Incident</h1>
+
             <p>
               Submit a new IT incident report.
             </p>
@@ -1023,10 +965,10 @@ function ReportIncident() {
 
                 <p>
                   Fill out the form below.
-                  BatangAI may provide
-                  optional AI-assisted
-                  analysis and basic
-                  self-help guidance.
+                  BatangAI uses Gemini AI to
+                  analyze the reported incident
+                  and provide AI-assisted
+                  troubleshooting guidance.
                 </p>
               </div>
 
@@ -1102,18 +1044,6 @@ function ReportIncident() {
                       <p>
                         {analysisError}
                       </p>
-
-                      {aiWasUnavailable && (
-                        <button
-                          type="button"
-                          className="btn-secondary"
-                          onClick={
-                            continueWithoutAI
-                          }
-                        >
-                          Continue Without AI
-                        </button>
-                      )}
                     </div>
                   )}
 
@@ -1136,11 +1066,7 @@ function ReportIncident() {
                       analysis={
                         aiAnalysis
                       }
-                      reviewNote={
-                        aiWasUnavailable
-                          ? 'AI assistance was unavailable. The incident can still be submitted for manual IT Support review.'
-                          : 'Review the AI-generated assistance before submitting your incident. AI suggestions are advisory and do not determine the final resolution.'
-                      }
+                      reviewNote="Review the incident summary and basic self-help before submitting. Technical troubleshooting suggestions are reserved for IT Support review."
                     />
                   )}
 
@@ -1226,16 +1152,14 @@ function ReportIncident() {
                       className="employee-ai-back"
                       type="button"
                       onClick={() => {
-                        setAiAnalysis(
-                          null,
-                        )
+                        setAiAnalysis(null)
 
                         setAnalysisError(
                           '',
                         )
 
-                        setAiWasUnavailable(
-                          false,
+                        setSubmitError(
+                          '',
                         )
 
                         setPhase('form')

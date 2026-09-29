@@ -320,139 +320,6 @@ const CONNECTION_TYPES = [
 ]
 
 /* ===========================================================
-   AI ANALYSIS
-   =========================================================== */
-
-interface AIAnalysisResult {
-  summary: string
-  classification: string
-  possibleCause: string
-  troubleshootingSteps: string[]
-  confidenceScore: number
-}
-
-type ModalPhase = 'form' | 'analyzing' | 'result'
-
-const CAUSES_BY_CATEGORY: Record<string, string> = {
-  'Network Connectivity':
-    'Intermittent packet loss on the local switch, or a weak Wi-Fi signal in the reporting location.',
-
-  'Hardware Malfunction':
-    'A failing internal component or a loose physical connection on the affected device.',
-
-  'Software / Application Error':
-    'An outdated client version or a corrupted local configuration file.',
-
-  'Email / Communication':
-    'Mail server sync delay, or the mailbox has reached its storage limit.',
-
-  'Printer / Peripheral':
-    'A stalled print spooler service or an outdated printer driver.',
-
-  'Server / System Downtime':
-    'Scheduled maintenance overlap or an unresponsive backend service.',
-
-  'Security / Access Issue':
-    'An expired credential, or a permissions change that has not propagated yet.',
-
-  Other:
-    'The symptoms do not map cleanly to a known category and may need on-site inspection.',
-}
-
-const STEPS_BY_CATEGORY: Record<string, string[]> = {
-  'Network Connectivity': [
-    'Restart the router or switch nearest to the reporting location.',
-    'Confirm the device is on the correct VLAN or Wi-Fi network.',
-    'Run a ping/traceroute to the affected server to isolate the failing hop.',
-    'Escalate to Network Operations if the issue persists after restart.',
-  ],
-
-  'Hardware Malfunction': [
-    'Power-cycle the device and check all physical cable connections.',
-    'Test the device on a different port or peripheral to isolate the fault.',
-    'Check the device event log for recurring hardware errors.',
-    'Schedule a technician visit if the fault is confirmed.',
-  ],
-
-  'Software / Application Error': [
-    'Clear the application cache and restart the affected program.',
-    'Confirm the software is on the latest supported version.',
-    'Reproduce the error and capture the exact error message.',
-    'Reinstall the application if the update does not resolve it.',
-  ],
-
-  'Email / Communication': [
-    'Verify the mailbox is under its storage quota.',
-    'Force a manual sync and check the outbox for stuck messages.',
-    'Confirm mail server status with IT Operations.',
-    'Reset the email client profile if syncing continues to fail.',
-  ],
-
-  'Printer / Peripheral': [
-    'Restart the print spooler service.',
-    'Update or reinstall the printer driver.',
-    'Confirm the printer is reachable on the network.',
-    'Print a test page to confirm the fix.',
-  ],
-
-  'Server / System Downtime': [
-    'Check the system status dashboard for ongoing maintenance windows.',
-    'Restart the affected service if it is safe to do so.',
-    'Review server logs around the time of the failure.',
-    'Escalate to the Systems team if downtime exceeds SLA.',
-  ],
-
-  'Security / Access Issue': [
-    'Confirm the account credentials have not expired.',
-    "Verify the user's access group has the correct permissions.",
-    'Reset and reissue credentials if necessary.',
-    'Escalate to the Security team for audit if unauthorized access is suspected.',
-  ],
-
-  Other: [
-    'Gather additional details and screenshots from the reporter.',
-    'Cross-check with recent related incident reports.',
-    'Assign to the relevant department for on-site inspection.',
-    'Update this report once a root cause is confirmed.',
-  ],
-}
-
-function generateMockAnalysis(
-  values: IncidentFormValues,
-): AIAnalysisResult {
-  const seed =
-    values.description.length +
-    values.affectedService.length +
-    values.location.length
-
-  const classification =
-    values.issueCategory || 'Network Connectivity Issue'
-
-  const possibleCause =
-    CAUSES_BY_CATEGORY[values.issueCategory] ??
-    CAUSES_BY_CATEGORY.Other
-
-  const troubleshootingSteps =
-    STEPS_BY_CATEGORY[values.issueCategory] ??
-    STEPS_BY_CATEGORY.Other
-
-  const confidenceScore = 78 + (seed % 18)
-
-  const trimmedDescription =
-    values.description.length > 140
-      ? `${values.description.slice(0, 140)}…`
-      : values.description
-
-  return {
-    summary: `${values.affectedService} is affected by a reported issue at ${values.location}. Reporter notes: "${trimmedDescription}"`,
-    classification,
-    possibleCause,
-    troubleshootingSteps,
-    confidenceScore,
-  }
-}
-
-/* ===========================================================
    THEME
    =========================================================== */
 
@@ -745,6 +612,16 @@ function ProfileMenu({
   )
 }
 
+function repairTextEncoding(value: string): string {
+  return value
+    .replace(/â€“/g, '–')
+    .replace(/â€”/g, '—')
+    .replace(/â€¦/g, '…')
+    .replace(/â€¹/g, '‹')
+    .replace(/â€º/g, '›')
+    .replace(/Ã—/g, '×')
+}
+
 function getBasicSelfHelpText(
   troubleshooting: string | null,
 ): string {
@@ -756,10 +633,10 @@ function getBasicSelfHelpText(
   const markerIndex = troubleshooting.indexOf(marker)
 
   if (markerIndex === -1) {
-    return troubleshooting.replace(/^Basic Self-Help:\s*/i, '').trim()
+    return repairTextEncoding(troubleshooting.replace(/^Basic Self-Help:\s*/i, '').trim())
   }
 
-  return (
+  return repairTextEncoding(
     troubleshooting
       .slice(0, markerIndex)
       .replace(/^Basic Self-Help:\s*/i, '')
@@ -782,7 +659,7 @@ function getITTroubleshootingText(
     return 'No IT troubleshooting suggestions were recorded.'
   }
 
-  return (
+  return repairTextEncoding(
     troubleshooting
       .slice(markerIndex + marker.length)
       .trim() ||
@@ -790,11 +667,98 @@ function getITTroubleshootingText(
   )
 }
 
-function toChecklistItems(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map(line => line.trim().replace(/^(?:\d+[.)]|[-*])\s*/, ''))
+function splitTroubleshootingSteps(text: string): string[] {
+  const normalized = repairTextEncoding(text)
+    .replace(/\r\n?/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .trim()
+
+  if (!normalized) return []
+
+  const withoutLeadingLabel = normalized
+    .replace(/^IT Troubleshooting Suggestions:\s*/i, '')
+    .replace(/^Basic Self-Help:\s*/i, '')
+    .trim()
+
+  const withBoundaries = withoutLeadingLabel
+    .replace(/\s+(?=\d+\.\s+)/g, '\n')
+    .replace(/^\s*[-•]\s+/gm, '')
+
+  const steps = withBoundaries
+    .split(/\n+/)
+    .map(step => step.trim())
+    .map(step => step.replace(/^\d+[.)]\s*/, '').trim())
     .filter(Boolean)
+
+  return steps
+}
+
+function parseDatabaseDate(value: string | null): Date | null {
+  if (!value) return null
+
+  const normalized = value.trim().replace(' ', 'T')
+  const parsed = new Date(normalized)
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatIncidentDateTime(value: string | null): string {
+  const parsed = parseDatabaseDate(value)
+
+  if (!parsed) return 'Not recorded'
+
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(parsed)
+}
+
+function formatElapsedDuration(totalSeconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
+  const hours = Math.floor(safeSeconds / 3600)
+  const minutes = Math.floor((safeSeconds % 3600) / 60)
+  const seconds = safeSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m ${seconds}s`
+  }
+
+  return `${minutes}m ${seconds}s`
+}
+
+function getIncidentDurationText(
+  incident: Incident,
+  nowMs: number,
+): string {
+  if (
+    incident.status === 'In Progress' &&
+    incident.startedAt
+  ) {
+    const startedAt = parseDatabaseDate(
+      incident.startedAt,
+    )
+
+    if (startedAt) {
+      const elapsedSeconds =
+        (nowMs - startedAt.getTime()) / 1000
+
+      return `${formatElapsedDuration(elapsedSeconds)} (live)`
+    }
+  }
+
+  if (
+    (incident.status === 'Resolved' ||
+      incident.status === 'Closed') &&
+    incident.durationMinutes !== null
+  ) {
+    return `${incident.durationMinutes} min`
+  }
+
+  return 'Not started'
 }
 
 /* ===========================================================
@@ -1129,6 +1093,39 @@ function Incidents({
         viewingId,
     ) ?? null
 
+  const [liveNow, setLiveNow] =
+    useState(() => Date.now())
+
+  useEffect(() => {
+    if (
+      !viewingIncident ||
+      viewingIncident.status !== 'In Progress' ||
+      !viewingIncident.startedAt
+    ) {
+      setLiveNow(Date.now())
+      return
+    }
+
+    const updateLiveTime = () => {
+      setLiveNow(Date.now())
+    }
+
+    updateLiveTime()
+
+    const intervalId = window.setInterval(
+      updateLiveTime,
+      1000,
+    )
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [
+    viewingIncident?.incidentID,
+    viewingIncident?.status,
+    viewingIncident?.startedAt,
+  ])
+
   const closeViewing = () => {
     setViewingId(null)
     setActionMenuId(null)
@@ -1142,9 +1139,6 @@ function Incidents({
 
   const [isNewIncidentOpen, setIsNewIncidentOpen] =
     useState(false)
-
-  const [phase, setPhase] =
-    useState<ModalPhase>('form')
 
   const [values, setValues] =
     useState<IncidentFormValues>(
@@ -1161,38 +1155,17 @@ function Incidents({
       >
     >({})
 
-  const [result, setResult] =
-    useState<AIAnalysisResult | null>(
-      null,
-    )
-
-  const [
-    resolutionStatus,
-    setResolutionStatus,
-  ] = useState<
-    'resolved' | 'unresolved' | null
-  >(null)
-
   const overlayRef =
     useRef<HTMLDivElement>(null)
 
   const openNewIncident = () => {
-    setValues(
-      initialIncidentFormValues,
-    )
-
+    setValues(initialIncidentFormValues)
     setErrors({})
-    setResult(null)
-    setResolutionStatus(null)
-    setPhase('form')
     setIsNewIncidentOpen(true)
   }
 
   const closeNewIncident = () => {
     setIsNewIncidentOpen(false)
-    setPhase('form')
-    setResult(null)
-    setResolutionStatus(null)
   }
 
   useEffect(() => {
@@ -1287,8 +1260,8 @@ function Incidents({
     )
   }
 
-  const handleAnalyze = (
-    event: FormEvent,
+  const handleSubmitNewIncident = (
+    event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
 
@@ -1296,15 +1269,9 @@ function Incidents({
       return
     }
 
-    setPhase('analyzing')
-
-    setTimeout(() => {
-      setResult(
-        generateMockAnalysis(values),
-      )
-
-      setPhase('result')
-    }, 1500)
+    alert(
+      'The Admin New Incident form is not connected to the database yet.',
+    )
   }
 
   const handleOverlayMouseDown = (
@@ -1318,18 +1285,6 @@ function Incidents({
     }
   }
 
-  /* =========================================================
-     IMPORTANT:
-     New Incident creation is intentionally not connected
-     to MySQL yet. We are first completing the real
-     All Incidents database display.
-     ========================================================= */
-
-  const submitIncident = () => {
-    alert(
-      'The Admin New Incident form will be connected to the database in the next step.',
-    )
-  }
 
   return (
     <div
@@ -1843,8 +1798,7 @@ function Incidents({
           NEW INCIDENT MODAL
           ===================================================== */}
 
-      {isNewIncidentOpen &&
-        phase !== 'result' && (
+      {isNewIncidentOpen && (
           <div
             className="modal-overlay"
             ref={overlayRef}
@@ -1866,11 +1820,9 @@ function Incidents({
                   </h2>
 
                   <p>
-                    Fill out the form
-                    below. BatangAI will
-                    analyze and provide
-                    troubleshooting
-                    steps.
+                    Fill out the form below to
+                    prepare a network incident
+                    record.
                   </p>
                 </div>
 
@@ -1889,17 +1841,13 @@ function Incidents({
               <form
                 className="new-incident-body"
                 onSubmit={
-                  handleAnalyze
+                  handleSubmitNewIncident
                 }
                 noValidate
               >
                 <div className="incident-form">
                   <fieldset
                     className="incident-form-section"
-                    disabled={
-                      phase ===
-                      'analyzing'
-                    }
                   >
                     <legend className="sr-only">
                       Incident Details
@@ -2130,10 +2078,6 @@ function Incidents({
 
                   <fieldset
                     className="incident-form-section"
-                    disabled={
-                      phase ===
-                      'analyzing'
-                    }
                   >
                     <legend className="sr-only">
                       Problem
@@ -2201,34 +2145,11 @@ function Incidents({
                   </fieldset>
                 </div>
 
-                {phase ===
-                  'analyzing' && (
-                  <div
-                    className="analyzing-overlay"
-                    role="status"
-                    aria-live="polite"
-                  >
-                    <span className="analyzing-spinner" />
-
-                    <p>
-                      BatangAI is
-                      analyzing the
-                      report…
-                    </p>
-                  </div>
-                )}
-
                 <footer className="new-incident-footer">
                   <button
                     className="btn-secondary btn-block"
                     type="button"
-                    onClick={
-                      closeNewIncident
-                    }
-                    disabled={
-                      phase ===
-                      'analyzing'
-                    }
+                    onClick={closeNewIncident}
                   >
                     Cancel
                   </button>
@@ -2236,228 +2157,11 @@ function Incidents({
                   <button
                     className="btn-primary btn-block"
                     type="submit"
-                    disabled={
-                      phase ===
-                      'analyzing'
-                    }
                   >
-                    {phase ===
-                    'analyzing' ? (
-                      'Analyzing…'
-                    ) : (
-                      <>
-                        <Icon name="sparkle" />
-                        Analyze with
-                        BatangAI
-                      </>
-                    )}
+                    Save Incident
                   </button>
                 </footer>
               </form>
-            </div>
-          </div>
-        )}
-
-      {/* =====================================================
-          AI RESULT
-          ===================================================== */}
-
-      {isNewIncidentOpen &&
-        phase === 'result' &&
-        result && (
-          <div
-            className="modal-overlay"
-            onMouseDown={event => {
-              if (
-                event.target ===
-                event.currentTarget
-              ) {
-                closeNewIncident()
-              }
-            }}
-          >
-            <div
-              className="ai-analysis-modal"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="ai-analysis-title"
-            >
-              <header className="ai-analysis-header">
-                <h2 id="ai-analysis-title">
-                  AI Analysis Result
-                </h2>
-
-                <button
-                  className="modal-close"
-                  type="button"
-                  aria-label="Close dialog"
-                  onClick={
-                    closeNewIncident
-                  }
-                >
-                  ×
-                </button>
-              </header>
-
-              <div className="ai-analysis-body">
-                <section className="ai-analysis-block">
-                  <h3>
-                    Incident Summary
-                  </h3>
-
-                  <p>
-                    {result.summary}
-                  </p>
-                </section>
-
-                <section className="ai-analysis-block">
-                  <h3>
-                    AI Classification
-                  </h3>
-
-                  <span className="ai-classification-tag">
-                    {
-                      result.classification
-                    }
-                  </span>
-                </section>
-
-                <section className="ai-analysis-block">
-                  <h3>
-                    Possible Cause
-                  </h3>
-
-                  <p>
-                    {
-                      result.possibleCause
-                    }
-                  </p>
-                </section>
-
-                <section className="ai-analysis-block">
-                  <h3>
-                    Recommended
-                    Troubleshooting
-                    Steps
-                  </h3>
-
-                  <ol className="ai-steps-list">
-                    {result.troubleshootingSteps.map(
-                      step => (
-                        <li
-                          key={step}
-                        >
-                          {step}
-                        </li>
-                      ),
-                    )}
-                  </ol>
-                </section>
-
-                <section className="ai-resolution-check">
-                  <h3>
-                    Were you able to
-                    resolve the issue?
-                  </h3>
-
-                  <p>
-                    Using the steps
-                    above, did you fix
-                    the problem?
-                  </p>
-
-                  <div className="ai-resolution-options">
-                    <button
-                      type="button"
-                      className={`ai-resolution-option ai-resolution-option--resolved${
-                        resolutionStatus ===
-                        'resolved'
-                          ? ' is-selected'
-                          : ''
-                      }`}
-                      onClick={() =>
-                        setResolutionStatus(
-                          'resolved',
-                        )
-                      }
-                    >
-                      <Icon name="check-circle" />
-
-                      <strong>
-                        Yes, Resolved!
-                      </strong>
-
-                      <span>
-                        Mark as resolved
-                        by user
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className={`ai-resolution-option ai-resolution-option--unresolved${
-                        resolutionStatus ===
-                        'unresolved'
-                          ? ' is-selected'
-                          : ''
-                      }`}
-                      onClick={() =>
-                        setResolutionStatus(
-                          'unresolved',
-                        )
-                      }
-                    >
-                      <Icon name="x-circle" />
-
-                      <strong>
-                        Not Resolved
-                      </strong>
-
-                      <span>
-                        Assign to IT
-                        personnel
-                      </span>
-                    </button>
-                  </div>
-                </section>
-              </div>
-
-              <footer className="ai-analysis-footer">
-                <button
-                  className="btn-ghost"
-                  type="button"
-                  onClick={() =>
-                    setPhase('form')
-                  }
-                >
-                  Edit Report
-                </button>
-
-                <div className="ai-analysis-footer-right">
-                  <button
-                    className="btn-secondary"
-                    type="button"
-                    onClick={
-                      closeNewIncident
-                    }
-                  >
-                    Close
-                  </button>
-
-                  <button
-                    className="btn-primary"
-                    type="button"
-                    onClick={
-                      submitIncident
-                    }
-                    disabled={
-                      !resolutionStatus
-                    }
-                  >
-                    Submit Incident
-                  </button>
-                </div>
-              </footer>
             </div>
           </div>
         )}
@@ -2494,9 +2198,9 @@ function Incidents({
 
                 <p>
                   Reported{' '}
-                  {
-                    viewingIncident.createdAt
-                  }
+                  {formatIncidentDateTime(
+                    viewingIncident.createdAt,
+                  )}
                 </p>
               </div>
 
@@ -2514,7 +2218,9 @@ function Incidents({
 
             <nav className="incident-detail-tabs" role="tablist" aria-label="Incident details">
               {([
-                ['overview', 'Overview'], ['analysis', 'AI Analysis'], ['troubleshooting', 'Troubleshooting'],
+                ['overview', 'Overview'],
+                ['analysis', 'AI Analysis'],
+                ['troubleshooting', 'Troubleshooting'],
               ] as const).map(([tab, label]) => (
                 <button key={tab} type="button" role="tab" aria-selected={detailTab === tab}
                   className={detailTab === tab ? 'is-active' : ''} onClick={() => setDetailTab(tab)}>{label}</button>
@@ -2535,28 +2241,48 @@ function Incidents({
                   <div className="incident-detail-field"><span>Assigned</span><strong>{viewingIncident.assigned}</strong></div>
                   <div className="incident-detail-field"><span>Assigned To</span><strong>{viewingIncident.assignedToName || viewingIncident.assignedTo || 'Not assigned'}</strong></div>
                 </div>
+
+                <section className="incident-detail-section">
+                  <h3>Incident Timeline</h3>
+                  <div className="incident-detail-grid">
+                    <div className="incident-detail-field"><span>Reported At</span><strong>{formatIncidentDateTime(viewingIncident.createdAt)}</strong></div>
+                    <div className="incident-detail-field"><span>Assigned At</span><strong>{formatIncidentDateTime(viewingIncident.assignedAt)}</strong></div>
+                    <div className="incident-detail-field"><span>Started At</span><strong>{formatIncidentDateTime(viewingIncident.startedAt)}</strong></div>
+                    <div className="incident-detail-field"><span>Resolved At</span><strong>{formatIncidentDateTime(viewingIncident.resolvedAt)}</strong></div>
+                    <div className="incident-detail-field"><span>Duration</span><strong>{getIncidentDurationText(viewingIncident, liveNow)}</strong></div>
+                  </div>
+                  {viewingIncident.status === 'In Progress' && viewingIncident.startedAt && <p className="incident-resolution-meta">Duration updates automatically while this incident is in progress.</p>}
+                </section>
                 <section className="incident-detail-section incident-detail-section--service"><h3>Affected Issue / Service</h3><p>{viewingIncident.affectedIssue}</p></section>
                 <section className="incident-detail-section incident-detail-section--description"><h3>Detailed Problem Description</h3><p>{viewingIncident.description}</p></section>
                 {viewingIncident.resolutionNotes && <section className="incident-detail-section"><h3>Resolution Notes</h3><p>{viewingIncident.resolutionNotes}</p></section>}
               </>}
+
               {detailTab === 'analysis' && <section className="incident-ai-analysis">
                 <h3 className="incident-ai-analysis-title">AI Analysis</h3>
                 {viewingIncident.classification && <div className="incident-ai-block"><span>Classification</span><p>{viewingIncident.classification}</p></div>}
                 {viewingIncident.summary && <div className="incident-ai-block"><span>Incident Summary</span><p>{viewingIncident.summary}</p></div>}
                 {!viewingIncident.classification && !viewingIncident.summary && <p className="incident-detail-empty">No AI analysis is available for this incident.</p>}
               </section>}
+
               {detailTab === 'troubleshooting' && <div className="incident-troubleshooting">
-                <section className="incident-checklist-card"><header><div><h3>Basic Self-Help</h3><p>Check off each step as you complete it.</p></div></header>
-                  <ul>{toChecklistItems(getBasicSelfHelpText(viewingIncident.troubleshooting)).map((step, index) => {
-                    const key = `${viewingIncident.incidentID}-basic-${index}`;
-                    return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
-                  })}</ul>
+                <section className="incident-checklist-card">
+                  <header><div><h3>Basic Self-Help</h3><p>Check off each step as you complete it.</p></div></header>
+                  {splitTroubleshootingSteps(getBasicSelfHelpText(viewingIncident.troubleshooting)).length > 0 ? <ul>
+                    {splitTroubleshootingSteps(getBasicSelfHelpText(viewingIncident.troubleshooting)).map((step, index) => {
+                      const key = `${viewingIncident.incidentID}-basic-${index}`;
+                      return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
+                    })}
+                  </ul> : <p className="incident-detail-empty">No basic self-help guidance was recorded.</p>}
                 </section>
-                {!isSecretary && <section className="incident-checklist-card incident-checklist-card--it"><header><div><h3>IT Support Suggestions</h3><p>Technical guidance for IT personnel to review.</p></div><span className="incident-it-badge">IT</span></header>
-                  <ul>{toChecklistItems(getITTroubleshootingText(viewingIncident.troubleshooting)).map((step, index) => {
-                    const key = `${viewingIncident.incidentID}-it-${index}`;
-                    return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
-                  })}</ul>
+                {!isSecretary && <section className="incident-checklist-card incident-checklist-card--it">
+                  <header><div><h3>IT Support Suggestions</h3><p>Technical guidance for IT personnel to review.</p></div><span className="incident-it-badge">IT</span></header>
+                  {splitTroubleshootingSteps(getITTroubleshootingText(viewingIncident.troubleshooting)).length > 0 ? <ul>
+                    {splitTroubleshootingSteps(getITTroubleshootingText(viewingIncident.troubleshooting)).map((step, index) => {
+                      const key = `${viewingIncident.incidentID}-it-${index}`;
+                      return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
+                    })}
+                  </ul> : <p className="incident-detail-empty">No technical suggestions were recorded.</p>}
                 </section>}
               </div>}
             </div>

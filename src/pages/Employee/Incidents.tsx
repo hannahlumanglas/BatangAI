@@ -1,20 +1,25 @@
 import { useState, useEffect } from 'react'
-import type { JSX, FormEvent } from 'react'
+import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
+
 import logo from '../../assets/logo.png'
+
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { ProfileMenu } from './Profile'
 import { getAuthSession } from '../../auth'
 import { IncidentDetailModal } from '../../components/IncidentDetailModal'
+
 import {
   IncidentDetailsFields,
   IncidentDescriptionFields,
-  generateIncidentAnalysis,
 } from './ReportIncident'
+
 import type { IncidentFormValues } from './ReportIncident'
+
 import '../Admin/Dashboard.css'
 import './Incidents.css'
 import './ReportIncident.css'
+
 import { API_BASE_URL } from '../../apiConfig'
 
 type IconName =
@@ -28,7 +33,6 @@ type IconName =
   | 'edit'
   | 'trash'
   | 'close'
-  | 'sparkle'
   | 'check'
 
 function Icon({ name }: { name: IconName }) {
@@ -100,13 +104,6 @@ function Icon({ name }: { name: IconName }) {
       </>
     ),
 
-    sparkle: (
-      <>
-        <path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z" />
-        <path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6L19 16Z" />
-      </>
-    ),
-
     check: (
       <>
         <circle cx="12" cy="12" r="9" />
@@ -154,6 +151,13 @@ type Status =
   | 'Resolved'
   | 'Closed'
 
+const statusTagClass: Record<Status, string> = {
+  Pending: 'pending-tag',
+  'In Progress': 'progress-tag',
+  Resolved: 'resolved-tag',
+  Closed: 'resolved-tag',
+}
+
 type EmployeeIncident = {
   incidentID: string
   userId: string
@@ -189,13 +193,6 @@ type IncidentsResponse = {
   message?: string
 }
 
-const statusTagClass: Record<Status, string> = {
-  Pending: 'pending-tag',
-  'In Progress': 'progress-tag',
-  Resolved: 'resolved-tag',
-  Closed: 'resolved-tag',
-}
-
 /* ---------- Theme ---------- */
 
 type Theme = 'light' | 'dark'
@@ -207,10 +204,7 @@ function readStoredTheme(): Theme {
     THEME_STORAGE_KEY,
   )
 
-  if (
-    stored === 'light' ||
-    stored === 'dark'
-  ) {
+  if (stored === 'light' || stored === 'dark') {
     return stored
   }
 
@@ -219,9 +213,7 @@ function readStoredTheme(): Theme {
 
 function useTheme() {
   const [theme, setTheme] =
-    useState<Theme>(
-      readStoredTheme,
-    )
+    useState<Theme>(readStoredTheme)
 
   useEffect(() => {
     document.documentElement.setAttribute(
@@ -256,8 +248,7 @@ function ThemeToggle({
   theme: Theme
   onToggle: () => void
 }) {
-  const isDark =
-    theme === 'dark'
+  const isDark = theme === 'dark'
 
   return (
     <button
@@ -293,7 +284,6 @@ function ThemeToggle({
             cy="12"
             r="4.2"
           />
-
           <path d="M12 2.5v2.4M12 19.1v2.4M4.4 4.4l1.7 1.7M17.9 17.9l1.7 1.7M2.5 12h2.4M19.1 12h2.4M4.4 19.6l1.7-1.7M17.9 6.1l1.7-1.7" />
         </svg>
       ) : (
@@ -351,8 +341,7 @@ function normalizeIncident(
 ): EmployeeIncident {
   return {
     incidentID: String(
-      incident.incidentID ??
-        '',
+      incident.incidentID ?? '',
     ),
 
     userId: String(
@@ -447,38 +436,10 @@ function normalizeIncident(
 }
 
 /*
- * Converts the new BatangAI analysis structure into the existing
- * database troubleshooting field.
- *
- * The database continues to store both:
- * - Employee troubleshooting steps
- * - IT Troubleshooting Suggestions
- *
- * This information is intentionally kept intact so IT Personnel
- * can use the technical suggestions.
- */
-function formatTroubleshootingForStorage(
-  analysis: ReturnType<
-    typeof generateIncidentAnalysis
-  >,
-): string {
-  return [
-    'Basic Self-Help:',
-    analysis.basicSelfHelp,
-    '',
-    'IT Troubleshooting Suggestions:',
-    analysis.itTroubleshooting,
-  ].join('\n')
-}
-
-/*
- * SECURITY / ROLE VISIBILITY:
- *
  * Employees must never see the technical IT troubleshooting section.
  *
  * The complete troubleshooting value remains stored in the database.
- * This helper extracts only the employee troubleshooting portion for Employee
- * display.
+ * This helper extracts only the employee troubleshooting portion.
  */
 function getEmployeeTroubleshooting(
   troubleshooting: string | null,
@@ -505,88 +466,6 @@ function getEmployeeTroubleshooting(
       .trim()
 
   return basicSelfHelp || null
-}
-
-/*
- * Employee-only analysis display.
- *
- * This intentionally does NOT display:
- * - itTroubleshooting
- * - "AI-Generated Troubleshooting Suggestion – For IT Support Review"
- *
- * IT troubleshooting remains available in the generated analysis
- * for storage and for IT Personnel interfaces.
- */
-function EmployeeAnalysisResult({
-  analysis,
-  reviewNote,
-}: {
-  analysis: ReturnType<
-    typeof generateIncidentAnalysis
-  >
-  reviewNote?: string
-}) {
-  return (
-    <div
-      className="incident-analysis-result"
-      aria-live="polite"
-    >
-      <section
-        className="incident-analysis-section"
-      >
-        <h3>
-          Incident Summary
-        </h3>
-
-        <p>
-          {analysis.summary}
-        </p>
-      </section>
-
-      <section
-        className="incident-analysis-section"
-      >
-        <h3>
-          Possible Interpretation
-        </h3>
-
-        <p>
-          {analysis.possibleInterpretation}
-        </p>
-      </section>
-
-      <section
-        className="incident-analysis-section"
-      >
-        <h3>
-          Troubleshooting Steps
-        </h3>
-
-        <p
-          style={{
-            whiteSpace:
-              'pre-line',
-          }}
-        >
-          {analysis.basicSelfHelp}
-        </p>
-      </section>
-
-      {reviewNote && (
-        <p
-          style={{
-            marginTop: '12px',
-            fontSize:
-              'var(--font-secondary)',
-            color:
-              'var(--text-muted)',
-          }}
-        >
-          {reviewNote}
-        </p>
-      )}
-    </div>
-  )
 }
 
 /* ---------- Page ---------- */
@@ -625,9 +504,7 @@ function Incidents() {
   const [
     menuOpenId,
     setMenuOpenId,
-  ] = useState<string | null>(
-    null,
-  )
+  ] = useState<string | null>(null)
 
   const [editing, setEditing] =
     useState<EmployeeIncident | null>(
@@ -647,18 +524,6 @@ function Incidents() {
     description: '',
   })
 
-  /*
-   * Edit Incident mirrors Report Incident's two-step flow:
-   * fill in the pre-filled form, then Analyze with BatangAI
-   * before saving.
-   */
-  const [
-    editPhase,
-    setEditPhase,
-  ] = useState<
-    'form' | 'result'
-  >('form')
-
   const [
     savingEdit,
     setSavingEdit,
@@ -672,9 +537,7 @@ function Incidents() {
   const [
     deletingId,
     setDeletingId,
-  ] = useState<string | null>(
-    null,
-  )
+  ] = useState<string | null>(null)
 
   const handleLogout = () => {
     localStorage.removeItem(
@@ -809,9 +672,7 @@ function Incidents() {
         setMenuOpenId(null)
       }
 
-    if (
-      menuOpenId === null
-    ) {
+    if (menuOpenId === null) {
       return
     }
 
@@ -884,7 +745,6 @@ function Incidents() {
    * Create an Employee-safe version of the incident.
    *
    * The original incident remains untouched in state.
-   * Only the value passed to IncidentDetailModal is sanitized.
    */
   const employeeViewingIncident =
     viewing
@@ -922,21 +782,26 @@ function Incidents() {
     setEditForm({
       department:
         incident.department,
+
       location:
         incident.location,
+
       issueCategory:
         incident.issueCategory,
+
       deviceType:
         incident.deviceType,
+
       connectionType:
         incident.connectionType,
+
       affectedService:
         incident.affectedIssue,
+
       description:
         incident.description,
     })
 
-    setEditPhase('form')
     setEditing(incident)
   }
 
@@ -947,7 +812,6 @@ function Incidents() {
 
     setEditing(null)
     setEditError('')
-    setEditPhase('form')
   }
 
   const handleEditFieldChange = (
@@ -961,38 +825,17 @@ function Incidents() {
   }
 
   /*
-   * Step 1 of Edit Incident:
-   * Analyze the current form without saving.
-   */
-  const handleEditAnalyze = (
-    event: FormEvent<HTMLFormElement>,
-  ) => {
-    event.preventDefault()
-    setEditPhase('result')
-  }
-
-  const handleEditBackToForm =
-    () => {
-      setEditPhase('form')
-    }
-
-  /*
-   * Step 2 of Edit Incident:
-   * Save the newly generated analysis and updated incident.
+   * Save edited incident details.
    *
-   * The complete troubleshooting data is still stored.
-   * Employees simply do not receive/display the IT section.
+   * AI analysis is generated during the Report Incident
+   * workflow. Editing an existing incident does not run a
+   * rule-based analysis or fabricate an AI response.
    */
   const handleSaveEditChanges =
     async () => {
       if (!editing) {
         return
       }
-
-      const analysis =
-        generateIncidentAnalysis(
-          editForm,
-        )
 
       try {
         setSavingEdit(true)
@@ -1012,28 +855,41 @@ function Incidents() {
               body: JSON.stringify({
                 incidentID:
                   editing.incidentID,
+
                 department:
                   editForm.department,
+
                 location:
                   editForm.location,
+
                 issueCategory:
                   editForm.issueCategory,
+
                 deviceType:
                   editForm.deviceType,
+
                 connectionType:
                   editForm.connectionType,
+
                 affectedIssue:
                   editForm.affectedService,
+
                 description:
                   editForm.description,
+
+                /*
+                 * Keep the existing AI-generated
+                 * classification, summary, and
+                 * troubleshooting unchanged.
+                 */
                 classification:
-                  editForm.issueCategory,
+                  editing.classification,
+
                 summary:
-                  analysis.summary,
+                  editing.summary,
+
                 troubleshooting:
-                  formatTroubleshootingForStorage(
-                    analysis,
-                  ),
+                  editing.troubleshooting,
               }),
             },
           )
@@ -1047,9 +903,10 @@ function Incidents() {
         }
 
         try {
-          data = JSON.parse(
-            responseText,
-          )
+          data =
+            JSON.parse(
+              responseText,
+            )
         } catch {
           console.error(
             'Invalid JSON from update_incident.php:',
@@ -1077,35 +934,34 @@ function Incidents() {
             editing.incidentID
               ? {
                   ...item,
+
                   department:
                     editForm.department,
+
                   location:
                     editForm.location,
+
                   issueCategory:
                     editForm.issueCategory,
+
                   deviceType:
                     editForm.deviceType,
+
                   connectionType:
                     editForm.connectionType,
+
                   affectedIssue:
                     editForm.affectedService,
+
                   description:
                     editForm.description,
-                  classification:
-                    editForm.issueCategory,
-                  summary:
-                    analysis.summary,
-                  troubleshooting:
-                    formatTroubleshootingForStorage(
-                      analysis,
-                    ),
                 }
               : item,
           ),
         )
 
         setEditing(null)
-        setEditPhase('form')
+        setEditError('')
       } catch (error) {
         console.error(
           'Update incident error:',
@@ -1183,9 +1039,10 @@ function Incidents() {
       }
 
       try {
-        data = JSON.parse(
-          responseText,
-        )
+        data =
+          JSON.parse(
+            responseText,
+          )
       } catch {
         console.error(
           'Invalid JSON from delete_incident.php:',
@@ -1306,7 +1163,9 @@ function Incidents() {
                 }
               >
                 <Icon
-                  name={item.icon}
+                  name={
+                    item.icon
+                  }
                 />
 
                 <span>
@@ -1381,14 +1240,19 @@ function Incidents() {
               style={{
                 padding:
                   '16px 20px',
+
                 marginBottom:
                   '16px',
+
                 borderRadius:
                   '10px',
+
                 border:
                   '1px solid #f1aeb5',
+
                 background:
                   '#f8d7da',
+
                 color:
                   '#842029',
               }}
@@ -1534,7 +1398,10 @@ function Incidents() {
                               }
                               aria-label={`View ${incident.incidentID}`}
                             >
-                              <Icon name="eye" />
+                              <Icon
+                                name="eye"
+                              />
+
                               View
                             </button>
 
@@ -1562,7 +1429,9 @@ function Incidents() {
                                   incident.incidentID
                                 }
                               >
-                                <Icon name="more" />
+                                <Icon
+                                  name="more"
+                                />
                               </button>
 
                               {menuOpenId ===
@@ -1586,7 +1455,9 @@ function Incidents() {
                                       )
                                     }
                                   >
-                                    <Icon name="edit" />
+                                    <Icon
+                                      name="edit"
+                                    />
 
                                     Edit
                                   </button>
@@ -1612,7 +1483,9 @@ function Incidents() {
                                       )
                                     }
                                   >
-                                    <Icon name="trash" />
+                                    <Icon
+                                      name="trash"
+                                    />
 
                                     {deletingId ===
                                     incident.incidentID
@@ -1681,10 +1554,7 @@ function Incidents() {
                 </h2>
 
                 <p>
-                  {editPhase ===
-                  'form'
-                    ? 'Update the report details below, then analyze again with BatangAI.'
-                    : 'Review the new BatangAI analysis, then save your changes.'}
+                  Update the report details below, then save your changes.
                 </p>
               </div>
 
@@ -1707,16 +1577,22 @@ function Incidents() {
                 style={{
                   margin:
                     '20px 22px 0',
+
                   padding:
                     '12px 14px',
+
                   borderRadius:
                     '9px',
+
                   border:
                     '1px solid #f1aeb5',
+
                   background:
                     '#f8d7da',
+
                   color:
                     '#842029',
+
                   fontSize:
                     'var(--font-secondary)',
                 }}
@@ -1725,106 +1601,59 @@ function Incidents() {
               </div>
             )}
 
-            {editPhase ===
-            'form' ? (
-              <form
-                id="employee-edit-form"
-                className="incident-form"
-                onSubmit={
-                  handleEditAnalyze
-                }
-              >
-                <IncidentDetailsFields
-                  values={editForm}
-                  onChange={
-                    handleEditFieldChange
-                  }
-                  departmentEditable
-                />
+            <form
+              id="employee-edit-form"
+              className="incident-form"
+              onSubmit={event => {
+                event.preventDefault()
 
-                <IncidentDescriptionFields
-                  values={editForm}
-                  onChange={
-                    handleEditFieldChange
-                  }
-                />
-              </form>
-            ) : (
-              <section
-                className="employee-ai-result"
-                aria-live="polite"
-              >
-                <EmployeeAnalysisResult
-                  analysis={generateIncidentAnalysis(
-                    editForm,
-                  )}
-                  reviewNote="Review the updated analysis before saving your changes."
-                />
-              </section>
-            )}
+                void handleSaveEditChanges()
+              }}
+            >
+              <IncidentDetailsFields
+                values={editForm}
+                onChange={
+                  handleEditFieldChange
+                }
+                departmentEditable
+              />
+
+              <IncidentDescriptionFields
+                values={editForm}
+                onChange={
+                  handleEditFieldChange
+                }
+              />
+            </form>
 
             <footer>
-              {editPhase ===
-              'form' ? (
-                <>
-                  <button
-                    type="button"
-                    className="employee-cancel"
-                    onClick={
-                      closeEditing
-                    }
-                    disabled={
-                      savingEdit
-                    }
-                  >
-                    Cancel
-                  </button>
+              <button
+                type="button"
+                className="employee-cancel"
+                onClick={
+                  closeEditing
+                }
+                disabled={
+                  savingEdit
+                }
+              >
+                Cancel
+              </button>
 
-                  <button
-                    type="submit"
-                    form="employee-edit-form"
-                    className="incident-new"
-                    disabled={
-                      savingEdit
-                    }
-                  >
-                    <Icon name="sparkle" />
-                    Analyze with BatangAI
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="employee-cancel"
-                    onClick={
-                      handleEditBackToForm
-                    }
-                    disabled={
-                      savingEdit
-                    }
-                  >
-                    Back to Edit
-                  </button>
+              <button
+                type="submit"
+                form="employee-edit-form"
+                className="employee-view-button"
+                disabled={
+                  savingEdit
+                }
+              >
+                <Icon name="check" />
 
-                  <button
-                    type="button"
-                    className="employee-view-button"
-                    onClick={() =>
-                      void handleSaveEditChanges()
-                    }
-                    disabled={
-                      savingEdit
-                    }
-                  >
-                    <Icon name="check" />
-
-                    {savingEdit
-                      ? 'Saving...'
-                      : 'Save Changes'}
-                  </button>
-                </>
-              )}
+                {savingEdit
+                  ? 'Saving...'
+                  : 'Save Changes'}
+              </button>
             </footer>
           </section>
         </div>
