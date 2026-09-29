@@ -25,13 +25,14 @@ $data = json_decode(file_get_contents("php://input"), true);
 
 $adminUserID = trim((string)($data["adminUserID"] ?? ""));
 $userID = trim((string)($data["userID"] ?? ""));
-$newPassword = $data["newPassword"] ?? "";
+$currentPassword = (string)($data["currentPassword"] ?? "");
+$newPassword = (string)($data["newPassword"] ?? "");
 
-if ($adminUserID === "" || $userID === "" || $newPassword === "") {
+if ($adminUserID === "" || $userID === "" || $currentPassword === "" || $newPassword === "") {
     http_response_code(400);
     echo json_encode([
         "success" => false,
-        "message" => "Administrator ID, user ID, and new password are required."
+        "message" => "Administrator ID, user ID, current password, and new password are required."
     ]);
     exit;
 }
@@ -43,7 +44,7 @@ if ($adminUserID === "" || $userID === "" || $newPassword === "") {
 */
 
 $stmt = $conn->prepare("
-    SELECT userID, role, status
+    SELECT userID, role, status, password
     FROM users
     WHERE userID = ?
     LIMIT 1
@@ -88,6 +89,16 @@ if (
     echo json_encode([
         "success" => false,
         "message" => "Only an active Administrator can change user passwords."
+    ]);
+    $conn->close();
+    exit;
+}
+
+if (!password_verify($currentPassword, $admin["password"] ?? "")) {
+    http_response_code(401);
+    echo json_encode([
+        "success" => false,
+        "message" => "The current Administrator password is incorrect."
     ]);
     $conn->close();
     exit;
@@ -193,16 +204,20 @@ $stmt->close();
 
 /*
 |--------------------------------------------------------------------------
-| Prevent Administrator Password Changes Through User Management
+| Prevent Administrator Password Resets Through User Management
 |--------------------------------------------------------------------------
 |
-| The default Administrator account remains protected.
+| Administrators may update their own password after re-entering it, but one
+| Administrator may not reset another Administrator's password here.
 |
 */
 
 $targetRole = strtolower(trim($targetUser["role"] ?? ""));
 
-if ($targetRole === "admin" || $targetRole === "administrator") {
+if (
+    ($targetRole === "admin" || $targetRole === "administrator") &&
+    (string)$targetUser["userID"] !== (string)$adminUserID
+) {
     http_response_code(403);
     echo json_encode([
         "success" => false,

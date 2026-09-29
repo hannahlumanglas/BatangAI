@@ -790,6 +790,13 @@ function getITTroubleshootingText(
   )
 }
 
+function toChecklistItems(text: string): string[] {
+  return text
+    .split(/\r?\n/)
+    .map(line => line.trim().replace(/^(?:\d+[.)]|[-*])\s*/, ''))
+    .filter(Boolean)
+}
+
 /* ===========================================================
    PAGE
    =========================================================== */
@@ -1109,6 +1116,9 @@ function Incidents({
   const [viewingId, setViewingId] =
     useState<string | null>(null)
 
+  const [detailTab, setDetailTab] = useState<'overview' | 'analysis' | 'troubleshooting'>('overview')
+  const [checkedTroubleshooting, setCheckedTroubleshooting] = useState<Record<string, boolean>>({})
+
   const [actionMenuId, setActionMenuId] =
     useState<string | null>(null)
 
@@ -1122,6 +1132,8 @@ function Incidents({
   const closeViewing = () => {
     setViewingId(null)
     setActionMenuId(null)
+    setDetailTab('overview')
+    setCheckedTroubleshooting({})
   }
 
   /* =========================================================
@@ -2500,326 +2512,53 @@ function Incidents({
               </button>
             </header>
 
-            <div className="incident-detail-body">
-              <h3 className="incident-detail-group-title">
-                Incident Information
-              </h3>
-
-              <div className="incident-detail-grid">
-                <div className="incident-detail-field">
-                  <span>
-                    Reporter
-                  </span>
-
-                  <strong>
-                    <PersonName
-                      name={
-                        viewingIncident.employeeName
-                      }
-                      profilePhoto={
-                        viewingIncident.reporterProfilePhoto
-                      }
-                    />
-                  </strong>
+            <nav className="incident-detail-tabs" role="tablist" aria-label="Incident details">
+              {([
+                ['overview', 'Overview'], ['analysis', 'AI Analysis'], ['troubleshooting', 'Troubleshooting'],
+              ] as const).map(([tab, label]) => (
+                <button key={tab} type="button" role="tab" aria-selected={detailTab === tab}
+                  className={detailTab === tab ? 'is-active' : ''} onClick={() => setDetailTab(tab)}>{label}</button>
+              ))}
+            </nav>
+            <div className="incident-detail-body" role="tabpanel">
+              {detailTab === 'overview' && <>
+                <h3 className="incident-detail-group-title">Incident Information</h3>
+                <div className="incident-detail-grid">
+                  <div className="incident-detail-field"><span>Reporter</span><strong><PersonName name={viewingIncident.employeeName} profilePhoto={viewingIncident.reporterProfilePhoto} /></strong></div>
+                  <div className="incident-detail-field"><span>Department</span><strong>{viewingIncident.department}</strong></div>
+                  <div className="incident-detail-field"><span>Location / Room</span><strong>{viewingIncident.location}</strong></div>
+                  <div className="incident-detail-field"><span>Issue Category</span><strong>{viewingIncident.issueCategory}</strong></div>
+                  <div className="incident-detail-field"><span>Device Type</span><strong>{viewingIncident.deviceType || 'Not specified'}</strong></div>
+                  <div className="incident-detail-field"><span>Connection Type</span><strong>{viewingIncident.connectionType || 'Not specified'}</strong></div>
+                  <div className="incident-detail-field"><span>Severity</span><strong><span className={`tag ${viewingIncident.severity.toLowerCase()}-tag`}>{viewingIncident.severity}</span></strong></div>
+                  <div className="incident-detail-field"><span>Status</span><strong><span className={`tag ${viewingIncident.status === 'Resolved' ? 'resolved-tag' : viewingIncident.status === 'In Progress' ? 'progress-tag' : 'pending-tag'}`}>{viewingIncident.status}</span></strong></div>
+                  <div className="incident-detail-field"><span>Assigned</span><strong>{viewingIncident.assigned}</strong></div>
+                  <div className="incident-detail-field"><span>Assigned To</span><strong>{viewingIncident.assignedToName || viewingIncident.assignedTo || 'Not assigned'}</strong></div>
                 </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Department
-                  </span>
-
-                  <strong>
-                    {
-                      viewingIncident.department
-                    }
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Location / Room
-                  </span>
-
-                  <strong>
-                    {
-                      viewingIncident.location
-                    }
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Issue Category
-                  </span>
-
-                  <strong>
-                    {
-                      viewingIncident.issueCategory
-                    }
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Device Type
-                  </span>
-
-                  <strong>
-                    {
-                      viewingIncident.deviceType ||
-                      'Not specified'
-                    }
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Connection Type
-                  </span>
-
-                  <strong>
-                    {
-                      viewingIncident.connectionType ||
-                      'Not specified'
-                    }
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Severity
-                  </span>
-
-                  <strong>
-                    <span
-                      className={`tag ${viewingIncident.severity.toLowerCase()}-tag`}
-                    >
-                      {
-                        viewingIncident.severity
-                      }
-                    </span>
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Status
-                  </span>
-
-                  <strong>
-                    <span
-                      className={`tag ${
-                        viewingIncident.status ===
-                        'Resolved'
-                          ? 'resolved-tag'
-                          : viewingIncident.status ===
-                              'In Progress'
-                            ? 'progress-tag'
-                            : 'pending-tag'
-                      }`}
-                    >
-                      {
-                        viewingIncident.status
-                      }
-                    </span>
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Assigned
-                  </span>
-
-                  <strong>
-                    {
-                      viewingIncident.assigned
-                    }
-                  </strong>
-                </div>
-
-                <div className="incident-detail-field">
-                  <span>
-                    Assigned To
-                  </span>
-
-                  <strong>
-                    {viewingIncident.assignedToName ||
-                      viewingIncident.assignedTo ||
-                      'Not assigned'}
-                  </strong>
-                </div>
-              </div>
-
-              <section className="incident-detail-section incident-detail-section--service">
-                <h3>
-                  Affected Issue /
-                  Service
-                </h3>
-
-                <p>
-                  {
-                    viewingIncident.affectedIssue
-                  }
-                </p>
-              </section>
-
-              <section className="incident-detail-section incident-detail-section--description">
-                <h3>
-                  Detailed Problem
-                  Description
-                </h3>
-
-                <p>
-                  {
-                    viewingIncident.description
-                  }
-                </p>
-              </section>
-
-              {(viewingIncident.classification ||
-                viewingIncident.summary ||
-                viewingIncident.troubleshooting) && (
-                <section className="incident-ai-analysis">
-                  <h3 className="incident-ai-analysis-title">
-                    AI Analysis
-                  </h3>
-
-                  {viewingIncident.classification && (
-                    <div className="incident-ai-block">
-                      <span>
-                        Classification
-                      </span>
-
-                      <p>
-                        {
-                          viewingIncident.classification
-                        }
-                      </p>
-                    </div>
-                  )}
-
-                  {viewingIncident.summary && (
-                    <div className="incident-ai-block">
-                      <span>
-                        Incident Summary
-                      </span>
-
-                      <p>
-                        {
-                          viewingIncident.summary
-                        }
-                      </p>
-                    </div>
-                  )}
-
-                  {viewingIncident.troubleshooting && (
-                    <div className="incident-ai-block">
-                      <span>
-                        Basic Self-Help
-                      </span>
-
-                      <p
-                        style={{
-                          whiteSpace:
-                            'pre-line',
-                        }}
-                      >
-                        {getBasicSelfHelpText(
-                          viewingIncident.troubleshooting,
-                        )}
-                      </p>
-
-                      {!isSecretary && (
-                        <div
-                          style={{
-                            marginTop: '24px',
-                            padding: '20px',
-                            border: '2px solid currentColor',
-                            borderRadius: '12px',
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              justifyContent: 'space-between',
-                              gap: '16px',
-                              marginBottom: '12px',
-                            }}
-                          >
-                            <div>
-                              <h4
-                                style={{
-                                  margin: 0,
-                                  fontSize: '1.05rem',
-                                  fontWeight: 900,
-                                  letterSpacing: '0.02em',
-                                }}
-                              >
-                                AI-Generated Troubleshooting Suggestion – For IT Support Review
-                              </h4>
-                            </div>
-
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                minWidth: '42px',
-                                minHeight: '30px',
-                                padding: '4px 10px',
-                                border: '1px solid currentColor',
-                                borderRadius: '999px',
-                                fontSize: '0.75rem',
-                                fontWeight: 900,
-                              }}
-                            >
-                              IT
-                            </span>
-                          </div>
-
-                          <p
-                            style={{
-                              margin: '0 0 16px',
-                              fontSize: '0.9rem',
-                              fontWeight: 600,
-                            }}
-                          >
-                            IT-only technical guidance. Review and validate these suggestions before taking technical action.
-                          </p>
-
-                          <div
-                            style={{
-                              paddingTop: '16px',
-                              borderTop: '1px solid currentColor',
-                              whiteSpace: 'pre-line',
-                              lineHeight: 1.6,
-                            }}
-                          >
-                            {getITTroubleshootingText(
-                              viewingIncident.troubleshooting,
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                <section className="incident-detail-section incident-detail-section--service"><h3>Affected Issue / Service</h3><p>{viewingIncident.affectedIssue}</p></section>
+                <section className="incident-detail-section incident-detail-section--description"><h3>Detailed Problem Description</h3><p>{viewingIncident.description}</p></section>
+                {viewingIncident.resolutionNotes && <section className="incident-detail-section"><h3>Resolution Notes</h3><p>{viewingIncident.resolutionNotes}</p></section>}
+              </>}
+              {detailTab === 'analysis' && <section className="incident-ai-analysis">
+                <h3 className="incident-ai-analysis-title">AI Analysis</h3>
+                {viewingIncident.classification && <div className="incident-ai-block"><span>Classification</span><p>{viewingIncident.classification}</p></div>}
+                {viewingIncident.summary && <div className="incident-ai-block"><span>Incident Summary</span><p>{viewingIncident.summary}</p></div>}
+                {!viewingIncident.classification && !viewingIncident.summary && <p className="incident-detail-empty">No AI analysis is available for this incident.</p>}
+              </section>}
+              {detailTab === 'troubleshooting' && <div className="incident-troubleshooting">
+                <section className="incident-checklist-card"><header><div><h3>Basic Self-Help</h3><p>Check off each step as you complete it.</p></div></header>
+                  <ul>{toChecklistItems(getBasicSelfHelpText(viewingIncident.troubleshooting)).map((step, index) => {
+                    const key = `${viewingIncident.incidentID}-basic-${index}`;
+                    return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
+                  })}</ul>
                 </section>
-              )}
-
-              {viewingIncident.resolutionNotes && (
-                <section className="incident-detail-section">
-                  <h3>
-                    Resolution Notes
-                  </h3>
-
-                  <p>
-                    {
-                      viewingIncident.resolutionNotes
-                    }
-                  </p>
-                </section>
-              )}
+                {!isSecretary && <section className="incident-checklist-card incident-checklist-card--it"><header><div><h3>IT Support Suggestions</h3><p>Technical guidance for IT personnel to review.</p></div><span className="incident-it-badge">IT</span></header>
+                  <ul>{toChecklistItems(getITTroubleshootingText(viewingIncident.troubleshooting)).map((step, index) => {
+                    const key = `${viewingIncident.incidentID}-it-${index}`;
+                    return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
+                  })}</ul>
+                </section>}
+              </div>}
             </div>
 
             <footer className="incident-detail-footer">

@@ -837,3 +837,23 @@
 .incidents-table-card th:nth-child(6){ width:11%; }
 .incidents-table-card th:nth-child(7){ width:5%; }
 .incident-table-spacer{ padding:0 !important; }
+.incident-detail-tabs{display:flex;flex:none;gap:6px;padding:10px 22px 0;background:var(--card-bg);border-bottom:1px solid var(--border-color)}
+.incident-detail-tabs button{position:relative;padding:11px 14px;color:var(--text-secondary);background:transparent;border:0;border-bottom:2px solid transparent;font-weight:700;cursor:pointer}
+.incident-detail-tabs button:hover{color:var(--text-heading);background:var(--hover-bg)}
+.incident-detail-tabs button.is-active{color:var(--primary);border-bottom-color:var(--primary)}
+.incident-detail-tabs button:focus-visible,.incident-checklist-card input:focus-visible{outline:3px solid color-mix(in srgb,var(--primary) 32%,transparent);outline-offset:2px}
+.incident-troubleshooting{display:flex;flex-direction:column;gap:16px}
+.incident-checklist-card{padding:18px;background:#f3fbf7;border:1px solid #d4eee1;border-radius:14px}
+.incident-checklist-card--it{background:#f5f8ff;border-color:#dce5fa}
+.incident-checklist-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.incident-checklist-card h3{margin:0;color:var(--text-heading);font-size:15px}
+.incident-checklist-card header p{margin:4px 0 0;color:var(--text-secondary);font-size:12px}
+.incident-checklist-card ul{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.incident-checklist-card li{padding:11px 12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:9px}
+.incident-checklist-card li label{display:flex;align-items:flex-start;gap:10px;color:var(--text-heading);line-height:1.5;cursor:pointer}
+.incident-checklist-card input{width:17px;height:17px;flex:none;margin:2px 0 0;accent-color:var(--primary);cursor:pointer}
+.incident-checklist-card input:checked+span{color:var(--text-secondary);text-decoration:line-through}
+.incident-it-badge{display:inline-grid;min-width:34px;height:26px;place-items:center;padding:0 8px;color:#385cba;background:#e9efff;border-radius:999px;font-size:11px;font-weight:800}
+.incident-detail-empty{margin:0;color:var(--text-secondary)}
+@media(max-width:540px){.incident-detail-tabs{gap:0;padding-right:12px;padding-left:12px}.incident-detail-tabs button{flex:1;padding:10px 5px;font-size:11px!important}.incident-detail-body{padding-top:16px}}
+:root[data-theme="dark"] .incident-checklist-card,:root[data-theme="dark"] .incident-checklist-card--it{background:var(--input-bg);border-color:var(--border-color)}

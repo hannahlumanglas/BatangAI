@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef } from 'react'
+﻿import { useMemo, useState, useEffect, useRef } from 'react'
 import type { JSX, FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -26,8 +26,7 @@ type UserRole =
 
 type UserStatus = 'Active' | 'Inactive'
 
-type UserMenuAction =
-  | 'view'
+type UserAccountAction =
   | 'edit'
   | 'reset'
   | 'disable'
@@ -88,16 +87,16 @@ const CITY_HALL_DEPARTMENTS = [
   'Office of the City Internal Audit Service',
   'Office of the City Agriculturist',
   'Office of the Sangguniang Panlungsod',
-  'City Local Government Operation Officer VI – DILG',
+  'City Local Government Operation Officer VI â€“ DILG',
   'Chief of Police, City PNP Office',
   'City Fire Marshal',
-  'City Schools Division Superintendent – DepEd',
+  'City Schools Division Superintendent â€“ DepEd',
   'City Warden',
   'City Wardress',
   'COMELEC Election Officer IV',
   'MTCC Judge Branch I',
   'MTCC Judge Branch II',
-  'State Auditor IV – Commission on Audit',
+  'State Auditor IV â€“ Commission on Audit',
   "City Mayor's Division",
   "Mayor's Action Center",
   'Business Permits & Licensing Office',
@@ -123,7 +122,7 @@ function getInitials(name: string) {
     .toUpperCase()
 }
 function formatJoinedDate(value: string | null | undefined) {
-  if (!value) return '—'
+  if (!value) return 'â€”'
 
   const date = new Date(value)
 
@@ -283,45 +282,7 @@ function Icon({ name }: { name: IconName }) {
     </svg>
   )
 }
-function DotsIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="18"
-      height="18"
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="5" r="1.6" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
-      <circle cx="12" cy="19" r="1.6" fill="currentColor" />
-    </svg>
-  )
-}
 /* ---------- Small shared pieces ---------- */
-function StatCard({
-  icon,
-  number,
-  title,
-  tone,
-}: {
-  icon: IconName
-  number: number
-  title: string
-  tone: string
-}) {
-  return (
-    <article className={`stat-card stat-card--${tone}`}>
-      <div className="stat-icon">
-        <Icon name={icon} />
-      </div>
-
-      <div>
-        <h3>{title}</h3>
-        <strong>{number}</strong>
-      </div>
-    </article>
-  )
-}
 function RoleBadge({ role }: { role: UserRole }) {
   return (
     <span
@@ -386,194 +347,55 @@ const navigation: {
   },
 ]
 /* =========================================================
-   THREE-DOT ACTION MENU
+   USER DIRECTORY ROW
    ========================================================= */
-function UserMenu({
-  status,
-  onAction,
-  onClose,
-}: {
-  status: UserStatus
-  onAction: (action: UserMenuAction) => void
-  onClose: () => void
-}) {
-  const items: {
-    key: UserMenuAction
-    label: string
-    danger?: boolean
-  }[] = [
-    {
-      key: 'view',
-      label: 'View Profile',
-    },
-    {
-      key: 'edit',
-      label: 'Edit User',
-    },
-    {
-      key: 'reset',
-      label: 'Reset Password',
-    },
-    {
-      key: 'disable',
-      label:
-        status === 'Active'
-          ? 'Disable Account'
-          : 'Enable Account',
-    },
-  ]
-  return (
-    <>
-      <div
-        className="user-menu-backdrop"
-        onClick={e => {
-          e.stopPropagation()
-          onClose()
-        }}
-      />
-      <div
-        className="user-menu"
-        role="menu"
-        onClick={e => e.stopPropagation()}
-      >
-        {items.map(item => (
-          <button
-            key={item.key}
-            type="button"
-            role="menuitem"
-            className={item.danger ? 'danger' : ''}
-            onClick={() => {
-              onAction(item.key)
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-    </>
-  )
-}
-/* =========================================================
-   USER CARD
-   ========================================================= */
-function UserCard({
+function UserDirectoryRow({
   user,
-  selected,
-  menuOpen,
   onSelect,
-  onToggleMenu,
-  onMenuAction,
 }: {
   user: User
-  selected: boolean
-  menuOpen: boolean
   onSelect: (id: string) => void
-  onToggleMenu: (id: string) => void
-  onMenuAction: (
-    action: UserMenuAction,
-    user: User,
-  ) => void
 }) {
   return (
-    <article
-      className={`user-card${
-        selected ? ' selected' : ''
-      }${menuOpen ? ' menu-open' : ''}`}
-      onClick={() => onSelect(user.id)}
-      role="button"
-      tabIndex={0}
-      aria-pressed={selected}
-      onKeyDown={e => {
-        if (
-          e.key === 'Enter' ||
-          e.key === ' '
-        ) {
-          e.preventDefault()
-          onSelect(user.id)
-        }
-      }}
-    >
-      <div className="user-card-top">
-        <div className="user-card-identity">
-          <span className="user-card-avatar">
-            <img
-              src={getProfilePhotoUrl(
-                user.profilePhoto,
-                user.name,
-                user.role,
-              )}
-              alt={`${user.name} profile`}
-            />
-          </span>
-
-          <div>
-            <strong>{user.name}</strong>
-            <small>{user.employeeId}</small>
-          </div>
-        </div>
-
-        <div className="user-card-menu-anchor">
-          <button
-            type="button"
-            className="user-card-menu-btn"
-            aria-label={`Actions for ${user.name}`}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={e => {
-              e.stopPropagation()
-              onToggleMenu(user.id)
-            }}
-          >
-            <DotsIcon />
-          </button>
-
-          {menuOpen && (
-            <UserMenu
-              status={user.status}
-              onClose={() =>
-                onToggleMenu(user.id)
-              }
-              onAction={action =>
-                onMenuAction(action, user)
-              }
-            />
-          )}
-        </div>
-      </div>
-      <div className="user-card-meta">
-        <RoleBadge role={user.role} />
-        <StatusBadge status={user.status} />
-      </div>
-
-      <dl className="user-card-details">
-        <div>
-          <dt>Department</dt>
-          <dd>{user.department}</dd>
-        </div>
-
-        <div>
-          <dt>Joined</dt>
-          <dd>{user.joined}</dd>
-        </div>
-      </dl>
-    </article>
+    <div className="um-directory-row">
+      <button className="um-directory-name" type="button" onClick={() => onSelect(user.id)}>
+        <span className="user-card-avatar"><img src={getProfilePhotoUrl(user.profilePhoto, user.name, user.role)} alt="" /></span>
+        <span><strong>{user.name}</strong></span>
+      </button>
+    </div>
   )
 }
 /* =========================================================
    CHANGE PASSWORD
    Existing UI retained.
    ========================================================= */
+function PasswordVisibilityIcon({ visible }: { visible: boolean }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="2.7" />
+      {visible && <path d="M4 20 20 4" />}
+    </svg>
+  )
+}
+
 function ChangePasswordCard({
   user,
   onSaved,
+  onCancel,
   resetMode = false,
 }: {
   user: User
   onSaved: () => Promise<void>
+  onCancel?: () => void
   resetMode?: boolean
 }) {
+  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [updating, setUpdating] = useState(false)
@@ -581,6 +403,7 @@ function ChangePasswordCard({
   const clearForm = () => {
     if (updating) return
 
+    setCurrentPassword('')
     setNewPassword('')
     setConfirmPassword('')
     setError('')
@@ -590,6 +413,11 @@ function ChangePasswordCard({
   const handleUpdate = async () => {
     setError('')
     setSuccess('')
+
+    if (!currentPassword) {
+      setError('Enter your current Administrator password to continue.')
+      return
+    }
 
     if (newPassword.length < 8) {
       setError('Password must be at least 8 characters long.')
@@ -648,7 +476,7 @@ function ChangePasswordCard({
 
     try {
       const response = await fetch(
-        'fetch(`${API_BASE_URL}/change_password.php`, ...)',
+        `${API_BASE_URL}/change_password.php`,
         {
           method: 'POST',
           headers: {
@@ -658,6 +486,7 @@ function ChangePasswordCard({
           body: JSON.stringify({
             adminUserID,
             userID: targetUserID,
+            currentPassword,
             newPassword,
           }),
         },
@@ -676,6 +505,7 @@ function ChangePasswordCard({
       )
       setNewPassword('')
       setConfirmPassword('')
+      setCurrentPassword('')
 
       await onSaved()
     } catch (requestError) {
@@ -701,44 +531,44 @@ function ChangePasswordCard({
           <h2>
             {resetMode ? 'Reset Password' : 'Password & Security'}
           </h2>
-          <span>
-            {resetMode
-              ? `Set a new password for ${user.name}.`
-              : 'Update this account password when needed.'}
-          </span>
+          <span>Confirm your current Administrator password before setting a new password for {user.name}.</span>
         </div>
       </header>
 
       <label className="um-field">
-        <span>New Password</span>
-        <input
-          type="password"
-          value={newPassword}
-          onChange={e => {
-            setNewPassword(e.target.value)
-            setError('')
-            setSuccess('')
-          }}
-          placeholder="Enter new password"
-          autoComplete="new-password"
-          disabled={updating}
-        />
+        <span>Your Current Administrator Password</span>
+        <div className="um-password-input-wrap">
+          <input type={showCurrentPassword ? 'text' : 'password'} value={currentPassword}
+            onChange={e => { setCurrentPassword(e.target.value); setError(''); setSuccess('') }}
+            placeholder="Enter your current password" autoComplete="current-password" disabled={updating} />
+          <button type="button" onClick={() => setShowCurrentPassword(value => !value)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
+            <PasswordVisibilityIcon visible={showCurrentPassword} />
+          </button>
+        </div>
       </label>
 
       <label className="um-field">
-        <span>Confirm Password</span>
-        <input
-          type="password"
-          value={confirmPassword}
-          onChange={e => {
-            setConfirmPassword(e.target.value)
-            setError('')
-            setSuccess('')
-          }}
-          placeholder="Re-enter new password"
-          autoComplete="new-password"
-          disabled={updating}
-        />
+        <span>New Password</span>
+        <div className="um-password-input-wrap">
+          <input type={showNewPassword ? 'text' : 'password'} value={newPassword}
+            onChange={e => { setNewPassword(e.target.value); setError(''); setSuccess('') }}
+            placeholder="Enter new password" autoComplete="new-password" disabled={updating} />
+          <button type="button" onClick={() => setShowNewPassword(value => !value)} aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}>
+            <PasswordVisibilityIcon visible={showNewPassword} />
+          </button>
+        </div>
+      </label>
+
+      <label className="um-field">
+        <span>Confirm New Password</span>
+        <div className="um-password-input-wrap">
+          <input type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword}
+            onChange={e => { setConfirmPassword(e.target.value); setError(''); setSuccess('') }}
+            placeholder="Re-enter new password" autoComplete="new-password" disabled={updating} />
+          <button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}>
+            <PasswordVisibilityIcon visible={showConfirmPassword} />
+          </button>
+        </div>
       </label>
 
       {error && (
@@ -762,7 +592,7 @@ function ChangePasswordCard({
         <button
           type="button"
           className="um-btn-secondary"
-          onClick={clearForm}
+          onClick={resetMode ? onCancel : clearForm}
           disabled={updating}
         >
           Cancel
@@ -792,34 +622,16 @@ function UserDetails({
   mode,
   onModeChange,
   onSaved,
+  onAction,
 }: {
   user: User
   mode: UserPanelMode
   onModeChange: (mode: UserPanelMode) => void
   onSaved: () => Promise<void>
+  onAction: (action: UserAccountAction, user: User) => void
 }) {
-  if (mode === 'edit') {
-    return (
-      <EditUserCard
-        user={user}
-        onSaved={onSaved}
-        onCancel={() => onModeChange('view')}
-      />
-    )
-  }
-
-  if (mode === 'reset') {
-    return (
-      <ChangePasswordCard
-        user={user}
-        onSaved={onSaved}
-        resetMode
-      />
-    )
-  }
-
   return (
-    <div className="um-details-grid">
+    <div className={`um-details-grid um-details-grid--${mode}`}>
       <article className="dashboard-card um-account-card">
         <header className="um-panel-heading um-account-heading">
           <div>
@@ -827,14 +639,6 @@ function UserDetails({
             <h2>Account Information</h2>
             <span>Identity, contact details, and access level.</span>
           </div>
-
-          <button
-            type="button"
-            className="um-text-button"
-            onClick={() => onModeChange('edit')}
-          >
-            Edit account
-          </button>
         </header>
 
         <div className="um-account-profile">
@@ -879,18 +683,20 @@ function UserDetails({
           </div>
 
           <div>
-            <dt>Account Status</dt>
-            <dd>
-              <StatusBadge status={user.status} />
-            </dd>
+            <dt>Joined</dt>
+            <dd>{user.joined || 'Not available'}</dd>
           </div>
         </dl>
+        {mode === 'view' && <footer className="um-account-actions" aria-label="User account actions">
+          <button type="button" className="um-btn-secondary" onClick={() => onAction('edit', user)}>Edit User</button>
+          <button type="button" className="um-btn-secondary" onClick={() => onAction('reset', user)}>Reset Password</button>
+          <button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => onAction('disable', user)}>
+            {user.status === 'Active' ? 'Disable Account' : 'Enable Account'}
+          </button>
+        </footer>}
       </article>
-
-      <ChangePasswordCard
-        user={user}
-        onSaved={onSaved}
-      />
+      {mode === 'edit' && <EditUserCard user={user} onSaved={onSaved} onCancel={() => onModeChange('view')} />}
+      {mode === 'reset' && <ChangePasswordCard user={user} onSaved={onSaved} onCancel={() => onModeChange('view')} resetMode />}
     </div>
   )
 }
@@ -1183,7 +989,7 @@ function CreateUserModal({
             disabled={submitting}
             aria-label="Close"
           >
-            ×
+            Ã—
           </button>
         </div>
 
@@ -1845,13 +1651,11 @@ function UserManagement() {
   } = useTheme()
   const [query, setQuery] =
     useState('')
-  const [role, setRole] =
-    useState('All Roles')
+  const [roleFilter, setRoleFilter] = useState('')
+  const [departmentFilter, setDepartmentFilter] = useState('')
   const [users, setUsers] =
     useState<User[]>([])
   const [selectedUserId, setSelectedUserId] =
-    useState<string | null>(null)
-  const [menuOpenId, setMenuOpenId] =
     useState<string | null>(null)
   const [showCreateUser, setShowCreateUser] = useState(false)
   const [panelMode, setPanelMode] = useState<UserPanelMode>('view')
@@ -2062,14 +1866,10 @@ function UserManagement() {
   /* ---------- Search / Filter ---------- */
   const shown = useMemo(
     () =>
-      users.filter(
-        user =>
-          (
-            role ===
-              'All Roles' ||
-            user.role === role
-          ) &&
-          `${user.name} ${user.email} ${user.employeeId} ${user.department}`
+      !roleFilter && !departmentFilter ? [] : users.filter(
+        user => (!roleFilter || user.role === roleFilter) &&
+          (!departmentFilter || user.department === departmentFilter) &&
+          user.name
             .toLowerCase()
             .includes(
               query
@@ -2077,19 +1877,13 @@ function UserManagement() {
                 .trim(),
             ),
       ),
-    [query, role, users],
+    [departmentFilter, query, roleFilter, users],
   )
-  const selectedUser =
-    useMemo(
-      () =>
-        users.find(
-          user =>
-            user.id ===
-            selectedUserId,
-        ) ?? null,
-
-      [users, selectedUserId],
-    )
+  const departments = useMemo(
+    () => [...new Set(users.map(user => user.department.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [users],
+  )
+  const selectedUser = users.find(user => user.id === selectedUserId) ?? null
   /* LOGOUT */
   const handleLogout = () => {
     signOut()
@@ -2099,38 +1893,14 @@ function UserManagement() {
   const handleSelect = (
     id: string,
   ) => {
-    setMenuOpenId(null)
-
-    setSelectedUserId(
-      current =>
-        current === id
-          ? null
-          : id,
-    )
+    setPanelMode('view')
+    setSelectedUserId(id)
   }
-  /* USER MENU */
-  const handleToggleMenu = (
-    id: string,
-  ) => {
-    setMenuOpenId(
-      current =>
-        current === id
-          ? null
-          : id,
-    )
-  }
-  const handleMenuAction = async (
-    action: UserMenuAction,
+  const handleUserAction = async (
+    action: UserAccountAction,
     user: User,
   ) => {
-    setMenuOpenId(null)
     switch (action) {
-      case 'view':
-        setSelectedUserId(
-          user.id,
-        )
-        setPanelMode('view')
-        break
       case 'edit':
         setSelectedUserId(user.id)
         setPanelMode('edit')
@@ -2248,7 +2018,9 @@ function UserManagement() {
       createdUser.id,
     )
     setQuery('')
-    setRole('All Roles')
+    setRoleFilter('')
+    setDepartmentFilter('')
+    setPanelMode('view')
   }
   /* RENDER*/
   return (
@@ -2353,65 +2125,6 @@ function UserManagement() {
         </header>
         {/*  CONTENT*/}
         <div className="dashboard-content">
-          {/*STATISTICS*/}
-          <section className="statistics-grid um-stats">
-            <StatCard
-              icon="users"
-              number={
-                users.length
-              }
-              title="Total Users"
-              tone="green"
-            />
-            <StatCard
-              icon="profile"
-              number={
-                users.filter(
-                  u =>
-                    u.role ===
-                    'Employee',
-                ).length
-              }
-              title="Employee"
-              tone="blue"
-            />
-            <StatCard
-              icon="incidents"
-              number={
-                users.filter(
-                  u =>
-                    u.role ===
-                    'Secretary',
-                ).length
-              }
-              title="Secretary"
-              tone="orange"
-            />
-            <StatCard
-              icon="shield"
-              number={
-                users.filter(
-                  u =>
-                    u.role ===
-                    'IT Personnel',
-                ).length
-              }
-              title="IT Personnel"
-              tone="blue"
-            />
-            <StatCard
-              icon="admin"
-              number={
-                users.filter(
-                  u =>
-                    u.role ===
-                    'Administrator',
-                ).length
-              }
-              title="Admins"
-              tone="orange"
-            />
-          </section>
           {/* SEARCH / FILTER / CREATE */}
           <section className="incident-tools um-tools">
             <label className="incident-search">
@@ -2424,40 +2137,26 @@ function UserManagement() {
                     e.target.value,
                   )
                 }
-                placeholder="Search by name, email, or ID..."
+                placeholder="Search users by name..."
               />
             </label>
 
             <label className="um-filter-select">
               Role
+              <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
+                <option value="">Select role</option>
+                <option>Employee</option>
+                <option>Secretary</option>
+                <option>IT Personnel</option>
+                <option>Administrator</option>
+              </select>
+            </label>
 
-              <select
-                value={role}
-                onChange={e =>
-                  setRole(
-                    e.target.value,
-                  )
-                }
-              >
-                <option>
-                  All Roles
-                </option>
-
-                <option>
-                  Employee
-                </option>
-
-                <option>
-                  Secretary
-                </option>
-
-                <option>
-                  IT Personnel
-                </option>
-
-                <option>
-                  Administrator
-                </option>
+            <label className="um-filter-select">
+              Department
+              <select value={departmentFilter} onChange={event => setDepartmentFilter(event.target.value)}>
+                <option value="">Select department</option>
+                {departments.map(item => <option key={item}>{item}</option>)}
               </select>
             </label>
 
@@ -2486,88 +2185,40 @@ function UserManagement() {
             </div>
           ) : shown.length >
             0 ? (
-            <section className="um-grid">
-              {shown.map(
-                user => (
-                  <UserCard
-                    key={
-                      user.id
-                    }
-                    user={
-                      user
-                    }
-                    selected={
-                      selectedUserId ===
-                      user.id
-                    }
-                    menuOpen={
-                      menuOpenId ===
-                      user.id
-                    }
-                    onSelect={
-                      handleSelect
-                    }
-                    onToggleMenu={
-                      handleToggleMenu
-                    }
-                    onMenuAction={
-                      handleMenuAction
-                    }
-                  />
-                ),
-              )}
+            <section className="um-directory" aria-label="User directory">
+              <header className="um-directory-header">
+                <div><h2>User Directory</h2><p>{shown.length} {shown.length === 1 ? 'user' : 'users'} found. Select a name to view account details.</p></div>
+              </header>
+              <div className="um-directory-columns" aria-hidden="true"><span>Name</span></div>
+              <div className="um-directory-list">
+                {shown.map(user => <UserDirectoryRow key={user.id} user={user} onSelect={handleSelect} />)}
+              </div>
             </section>
+          ) : roleFilter || departmentFilter ? (
+            <div className="um-empty">
+              No users match your search or filters.
+            </div>
           ) : (
             <div className="um-empty">
-              No users match your
-              search or filter.
+              Select a role or department to display matching users.
             </div>
           )}
         </div>
       </main>
       {selectedUser && (
-        <div
-          className="um-modal-backdrop"
-          role="presentation"
-          onMouseDown={event => {
-            if (event.target === event.currentTarget) {
-              setSelectedUserId(null)
-              setPanelMode('view')
-            }
-          }}
-        >
-          <section
-            className="um-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`${
-              panelMode === 'edit'
-                ? 'Edit'
-                : panelMode === 'reset'
-                  ? 'Reset password for'
-                  : 'Profile for'
-            } ${selectedUser.name}`}
-          >
-            <button
-              className="um-modal-close"
-              type="button"
-              onClick={() => {
-                setSelectedUserId(null)
-                setPanelMode('view')
-              }}
-              aria-label="Close"
-            >
-              ×
+        <div className="um-modal-backdrop" role="presentation" onMouseDown={event => {
+          if (event.target === event.currentTarget) {
+            setSelectedUserId(null)
+            setPanelMode('view')
+          }
+        }}>
+          <section className={`um-modal${panelMode === 'view' ? ' is-profile-mode' : ' is-workflow-mode'}`}
+            role="dialog" aria-modal="true" aria-label={`${panelMode === 'edit' ? 'Edit' : panelMode === 'reset' ? 'Reset password for' : 'Profile for'} ${selectedUser.name}`}>
+            <button className="um-modal-close" type="button" onClick={() => { setSelectedUserId(null); setPanelMode('view') }} aria-label="Close">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
             </button>
-            <UserDetails
-              user={selectedUser}
-              mode={panelMode}
-              onModeChange={setPanelMode}
-              onSaved={async () => {
-                await loadUsers()
-                setPanelMode('view')
-              }}
-            />
+            <UserDetails user={selectedUser} mode={panelMode} onModeChange={setPanelMode} onAction={handleUserAction}
+              onSaved={async () => { await loadUsers(); setPanelMode('view') }} />
           </section>
         </div>
       )}
