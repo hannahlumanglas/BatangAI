@@ -1494,3 +1494,52 @@
 .um-modal.is-workflow-mode .um-account-fields>div{flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:4px}
 .um-modal.is-workflow-mode .um-account-fields dd{margin:0;text-align:left;overflow-wrap:anywhere}
 @media(max-width:760px){.um-modal.is-workflow-mode .um-details-grid{grid-template-columns:1fr}}
+
+.um-inline-user-details{position:relative;margin-top:18px;padding:18px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;box-shadow:var(--card-shadow);animation:um-modal-rise .2s ease-out}
+.um-inline-profile-content{display:grid;gap:0}
+.um-inline-account-card,.um-inline-profile-content .um-password-card{max-width:none;padding:8px 6px;background:transparent;border:0;border-radius:0;box-shadow:none}
+.um-inline-account-card h2{margin:0;color:var(--text-heading);font-size:var(--font-card-title)}
+.um-inline-account-card .um-account-profile{flex-wrap:wrap;gap:14px;padding-bottom:14px;margin-bottom:12px}
+.um-inline-user-meta{display:flex;flex:1 1 100%;flex-wrap:wrap;gap:12px 26px;padding-left:2px;color:var(--text-secondary);font-size:12px}
+.um-inline-section-title{margin:4px 0 0;color:var(--text-heading);font-size:14px}
+.um-inline-edit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
+.um-inline-edit-grid .um-field{min-width:0}
+.um-inline-edit-grid input,.um-inline-edit-grid select{box-sizing:border-box;width:100%;height:38px;padding:0 10px;color:var(--text-heading);font:inherit;font-size:12px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px}
+.um-inline-save-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:14px 6px 4px;margin-top:4px;border-top:1px solid var(--border-color)}
+.um-inline-save-spacer{flex:1}
+.um-inline-details-close{position:absolute;z-index:1;top:26px;right:26px;display:grid;width:34px;height:34px;place-items:center;color:var(--text-secondary);background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;cursor:pointer}
+.um-inline-details-close svg{width:17px;height:17px}
+.um-inline-details-close:hover{color:var(--text-heading);background:var(--hover-bg)}
+.um-inline-profile-content .um-password-card{padding:14px 6px 8px;border-top:1px solid var(--border-color)}
+.um-inline-profile-content .um-password-card .um-panel-heading{padding-bottom:10px;margin-bottom:10px}
+.um-inline-profile-content .um-password-card .um-panel-heading h2{margin:0 0 4px;color:var(--text-heading);font-size:14px}
+.um-inline-profile-content .um-password-card .um-panel-heading span{font-size:11px}
+.um-inline-profile-content .um-password-card .um-field{min-width:0;margin-bottom:9px}
+.um-inline-profile-content .um-password-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:14px}
+.um-inline-profile-content .um-password-card .um-panel-heading,.um-inline-profile-content .um-password-card .um-form-message,.um-inline-profile-content .um-password-card .um-password-actions{grid-column:1/-1}
+.um-inline-profile-content .um-password-card .um-field>span{font-size:11px}
+.um-inline-profile-content .um-password-card input{height:34px}
+.um-inline-profile-content .um-password-card .um-password-actions{margin-top:8px}
+@media(max-width:760px){.um-inline-profile-content .um-password-card{grid-template-columns:1fr}}
+@media(max-width:640px){.um-inline-user-details{padding:12px}.um-inline-edit-grid{grid-template-columns:1fr}.um-inline-details-close{top:18px;right:18px}.um-inline-user-meta{padding-right:35px}.um-inline-save-actions{flex-wrap:wrap}.um-inline-save-spacer{flex-basis:100%}}
+.um-inline-account-card .um-account-heading{padding:4px 2px 18px;margin-bottom:16px;border-bottom:1px solid var(--border-color)}
+.um-inline-account-card .um-account-profile{align-items:center;padding:16px;margin:0 0 18px;background:var(--hover-bg);border:1px solid var(--border-color);border-radius:12px}
+.um-inline-account-card .um-account-profile{flex-wrap:nowrap;gap:16px;border:0;border-bottom:1px solid var(--border-color);border-radius:0;background:transparent}
+.um-inline-account-card .um-account-identity{display:grid;flex:1;gap:10px;min-width:0}
+.um-inline-account-card .um-account-name-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;min-width:0}
+.um-inline-account-card .um-account-name-line strong{color:var(--text-heading);font-size:17px;font-weight:700}
+.um-inline-account-card .um-inline-user-meta{display:grid;grid-template-columns:minmax(230px,1.25fr) minmax(115px,.7fr) minmax(220px,1.2fr);align-items:center;gap:12px 24px;min-width:0;padding:0;border:0;color:var(--text-secondary);font-size:12px}
+.um-inline-account-card .um-inline-user-meta span{display:grid;grid-template-columns:18px minmax(0,1fr);align-items:center;gap:9px;min-width:0;overflow-wrap:anywhere}
+.um-inline-account-card .um-inline-user-meta svg{display:block!important;width:18px!important;height:18px!important;min-width:18px;max-width:18px;flex:none;color:var(--primary,#2563eb)}
+.um-inline-info-section{padding:16px;margin-top:14px;background:var(--hover-bg);border:1px solid var(--border-color);border-radius:12px}
+.um-inline-section-title{display:flex;align-items:center;gap:9px;margin:0 0 14px;font-size:13px;font-weight:700;letter-spacing:.01em}
+.um-inline-section-title:before{content:"";width:3px;height:16px;background:var(--primary,#2563eb);border-radius:3px}
+.um-inline-info-section .um-inline-edit-grid{gap:2px 16px}
+.um-inline-info-section .um-field{margin-bottom:10px}
+.um-inline-info-section .um-field>span{margin-bottom:6px;color:var(--text-secondary);font-size:11px;font-weight:600}
+.um-inline-readonly-value{box-sizing:border-box;display:flex;align-items:center;width:100%;min-height:38px;padding:0 10px;color:var(--text-secondary);font-size:12px;background:var(--hover-bg);border:1px solid var(--border-color);border-radius:8px;cursor:default;user-select:text}
+.um-inline-readonly-note{display:block;margin-top:5px;color:var(--text-secondary);font-size:10px;line-height:1.4}
+.um-inline-info-section .um-inline-role-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.um-inline-info-section input:focus,.um-inline-info-section select:focus{outline:2px solid color-mix(in srgb,var(--primary,#2563eb) 28%,transparent);border-color:var(--primary,#2563eb)}
+@media(max-width:900px){.um-inline-account-card .um-inline-user-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){.um-inline-account-card .um-account-profile{align-items:flex-start;padding:12px}.um-inline-account-card .um-inline-user-meta{grid-template-columns:1fr;gap:10px}.um-inline-info-section{padding:12px}.um-inline-info-section .um-inline-role-grid{grid-template-columns:1fr}}

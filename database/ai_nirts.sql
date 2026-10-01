@@ -86,7 +86,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`userID`, `dateCreated`, `department`, `email`, `employeeId`, `fullName`, `password`, `profilePhoto`, `role`, `status`) VALUES
-(1, '2026-08-27 02:14:23', 'IT Department', 'admin@batangascity.gov.ph', 'ADMIN-001', 'System Administrator', '$2y$10$fhRoPSUT69/nANQSj8yRQuwQoDtSpRz3FuNeHNv2k0HwItnrIRgRW', 'user_1_1788596851_dd38188e91dcacc2.png', 'Admin', 'Active'),
+(1, '2026-08-27 02:14:23', 'IT Department', 'admin@batangascity.gov.ph', 'ADMIN-001', 'Administrator', '$2y$10$fhRoPSUT69/nANQSj8yRQuwQoDtSpRz3FuNeHNv2k0HwItnrIRgRW', 'user_1_1788596851_dd38188e91dcacc2.png', 'Admin', 'Active'),
 (2, '2026-08-27 02:14:23', 'IT Department', 'secretary@batangascity.gov.ph', 'SEC-001', 'System Secretary', '$2y$10$i4/TyNui4mnZ1uoux8lI8.tQThj2mlXJQg37bjdYFbmHRxrtoKKlC', NULL, 'Secretary', 'Active'),
 (3, '2026-09-01 10:54:34', 'Information Technology Services Division', 'itpersonnel@batangascity.gov.ph', 'IT-001', 'IT Personnel', '$2y$10$N4t4Gd6XI1r3aTRMTiaq9uIBNcnwAWMXGKRxl4FtoZbQ0bhOGZPLW', NULL, 'IT Personnel', 'Active'),
 (4, '2026-09-01 10:57:21', 'Office of the City Accountant', 'employee@batangascity.gov.ph', 'EMP-001', 'Employee', '$2y$10$lsko7OG6g/PHox95QTHq/udHgWXd2g19Okk6ApI0HQPppBmWGj416', NULL, 'Employee', 'Active');
@@ -101,17 +101,23 @@ CREATE TABLE `devices` (
   `deviceID` varchar(30) DEFAULT NULL,
   `name` varchar(150) NOT NULL,
   `deviceType` varchar(50) NOT NULL,
-  `status` enum('online','warning','offline') NOT NULL DEFAULT 'online',
+  `status` enum('online','warning','offline') NOT NULL DEFAULT 'offline',
   `ipAddress` varchar(45) NOT NULL,
   `macAddress` varchar(17) DEFAULT NULL,
   `location` varchar(255) NOT NULL,
   `department` varchar(150) NOT NULL,
   `firmware` varchar(100) DEFAULT NULL,
   `assignedUserId` int(11) DEFAULT NULL,
-  `throughput` tinyint(3) unsigned NOT NULL DEFAULT 0,
-  `devicesConnected` int(10) unsigned NOT NULL DEFAULT 0,
+  `throughput` tinyint(3) unsigned DEFAULT NULL,
+  `devicesConnected` int(10) unsigned DEFAULT NULL,
   `createdAt` datetime NOT NULL DEFAULT current_timestamp(),
-  `lastSeen` datetime NOT NULL DEFAULT current_timestamp()
+  `lastSeen` datetime DEFAULT NULL,
+  `monitoringStatus` enum('unknown','online','offline') NOT NULL DEFAULT 'unknown',
+  `pingResponseTimeMs` varchar(20) DEFAULT NULL,
+  `lastPingAt` datetime DEFAULT NULL,
+  `uptimeSeconds` bigint(20) unsigned DEFAULT NULL,
+  `downloadMbps` decimal(12,3) DEFAULT NULL,
+  `uploadMbps` decimal(12,3) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

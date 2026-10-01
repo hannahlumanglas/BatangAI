@@ -1,9 +1,7 @@
 /* Device Monitoring — page-specific styles only.
-   Shell, sidebar, topbar, toolbar, and filter bar are shared from Dashboard.css.
-   Stat cards reuse Dashboard's standard stat-card sizing (4 cards, same as the
-   Admin Dashboard page) so the row fills the container width evenly. */
+   Shell, sidebar, topbar, toolbar, and filter bar are shared from Dashboard.css. */
 
-.dm-stats { grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:20px; }
+.dm-stats { grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin-bottom:20px; }
 
 /* Keep the "Live" toggle the same height as the search bar / Add Device button. */
 .incident-tools .live { height:47px; padding:0 18px; }
@@ -36,11 +34,15 @@
 .dm-card-header-right p.online { color:var(--success); }
 .dm-card-header-right p.warning { color:var(--warning); }
 .dm-card-header-right p.offline { color:var(--danger); }
+.dm-card-header-right p.unknown { color:var(--text-secondary); }
 .dm-card-header-right > .admin-icon { width:18px; height:18px; color:var(--text-muted); transition:transform .18s ease, color .18s ease; }
 .dm-card.expanded .dm-card-header-right > .admin-icon { color:var(--primary); transform:rotate(180deg); }
 .dm-more { display:grid; width:28px; height:28px; place-items:center; color:var(--text-secondary); background:transparent; border:0; border-radius:6px; cursor:pointer; }
 .dm-more:hover { background:var(--hover-bg); }
 .dm-more .admin-icon { width:15px; height:15px; }
+.dm-ping { padding:6px 12px; color:var(--primary); font:inherit; font-size:var(--font-secondary); font-weight:700; background:var(--card-bg); border:1px solid var(--border-color); border-radius:7px; cursor:pointer; }
+.dm-ping:hover:not(:disabled) { background:var(--hover-bg); }
+.dm-ping:disabled { opacity:.65; cursor:wait; }
 
 /* Expanded details — two columns: full field list on the left, Throughput bar
    plus Devices Connected / Uptime metric cards on the right (see reference mockup). */
@@ -57,11 +59,15 @@
 .dm-metric-card { padding:14px 16px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; }
 .dm-throughput-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; color:var(--text-secondary); font-size:var(--font-secondary); }
 .dm-throughput-head b { color:var(--text-heading); font-size:var(--font-metric); }
+.dm-traffic-values { display:grid; gap:8px; color:var(--text-secondary); font-size:var(--font-secondary); }
+.dm-traffic-values span { display:flex; justify-content:space-between; gap:12px; }
+.dm-traffic-values b { color:var(--text-heading); font-weight:600; text-align:right; }
 .dm-metric-card { display:flex; align-items:center; gap:10px; }
 .dm-metric-icon { display:grid; place-items:center; color:var(--primary); }
 .dm-metric-icon .admin-icon { width:18px; height:18px; }
 .dm-metric-label { margin-right:auto; color:var(--text-heading); font-size:var(--font-secondary); font-weight:600; }
 .dm-metric-value { color:var(--text-heading); font-size:var(--font-metric); }
+.dm-source-note { margin:0; color:var(--text-secondary); font-size:var(--font-secondary); line-height:1.45; }
 
 .dm-meter { height:6px; background:var(--border-color); border-radius:6px; overflow:hidden; }
 .dm-meter i { display:block; width:43%; height:100%; background:var(--success); border-radius:inherit; }
@@ -70,11 +76,12 @@
 
 /* Collapsed by default — zero height, nothing reserved. Only grows once a row is opened. */
 .dm-card-details { max-height:0; overflow:hidden; transition:max-height .28s ease; }
-.dm-card.expanded .dm-card-details { max-height:360px; }
+.dm-card.expanded .dm-card-details { max-height:500px; }
 
-@media(max-width:900px){ .dm-details-grid{grid-template-columns:1fr} .dm-details-list{padding-right:0; border-right:0; padding-bottom:16px; border-bottom:1px solid var(--border-color)} .dm-card.expanded .dm-card-details{max-height:640px} }
+@media(max-width:900px){ .dm-details-grid{grid-template-columns:1fr} .dm-details-list{padding-right:0; border-right:0; padding-bottom:16px; border-bottom:1px solid var(--border-color)} .dm-card.expanded .dm-card-details{max-height:700px} }
 
-@media(max-width:650px){ .dm-stats{grid-template-columns:repeat(2,1fr)} }
+@media(max-width:900px){ .dm-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media(max-width:650px){ .dm-stats{grid-template-columns:1fr} }
 /* ---------- Dark mode ---------- */
 :root[data-theme="dark"] .dm-filter-select { background:var(--card-bg); border-color:var(--card-border); color:var(--text-secondary); }
 :root[data-theme="dark"] .dm-filter-select select { background:var(--card-bg); color:var(--text-primary); }

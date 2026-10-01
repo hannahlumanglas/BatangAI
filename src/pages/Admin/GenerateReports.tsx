@@ -22,6 +22,7 @@ type IconName =
   | 'menu'
   | 'bell'
   | 'download'
+  | 'print'
   | 'check'
   | 'alert'
   | 'assign'
@@ -87,6 +88,12 @@ function Icon({ name }: { name: IconName }) {
         <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
       </>
     ),
+    print: (
+      <>
+        <path d="M7 8V3h10v5M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2" />
+        <path d="M7 14h10v7H7zM17 11h.01" />
+      </>
+    ),
     check: (
       <>
         <circle cx="12" cy="12" r="9" />
@@ -138,7 +145,6 @@ const reportTypes = [
 ]
 
 const months = [
-  'All Months',
   'January',
   'February',
   'March',
@@ -156,7 +162,7 @@ const months = [
 const years = ['2026', '2025', '2024', '2023']
 
 const MONTH_TO_INDEX = new Map(
-  months.slice(1).map((monthName, index) => [monthName, index + 1]),
+  months.map((monthName, index) => [monthName, index + 1]),
 )
 
 type Incident = {
@@ -197,23 +203,6 @@ type BuiltReport = {
   headers: string[]
   rows: (string | number)[][]
   filename: string
-}
-
-function escapeCSVCell(value: string | number | null | undefined): string {
-  const text = String(value ?? '')
-
-  return /[",\n]/.test(text)
-    ? `"${text.replace(/"/g, '""')}"`
-    : text
-}
-
-function toCSV(
-  headers: string[],
-  rows: (string | number)[][],
-): string {
-  return [headers, ...rows]
-    .map(row => row.map(escapeCSVCell).join(','))
-    .join('\n')
 }
 
 function normalizeStatus(status: string | null | undefined): string {
@@ -265,7 +254,8 @@ function getDateParts(value: string | null | undefined): {
 
 function matchesPeriod(
   dateValue: string | null | undefined,
-  month: string,
+  startMonth: string,
+  endMonth: string,
   year: string,
 ): boolean {
   const parts = getDateParts(dateValue)
@@ -276,11 +266,9 @@ function matchesPeriod(
     return false
   }
 
-  if (month === 'All Months') {
-    return true
-  }
-
-  return parts.month === MONTH_TO_INDEX.get(month)
+  const startMonthIndex = MONTH_TO_INDEX.get(startMonth) ?? 1
+  const endMonthIndex = MONTH_TO_INDEX.get(endMonth) ?? 12
+  return parts.month >= startMonthIndex && parts.month <= endMonthIndex
 }
 
 function getIncidentDate(incident: Incident): string | null {
@@ -338,14 +326,11 @@ function getDuration(incident: Incident): number {
 function buildReport(
   reportType: string,
   incidents: Incident[],
-  month: string,
+  startMonth: string,
+  endMonth: string,
   year: string,
 ): BuiltReport {
-  const periodLabel = (
-    month === 'All Months'
-      ? year
-      : `${month}-${year}`
-  )
+  const periodLabel = `${startMonth}-to-${endMonth}-${year}`
     .replace(/\s+/g, '-')
     .toLowerCase()
 
@@ -357,7 +342,8 @@ function buildReport(
   const periodIncidents = incidents.filter(incident =>
     matchesPeriod(
       getIncidentDate(incident),
-      month,
+      startMonth,
+      endMonth,
       year,
     ),
   )
@@ -601,30 +587,6 @@ function buildReport(
     ]),
     filename: `${slug}-${periodLabel}.csv`,
   }
-}
-
-function downloadCSV(
-  filename: string,
-  csvContent: string,
-) {
-  const blob = new Blob(
-    [`\uFEFF${csvContent}`],
-    {
-      type: 'text/csv;charset=utf-8;',
-    },
-  )
-
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-
-  link.href = url
-  link.download = filename
-
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-
-  URL.revokeObjectURL(url)
 }
 
 /* ---------- Theme ---------- */
@@ -1004,8 +966,11 @@ function GenerateReports() {
   const [reportType, setReportType] =
     useState(reportTypes[0])
 
-  const [month, setMonth] =
+  const [startMonth, setStartMonth] =
     useState(months[0])
+
+  const [endMonth, setEndMonth] =
+    useState(months[months.length - 1])
 
   const [year, setYear] =
     useState(years[0])
@@ -1153,7 +1118,8 @@ function GenerateReports() {
       const report = buildReport(
         reportType,
         incidents,
-        month,
+        startMonth,
+        endMonth,
         year,
       )
 
@@ -1161,11 +1127,7 @@ function GenerateReports() {
         setMessageTone('error')
 
         setMessage(
-          `No records found for ${reportType.toLowerCase()}${
-            month === 'All Months'
-              ? ''
-              : ` in ${month}`
-          } ${year}.`,
+          `No records found for ${reportType.toLowerCase()} from ${startMonth} to ${endMonth} ${year}.`,
         )
 
         return
@@ -1175,7 +1137,7 @@ function GenerateReports() {
       setMessageTone('success')
 
       setMessage(
-        `${report.filename} is ready to preview. Click Download Report when you are ready to save it.`,
+        `${report.filename} is ready to preview and print.`,
       )
     } catch (error) {
       setMessageTone('error')
@@ -1188,29 +1150,6 @@ function GenerateReports() {
     } finally {
       setGenerating(false)
     }
-  }
-
-  const handleDownload = () => {
-    if (!generatedReport) {
-      return
-    }
-
-    downloadCSV(
-      generatedReport.filename,
-      toCSV(
-        generatedReport.headers,
-        generatedReport.rows,
-      ),
-    )
-
-    setMessageTone('success')
-    setMessage(
-      `${generatedReport.filename} downloaded — ${generatedReport.rows.length} record${
-        generatedReport.rows.length === 1
-          ? ''
-          : 's'
-      }.`,
-    )
   }
 
   return (
@@ -1330,12 +1269,16 @@ function GenerateReports() {
               </label>
 
               <label>
-                Month (optional)
+                From Month
                 <select
-                  value={month}
-                  onChange={e =>
-                    setMonth(e.target.value)
-                  }
+                  value={startMonth}
+                  onChange={e => {
+                    const nextStartMonth = e.target.value
+                    setStartMonth(nextStartMonth)
+                    if ((MONTH_TO_INDEX.get(endMonth) ?? 12) < (MONTH_TO_INDEX.get(nextStartMonth) ?? 1)) {
+                      setEndMonth(nextStartMonth)
+                    }
+                  }}
                   disabled={
                     loading || generating
                   }
@@ -1350,6 +1293,23 @@ function GenerateReports() {
                       </option>
                     ),
                   )}
+                </select>
+              </label>
+
+              <label>
+                To Month
+                <select
+                  value={endMonth}
+                  onChange={e => setEndMonth(e.target.value)}
+                  disabled={loading || generating}
+                >
+                  {months
+                    .filter(monthName => (MONTH_TO_INDEX.get(monthName) ?? 0) >= (MONTH_TO_INDEX.get(startMonth) ?? 1))
+                    .map(monthName => (
+                      <option key={monthName} value={monthName}>
+                        {monthName}
+                      </option>
+                    ))}
                 </select>
               </label>
 
@@ -1444,7 +1404,7 @@ function GenerateReports() {
           </article>
 
           {generatedReport && (
-            <article className="dashboard-card gr-card">
+            <article className="dashboard-card gr-card gr-print-area">
               <h2>
                 <Icon name="reports" />
                 Report Preview
@@ -1454,8 +1414,8 @@ function GenerateReports() {
                 Previewing {generatedReport.filename} — {generatedReport.rows.length} record{generatedReport.rows.length === 1 ? '' : 's'}.
               </p>
 
-              <div style={{ overflowX: 'auto', marginTop: '16px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div className="gr-preview-table-wrap" style={{ overflowX: 'auto', marginTop: '16px' }}>
+                <table className="gr-preview-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
                       {generatedReport.headers.map(header => (
@@ -1497,11 +1457,11 @@ function GenerateReports() {
               <button
                 className="incident-new gr-generate"
                 type="button"
-                onClick={handleDownload}
+                onClick={() => window.print()}
                 style={{ marginTop: '16px' }}
               >
-                <Icon name="download" />
-                Download Report
+                <Icon name="print" />
+                Print Report
               </button>
             </article>
           )}

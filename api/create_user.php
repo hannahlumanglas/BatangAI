@@ -306,6 +306,18 @@ if (!$stmt->execute()) {
 }
 
 $newUserId = $conn->insert_id;
+$createdAt = null;
+$dateStmt = $conn->prepare("SELECT dateCreated FROM users WHERE userID = ? LIMIT 1");
+if ($dateStmt) {
+    $dateStmt->bind_param("i", $newUserId);
+    if ($dateStmt->execute()) {
+        $dateResult = $dateStmt->get_result();
+        if ($dateRow = $dateResult->fetch_assoc()) {
+            $createdAt = $dateRow["dateCreated"];
+        }
+    }
+    $dateStmt->close();
+}
 
 /*
  * ---------------------------------------------------------
@@ -323,7 +335,8 @@ echo json_encode([
         "department" => $department,
         "email" => $email,
         "role" => $role,
-        "status" => $status
+        "status" => $status,
+        "dateCreated" => $createdAt
     ]
 ]);
 

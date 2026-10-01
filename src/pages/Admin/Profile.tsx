@@ -96,6 +96,9 @@ function getAccountFromSession(
   }
 
   const user = session.user
+  const fullName = user.fullName.trim().toLowerCase() === 'system administrator'
+    ? 'Administrator'
+    : user.fullName
 
   const paths: Record<
     Audience,
@@ -128,12 +131,12 @@ function getAccountFromSession(
   const path = paths[audience]
 
   return {
-    name: user.fullName,
+    name: fullName,
     email: user.email,
     id: user.employeeId,
     department: user.department,
     role: user.role,
-    initial: user.fullName
+    initial: fullName
       .split(/\s+/)
       .map(part => part[0])
       .slice(0, 2)

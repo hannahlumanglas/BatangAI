@@ -58,6 +58,12 @@ function isAuthUser(value: unknown): value is AuthUser {
   )
 }
 
+function normalizeAccountDisplayName(fullName: string) {
+  return fullName.trim().toLowerCase() === 'system administrator'
+    ? 'Administrator'
+    : fullName
+}
+
 /**
  * Creates a default profile avatar using the actual
  * logged-in user's full name.
@@ -217,7 +223,10 @@ export async function signIn(
       }
     }
 
-    const user = payload.user
+    const user = {
+      ...payload.user,
+      fullName: normalizeAccountDisplayName(payload.user.fullName),
+    }
 
     const session: AuthSession = {
       user,
@@ -266,7 +275,17 @@ export function getAuthSession(): AuthSession | null {
       return null
     }
 
-    const user = parsed.user
+    const user = {
+      ...parsed.user,
+      fullName: normalizeAccountDisplayName(parsed.user.fullName),
+    }
+
+    if (user.fullName !== parsed.user.fullName) {
+      localStorage.setItem(
+        AUTH_STORAGE_KEY,
+        JSON.stringify({ user, isAuthenticated: true }),
+      )
+    }
 
     return {
       user,

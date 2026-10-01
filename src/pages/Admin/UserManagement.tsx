@@ -26,13 +26,6 @@ type UserRole =
 
 type UserStatus = 'Active' | 'Inactive'
 
-type UserAccountAction =
-  | 'edit'
-  | 'reset'
-  | 'disable'
-
-type UserPanelMode = 'view' | 'edit' | 'reset'
-
 type User = {
   id: string
   userID?: number | string
@@ -283,17 +276,6 @@ function Icon({ name }: { name: IconName }) {
   )
 }
 /* ---------- Small shared pieces ---------- */
-function RoleBadge({ role }: { role: UserRole }) {
-  return (
-    <span
-      className={`role role--${role
-        .toLowerCase()
-        .replace(/ /g, '-')}`}
-    >
-      {role}
-    </span>
-  )
-}
 function StatusBadge({ status }: { status: UserStatus }) {
   return (
     <span
@@ -365,6 +347,9 @@ function UserDirectoryRow({
     </div>
   )
 }
+function getRoleLabel(role: UserRole) {
+  return role === 'Secretary' ? 'Help Desk' : role
+}
 /* =========================================================
    CHANGE PASSWORD
    Existing UI retained.
@@ -394,6 +379,7 @@ function ChangePasswordCard({
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [currentPasswordFocused, setCurrentPasswordFocused] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
@@ -529,18 +515,19 @@ function ChangePasswordCard({
         <div>
           <p className="um-eyebrow">Security</p>
           <h2>
-            {resetMode ? 'Reset Password' : 'Password & Security'}
+            {resetMode ? 'Security' : 'Password & Security'}
           </h2>
-          <span>Confirm your current Administrator password before setting a new password for {user.name}.</span>
+          <span>{resetMode ? `Reset the password for ${user.name}'s account. Enter your current Administrator password to authorize.` : `Confirm your current Administrator password before setting a new password for ${user.name}.`}</span>
         </div>
       </header>
 
       <label className="um-field">
-        <span>Your Current Administrator Password</span>
+        <span>Current Password</span>
         <div className="um-password-input-wrap">
-          <input type={showCurrentPassword ? 'text' : 'password'} value={currentPassword}
+          <input type={showCurrentPassword ? 'text' : 'password'} name={`user-management-current-${user.id}`} value={currentPassword}
+            readOnly={!currentPasswordFocused} onFocus={() => setCurrentPasswordFocused(true)}
             onChange={e => { setCurrentPassword(e.target.value); setError(''); setSuccess('') }}
-            placeholder="Enter your current password" autoComplete="current-password" disabled={updating} />
+            placeholder="Enter your current password" autoComplete="new-password" disabled={updating} />
           <button type="button" onClick={() => setShowCurrentPassword(value => !value)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
             <PasswordVisibilityIcon visible={showCurrentPassword} />
           </button>
@@ -592,7 +579,7 @@ function ChangePasswordCard({
         <button
           type="button"
           className="um-btn-secondary"
-          onClick={resetMode ? onCancel : clearForm}
+          onClick={resetMode ? (onCancel ?? clearForm) : clearForm}
           disabled={updating}
         >
           Cancel
@@ -603,10 +590,26 @@ function ChangePasswordCard({
 }
 
 /* SELECTED USER DETAILS*/
-function EditUserCard({ user, onSaved, onCancel }: { user: User; onSaved: () => Promise<void>; onCancel: () => void }) {
+function UserDetails({
+  user,
+  departments,
+  onSaved,
+  onClose,
+  onToggleStatus,
+}: {
+  user: User
+  departments: string[]
+  onSaved: () => Promise<void>
+  onClose: () => void
+  onToggleStatus: (user: User) => Promise<void>
+}) {
+  const departmentOptions = [...new Set([...departments, user.department].map(item => item.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
   const [values, setValues] = useState({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    setValues({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
+  }, [user.name, user.employeeId, user.email, user.department, user.role])
   const save = async () => {
     if (!values.name.trim() || !values.employeeId.trim() || !values.department.trim() || !values.email.trim()) { setError('Complete all account fields before saving.'); return }
     try {
@@ -615,29 +618,13 @@ function EditUserCard({ user, onSaved, onCancel }: { user: User; onSaved: () => 
       await onSaved()
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save user changes.') } finally { setSaving(false) }
   }
-  return <article className="dashboard-card um-edit-card"><header><div><h2>Edit User</h2><p>Update account details and access role.</p></div><button className="um-text-button" type="button" onClick={onCancel}>Cancel</button></header><div className="um-edit-grid"><label className="um-field"><span>Full Name</span><input value={values.name} onChange={e => setValues(current => ({ ...current, name: e.target.value }))} /></label><label className="um-field"><span>Employee ID</span><input value={values.employeeId} onChange={e => setValues(current => ({ ...current, employeeId: e.target.value }))} /></label><label className="um-field"><span>Email Address</span><input type="email" value={values.email} onChange={e => setValues(current => ({ ...current, email: e.target.value }))} /></label><label className="um-field"><span>Department</span><input value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))} /></label><label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option>Secretary</option><option>IT Personnel</option><option>Administrator</option></select></label></div>{error && <p className="um-form-message um-form-error">{error}</p>}<footer><button className="um-btn-secondary" type="button" onClick={onCancel}>Cancel</button><button className="um-btn-primary" type="button" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer></article>
-}
-function UserDetails({
-  user,
-  mode,
-  onModeChange,
-  onSaved,
-  onAction,
-}: {
-  user: User
-  mode: UserPanelMode
-  onModeChange: (mode: UserPanelMode) => void
-  onSaved: () => Promise<void>
-  onAction: (action: UserAccountAction, user: User) => void
-}) {
   return (
-    <div className={`um-details-grid um-details-grid--${mode}`}>
-      <article className="dashboard-card um-account-card">
+    <div className="um-inline-profile-content">
+      <article className="dashboard-card um-account-card um-inline-account-card">
         <header className="um-panel-heading um-account-heading">
           <div>
             <p className="um-eyebrow">User profile</p>
             <h2>Account Information</h2>
-            <span>Identity, contact details, and access level.</span>
           </div>
         </header>
 
@@ -653,50 +640,39 @@ function UserDetails({
             />
           </span>
 
-          <div>
-            <strong>{user.name}</strong>
-            <StatusBadge status={user.status} />
+          <div className="um-account-identity">
+            <div className="um-account-name-line">
+              <strong>{user.name}</strong>
+              <StatusBadge status={user.status} />
+            </div>
+            <div className="um-inline-user-meta">
+              <span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>{user.email}</span>
+              <span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>{getRoleLabel(user.role)}</span>
+              <span><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-5h6v5M8 9h1m6 0h1m-8 3h1m6 0h1"/></svg>{user.department}</span>
+            </div>
           </div>
         </div>
 
-        <dl className="um-account-fields">
-          <div>
-            <dt>Email Address</dt>
-            <dd>{user.email}</dd>
+        <section className="um-inline-info-section">
+          <h3 className="um-inline-section-title">Account Information</h3>
+          <div className="um-inline-edit-grid">
+            <label className="um-field"><span>Full Name</span><input value={values.name} onChange={e => setValues(current => ({ ...current, name: e.target.value }))} /></label>
+            <label className="um-field"><span>Employee ID</span><input value={values.employeeId} onChange={e => setValues(current => ({ ...current, employeeId: e.target.value }))} /></label>
+            <label className="um-field"><span>Email Address</span><input type="email" value={values.email} onChange={e => setValues(current => ({ ...current, email: e.target.value }))} /></label>
+            <div className="um-field"><span>Date Joined</span><div className="um-inline-readonly-value">{user.joined || 'Not available'}</div><small className="um-inline-readonly-note">Automatically set when the account is created</small></div>
           </div>
-
-          <div>
-            <dt>Employee ID</dt>
-            <dd>{user.employeeId}</dd>
+        </section>
+        <section className="um-inline-info-section">
+          <h3 className="um-inline-section-title">Role Details</h3>
+          <div className="um-inline-edit-grid um-inline-role-grid">
+            <label className="um-field"><span>Department</span><select value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))}><option value="" disabled>Select department</option>{departmentOptions.map(department => <option key={department} value={department}>{department}</option>)}</select></label>
+            <label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option value="Secretary">Help Desk</option><option>IT Personnel</option><option>Administrator</option></select></label>
           </div>
-
-          <div>
-            <dt>Department</dt>
-            <dd>{user.department}</dd>
-          </div>
-
-          <div>
-            <dt>Role</dt>
-            <dd>
-              <RoleBadge role={user.role} />
-            </dd>
-          </div>
-
-          <div>
-            <dt>Joined</dt>
-            <dd>{user.joined || 'Not available'}</dd>
-          </div>
-        </dl>
-        {mode === 'view' && <footer className="um-account-actions" aria-label="User account actions">
-          <button type="button" className="um-btn-secondary" onClick={() => onAction('edit', user)}>Edit User</button>
-          <button type="button" className="um-btn-secondary" onClick={() => onAction('reset', user)}>Reset Password</button>
-          <button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => onAction('disable', user)}>
-            {user.status === 'Active' ? 'Disable Account' : 'Enable Account'}
-          </button>
-        </footer>}
+        </section>
+        {error && <p className="um-form-message um-form-error">{error}</p>}
       </article>
-      {mode === 'edit' && <EditUserCard user={user} onSaved={onSaved} onCancel={() => onModeChange('view')} />}
-      {mode === 'reset' && <ChangePasswordCard user={user} onSaved={onSaved} onCancel={() => onModeChange('view')} resetMode />}
+      <ChangePasswordCard user={user} onSaved={onSaved} resetMode />
+      <footer className="um-inline-save-actions"><button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => void onToggleStatus(user)}>{user.status === 'Active' ? 'Disable Account' : 'Enable Account'}</button><span className="um-inline-save-spacer" /><button type="button" className="um-btn-secondary" onClick={onClose}>Cancel</button><button type="button" className="um-btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer>
     </div>
   )
 }
@@ -977,7 +953,7 @@ function CreateUserModal({
             </h2>
 
             <p>
-              Add a new Employee, Secretary,
+              Add a new Employee, Help Desk,
               or IT Personnel account.
             </p>
           </div>
@@ -1213,7 +1189,7 @@ function CreateUserModal({
               </option>
 
               <option value="Secretary">
-                Secretary
+                Help Desk
               </option>
 
               <option value="Administrator">
@@ -1658,7 +1634,6 @@ function UserManagement() {
   const [selectedUserId, setSelectedUserId] =
     useState<string | null>(null)
   const [showCreateUser, setShowCreateUser] = useState(false)
-  const [panelMode, setPanelMode] = useState<UserPanelMode>('view')
   const [loadingUsers, setLoadingUsers] =
     useState(true)
   const [usersError, setUsersError] =
@@ -1666,7 +1641,9 @@ function UserManagement() {
   const session =
     getAuthSession()
   const adminName =
-    session?.user?.fullName ||
+    (session?.user?.fullName?.trim().toLowerCase() === 'system administrator'
+      ? 'Administrator'
+      : session?.user?.fullName) ||
     'Administrator'
   const adminRole =
     session?.user?.role ||
@@ -1751,12 +1728,12 @@ function UserManagement() {
               unknown
             >,
           ) => {
-            const name =
-              String(
-                item.fullName ??
-                  item.name ??
-                  'Unknown User',
-              )
+            const storedName = String(
+              item.fullName ?? item.name ?? 'Unknown User',
+            )
+            const name = storedName.trim().toLowerCase() === 'system administrator'
+              ? 'Administrator'
+              : storedName
             const userID =
               item.userID ??
               item.id
@@ -1857,7 +1834,6 @@ function UserManagement() {
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setSelectedUserId(null)
-        setPanelMode('view')
       }
     }
     document.addEventListener('keydown', closeOnEscape)
@@ -1865,8 +1841,7 @@ function UserManagement() {
   }, [selectedUserId])
   /* ---------- Search / Filter ---------- */
   const shown = useMemo(
-    () =>
-      !roleFilter && !departmentFilter ? [] : users.filter(
+    () => users.filter(
         user => (!roleFilter || user.role === roleFilter) &&
           (!departmentFilter || user.department === departmentFilter) &&
           user.name
@@ -1893,114 +1868,37 @@ function UserManagement() {
   const handleSelect = (
     id: string,
   ) => {
-    setPanelMode('view')
     setSelectedUserId(id)
   }
-  const handleUserAction = async (
-    action: UserAccountAction,
-    user: User,
-  ) => {
-    switch (action) {
-      case 'edit':
-        setSelectedUserId(user.id)
-        setPanelMode('edit')
-        break
-      case 'reset':
-        setSelectedUserId(user.id)
-        setPanelMode('reset')
-        break
-      case 'disable': {
-        const nextStatus: UserStatus =
-          user.status ===
-          'Active'
-            ? 'Inactive'
-            : 'Active'
-        const verb =
-          nextStatus ===
-          'Inactive'
-            ? 'disable'
-            : 're-enable'
-        if (
-          !window.confirm(
-            `Are you sure you want to ${verb} ${user.name}'s account?`,
-          )
-        ) {
-          break
-        }
-        const adminUserID = session?.user?.userID
-        const targetUserID = user.userID
-        if (
-          adminUserID === undefined ||
-          adminUserID === null ||
-          String(adminUserID).trim() === ''
-        ) {
-          window.alert(
-            'Administrator session not found. Please log in again.',
-          )
-          break
-        }
-        if (
-          targetUserID === undefined ||
-          targetUserID === null ||
-          String(targetUserID).trim() === ''
-        ) {
-          window.alert(
-            'Unable to identify the selected user.',
-          )
-          break
-        }
-        try {
-          const response = await fetch(
-            UPDATE_USER_STATUS_API_URL,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-              },
-              body: JSON.stringify({
-                adminUserID,
-                userID: targetUserID,
-                status: nextStatus,
-              }),
-            },
-          )
-          const data = await response.json()
-          if (!response.ok || !data.success) {
-            throw new Error(
-              data.message ||
-                'Unable to update the account status.',
-            )
-          }
-          const updatedStatus =
-            data.user?.status === 'Inactive'
-              ? 'Inactive'
-              : 'Active'
-          setUsers(
-            current =>
-              current.map(
-                u =>
-                  u.id === user.id
-                    ? {
-                        ...u,
-                        status: updatedStatus,
-                      }
-                    : u,
-              ),
-          )
-          window.alert(
-            data.message ||
-              `${user.name}'s account is now ${updatedStatus}.`,
-          )
-        } catch (requestError) {
-          window.alert(
-            requestError instanceof Error
-              ? requestError.message
-              : 'Unable to update the account status. Please try again.',
-          )
-        }
-        break
-      }
+  const handleToggleUserStatus = async (user: User) => {
+    const nextStatus: UserStatus = user.status === 'Active' ? 'Inactive' : 'Active'
+    const verb = nextStatus === 'Inactive' ? 'disable' : 're-enable'
+    if (!window.confirm(`Are you sure you want to ${verb} ${user.name}'s account?`)) return
+
+    const adminUserID = session?.user?.userID
+    if (adminUserID === undefined || adminUserID === null || String(adminUserID).trim() === '') {
+      window.alert('Administrator session not found. Please log in again.')
+      return
+    }
+    const targetUserID = user.userID
+    if (targetUserID === undefined || targetUserID === null || String(targetUserID).trim() === '') {
+      window.alert('Unable to identify the selected user.')
+      return
+    }
+
+    try {
+      const response = await fetch(UPDATE_USER_STATUS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ adminUserID, userID: targetUserID, status: nextStatus }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.message || 'Unable to update the account status.')
+      const updatedStatus: UserStatus = data.user?.status === 'Inactive' ? 'Inactive' : 'Active'
+      setUsers(current => current.map(item => item.id === user.id ? { ...item, status: updatedStatus } : item))
+      window.alert(data.message || `${user.name}'s account is now ${updatedStatus}.`)
+    } catch (requestError) {
+      window.alert(requestError instanceof Error ? requestError.message : 'Unable to update the account status. Please try again.')
     }
   }
   /* AFTER CREATE */
@@ -2020,7 +1918,6 @@ function UserManagement() {
     setQuery('')
     setRoleFilter('')
     setDepartmentFilter('')
-    setPanelMode('view')
   }
   /* RENDER*/
   return (
@@ -2125,6 +2022,7 @@ function UserManagement() {
         </header>
         {/*  CONTENT*/}
         <div className="dashboard-content">
+          {!selectedUser && <>
           {/* SEARCH / FILTER / CREATE */}
           <section className="incident-tools um-tools">
             <label className="incident-search">
@@ -2144,9 +2042,9 @@ function UserManagement() {
             <label className="um-filter-select">
               Role
               <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
-                <option value="">Select role</option>
+                <option value="">All roles</option>
                 <option>Employee</option>
-                <option>Secretary</option>
+                <option value="Secretary">Help Desk</option>
                 <option>IT Personnel</option>
                 <option>Administrator</option>
               </select>
@@ -2155,7 +2053,7 @@ function UserManagement() {
             <label className="um-filter-select">
               Department
               <select value={departmentFilter} onChange={event => setDepartmentFilter(event.target.value)}>
-                <option value="">Select department</option>
+                <option value="">All departments</option>
                 {departments.map(item => <option key={item}>{item}</option>)}
               </select>
             </label>
@@ -2194,34 +2092,22 @@ function UserManagement() {
                 {shown.map(user => <UserDirectoryRow key={user.id} user={user} onSelect={handleSelect} />)}
               </div>
             </section>
-          ) : roleFilter || departmentFilter ? (
+          ) : (
             <div className="um-empty">
               No users match your search or filters.
             </div>
-          ) : (
-            <div className="um-empty">
-              Select a role or department to display matching users.
-            </div>
+          )}
+          </>}
+          {selectedUser && (
+            <section className="um-inline-user-details" aria-label={`Profile and account security for ${selectedUser.name}`}>
+              <button className="um-inline-details-close" type="button" onClick={() => setSelectedUserId(null)} aria-label="Close user details">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
+              </button>
+              <UserDetails user={selectedUser} departments={departments} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} />
+            </section>
           )}
         </div>
       </main>
-      {selectedUser && (
-        <div className="um-modal-backdrop" role="presentation" onMouseDown={event => {
-          if (event.target === event.currentTarget) {
-            setSelectedUserId(null)
-            setPanelMode('view')
-          }
-        }}>
-          <section className={`um-modal${panelMode === 'view' ? ' is-profile-mode' : ' is-workflow-mode'}`}
-            role="dialog" aria-modal="true" aria-label={`${panelMode === 'edit' ? 'Edit' : panelMode === 'reset' ? 'Reset password for' : 'Profile for'} ${selectedUser.name}`}>
-            <button className="um-modal-close" type="button" onClick={() => { setSelectedUserId(null); setPanelMode('view') }} aria-label="Close">
-              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
-            </button>
-            <UserDetails user={selectedUser} mode={panelMode} onModeChange={setPanelMode} onAction={handleUserAction}
-              onSaved={async () => { await loadUsers(); setPanelMode('view') }} />
-          </section>
-        </div>
-      )}
       {/* CREATE USER MODAL */}
       {showCreateUser && (
         <CreateUserModal

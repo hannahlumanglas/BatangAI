@@ -520,7 +520,7 @@ function ProfileMenu({
 
 /* ---------- Device data ---------- */
 
-type DeviceStatus = 'online' | 'warning' | 'offline'
+type DeviceStatus = 'unknown' | 'online' | 'offline'
 
 type DeviceType = 'Router' | 'Switch' | 'Access Point'
 
@@ -534,17 +534,22 @@ interface Device {
   location: string
   department: string
   firmware: string
+  registeredAt: string
   lastSeen: string
-  throughput: number
-  devicesConnected: number
-  uptime: string
+  throughput: number | null
+  devicesConnected: number | null
+  uptime: string | null
+  downloadMbps: number | null
+  uploadMbps: number | null
+  pingResponseTimeMs: string | null
+  lastPingAt: string | null
   assignedUserId?: string | null
   assignedUserName?: string | null
 }
 
 type DeviceDraft = Omit<
   Device,
-  'id' | 'lastSeen' | 'uptime' | 'assignedUserName'
+  'id' | 'status' | 'registeredAt' | 'lastSeen' | 'uptime' | 'throughput' | 'devicesConnected' | 'downloadMbps' | 'uploadMbps' | 'pingResponseTimeMs' | 'lastPingAt' | 'assignedUserName'
 >
 
 type UserOption = {
@@ -578,10 +583,12 @@ const departments = [
   'Office of the Mayor',
 ]
 
-function meterClass(status: DeviceStatus) {
-  if (status === 'offline') return 'dm-meter offline'
-  if (status === 'warning') return 'dm-meter warning'
-  return 'dm-meter'
+function statusIcon(status: DeviceStatus): IconName {
+  return status === 'unknown' ? 'warning' : status
+}
+
+function formatMbps(value: number | null) {
+  return value === null ? 'Unavailable' : `${value.toFixed(2)} Mbps`
 }
 
 function deviceIcon(type: DeviceType): IconName {
@@ -592,10 +599,14 @@ function DeviceCard({
   device,
   expanded,
   onToggle,
+  onPing,
+  pinging,
 }: {
   device: Device
   expanded: boolean
   onToggle: () => void
+  onPing: () => void
+  pinging: boolean
 }) {
   return (
     <article
@@ -637,22 +648,25 @@ function DeviceCard({
 
         <div className="dm-card-header-right">
           <p className={device.status}>
-            <Icon name={device.status} />
+            <Icon name={statusIcon(device.status)} />
 
             {device.status === 'online'
               ? 'Online'
-              : device.status === 'warning'
-                ? 'Warning'
-                : 'Offline'}
+              : device.status === 'offline'
+                ? 'Offline'
+                : 'Unknown'}
           </p>
 
           <button
-            className="dm-more"
+            className="dm-ping"
             type="button"
-            aria-label="Device actions"
-            onClick={e => e.stopPropagation()}
+            disabled={pinging}
+            onClick={e => {
+              e.stopPropagation()
+              onPing()
+            }}
           >
-            <Icon name="dots" />
+            {pinging ? 'Pinging…' : 'Ping'}
           </button>
 
           <Icon name="chevron" />
@@ -701,26 +715,35 @@ function DeviceCard({
               </div>
 
               <div>
+                <dt>Date Registered</dt>
+                <dd>{device.registeredAt}</dd>
+              </div>
+
+              <div>
                 <dt>Last Seen</dt>
-                <dd>{device.lastSeen}</dd>
+                <dd>{device.lastSeen || 'Never'}</dd>
+              </div>
+
+              <div>
+                <dt>Ping Response</dt>
+                <dd>{!device.lastPingAt
+                  ? 'Not checked'
+                  : device.status === 'offline'
+                    ? 'Timeout (2 attempts)'
+                    : device.pingResponseTimeMs
+                      ? `${device.pingResponseTimeMs} ms`
+                      : 'Reachable (response time unavailable)'}</dd>
               </div>
             </dl>
 
             <div className="dm-details-side">
               <div className="dm-throughput-card">
                 <div className="dm-throughput-head">
-                  <span>Throughput</span>
-                  <b>{device.throughput}%</b>
+                  <span>Network Traffic</span>
                 </div>
-
-                <div
-                  className={meterClass(device.status)}
-                >
-                  <i
-                    style={{
-                      width: `${device.throughput}%`,
-                    }}
-                  />
+                <div className="dm-traffic-values">
+                  <span>Download <b>{formatMbps(device.downloadMbps)}</b></span>
+                  <span>Upload <b>{formatMbps(device.uploadMbps)}</b></span>
                 </div>
               </div>
 
@@ -734,7 +757,7 @@ function DeviceCard({
                 </span>
 
                 <span className="dm-metric-value">
-                  {device.devicesConnected}
+                  {device.devicesConnected ?? 'Unavailable'}
                 </span>
               </div>
 
@@ -748,9 +771,13 @@ function DeviceCard({
                 </span>
 
                 <span className="dm-metric-value">
-                  {device.uptime}
+                  {device.uptime ?? 'Unavailable'}
                 </span>
               </div>
+
+              <p className="dm-source-note">
+                Router metrics require an enabled read-only SNMP agent or a documented authenticated router API. Connected-client counts also need the router’s WLAN client table. No router data source is currently available to this API.
+              </p>
             </div>
           </div>
         </div>
@@ -771,8 +798,6 @@ function AddDeviceModal({
   const [name, setName] = useState('')
   const [type, setType] =
     useState<DeviceType>('Router')
-  const [status, setStatus] =
-    useState<DeviceStatus>('online')
   const [ip, setIp] = useState('')
   const [mac, setMac] = useState('')
   const [location, setLocation] = useState('')
@@ -833,14 +858,11 @@ function AddDeviceModal({
       await onAdd({
         name: name.trim(),
         type,
-        status,
         ip: ip.trim(),
         mac: mac.trim() || '—',
         location: location.trim(),
         department,
         firmware: firmware.trim() || '—',
-        throughput: 0,
-        devicesConnected: 0,
         assignedUserId: assignedUserId || null,
       })
     } catch (error) {
@@ -944,35 +966,6 @@ function AddDeviceModal({
                 {deviceTypes.map(t => (
                   <option key={t}>{t}</option>
                 ))}
-              </select>
-            </div>
-
-            <div className="dm-field">
-              <label
-                className="dm-field-label"
-                htmlFor="dev-status"
-              >
-                Initial Status<em>*</em>
-              </label>
-
-              <select
-                id="dev-status"
-                value={status}
-                onChange={e =>
-                  setStatus(
-                    e.target.value as DeviceStatus,
-                  )
-                }
-              >
-                <option value="online">
-                  Online
-                </option>
-                <option value="warning">
-                  Warning
-                </option>
-                <option value="offline">
-                  Offline
-                </option>
               </select>
             </div>
 
@@ -1280,6 +1273,10 @@ function DeviceMonitoring({
   const [deviceError, setDeviceError] =
     useState('')
 
+  const deviceRequestInFlight = useRef(false)
+
+  const [pingingId, setPingingId] = useState<string | null>(null)
+
   const [showAddModal, setShowAddModal] =
     useState(false)
 
@@ -1295,17 +1292,16 @@ function DeviceMonitoring({
     string | null
   >(null)
 
-  const [live, setLive] = useState(true)
-
-  const [lastUpdated, setLastUpdated] =
-    useState(() => new Date())
-
   const handleLogout = () => {
     signOut()
     navigate('/')
   }
 
   const loadDevices = useCallback(async () => {
+    // Do not stack another full network scan if a previous one is still running.
+    if (deviceRequestInFlight.current) return
+    deviceRequestInFlight.current = true
+
     try {
       const response = await fetch(DEVICES_URL)
 
@@ -1329,7 +1325,6 @@ function DeviceMonitoring({
 
       setDeviceList(data.devices)
       setDeviceError('')
-      setLastUpdated(new Date())
     } catch (error) {
       setDeviceError(
         error instanceof Error
@@ -1337,6 +1332,7 @@ function DeviceMonitoring({
           : 'Unable to load devices.',
       )
     } finally {
+      deviceRequestInFlight.current = false
       setLoadingDevices(false)
     }
   }, [])
@@ -1370,17 +1366,6 @@ function DeviceMonitoring({
     return () =>
       window.clearTimeout(initialLoad)
   }, [loadDevices])
-
-  useEffect(() => {
-    if (!live) return
-
-    const id = window.setInterval(
-      () => void loadDevices(),
-      20_000,
-    )
-
-    return () => window.clearInterval(id)
-  }, [live, loadDevices])
 
   const filtered = useMemo(() => {
     return deviceList.filter(d => {
@@ -1424,10 +1409,6 @@ function DeviceMonitoring({
 
       online: deviceList.filter(
         d => d.status === 'online',
-      ).length,
-
-      warning: deviceList.filter(
-        d => d.status === 'warning',
       ).length,
 
       offline: deviceList.filter(
@@ -1476,6 +1457,42 @@ function DeviceMonitoring({
 
     setShowAddModal(false)
     setExpandedId(data.device.id)
+  }
+
+  const pingDevice = async (device: Device) => {
+    setPingingId(device.id)
+    try {
+      const response = await fetch(DEVICES_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'ping', deviceID: device.id }),
+      })
+      const data = await response.json() as {
+        success?: boolean
+        status?: DeviceStatus
+        message?: string
+        responseTimeMs?: string | null
+        lastSeen?: string | null
+        lastPingAt?: string | null
+      }
+      if (!response.ok || !data.success || !data.status) {
+        throw new Error(data.message || 'Unable to ping device.')
+      }
+      setDeviceList(list => list.map(item => item.id === device.id
+        ? {
+            ...item,
+            status: data.status!,
+            lastSeen: data.lastSeen ?? item.lastSeen,
+            pingResponseTimeMs: data.responseTimeMs ?? null,
+            lastPingAt: data.lastPingAt ?? null,
+          }
+        : item))
+      window.alert(`${device.name}: ${data.message}${data.responseTimeMs ? ` (${data.responseTimeMs} ms)` : ''}`)
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to ping device.')
+    } finally {
+      setPingingId(null)
+    }
   }
 
   return (
@@ -1580,13 +1597,6 @@ function DeviceMonitoring({
             />
 
             <StatCard
-              icon="warning"
-              number={String(counts.warning)}
-              title="Warning"
-              tone="orange"
-            />
-
-            <StatCard
               icon="offline"
               number={String(counts.offline)}
               title="Offline"
@@ -1607,29 +1617,6 @@ function DeviceMonitoring({
                 }
               />
             </label>
-
-            <button
-              type="button"
-              className={`incident-new live${
-                live ? ' selected' : ''
-              }`}
-              onClick={() =>
-                setLive(current => !current)
-              }
-              title={
-                live
-                  ? `Auto-refreshing every 20s, last updated ${lastUpdated.toLocaleTimeString()}`
-                  : 'Auto-refresh paused'
-              }
-            >
-              <Icon
-                name={
-                  live ? 'online' : 'offline'
-                }
-              />
-
-              {live ? 'Live' : 'Paused'}
-            </button>
 
             <button
               type="button"
@@ -1671,8 +1658,8 @@ function DeviceMonitoring({
               >
                 <option>All Statuses</option>
                 <option>Online</option>
-                <option>Warning</option>
                 <option>Offline</option>
+                <option>Unknown</option>
               </select>
             </label>
           </div>
@@ -1715,6 +1702,8 @@ function DeviceMonitoring({
                   expanded={
                     expandedId === device.id
                   }
+                  pinging={pingingId === device.id}
+                  onPing={() => void pingDevice(device)}
                   onToggle={() =>
                     setExpandedId(current =>
                       current === device.id
