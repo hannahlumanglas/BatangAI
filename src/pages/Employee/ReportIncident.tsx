@@ -12,6 +12,7 @@ import {
 import '../Admin/Dashboard.css'
 import './ReportIncident.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { parseSelfHelpSteps } from '../../utils/selfHelp'
 
 type IconName =
   | 'report'
@@ -141,6 +142,8 @@ export type IncidentFormValues = {
  * assign, close, or determine the final status of an incident.
  */
 export type IncidentAnalysis = {
+  classification: string
+  keywords: string[]
   summary: string
   possibleInterpretation: string
   basicSelfHelp: string
@@ -199,6 +202,10 @@ async function analyzeIncidentWithAI(
   }
 
   return {
+    classification: data.analysis.classification || values.issueCategory,
+    keywords: Array.isArray(data.analysis.keywords)
+      ? data.analysis.keywords.filter((keyword: unknown) => typeof keyword === 'string')
+      : [],
     summary: data.analysis.summary || '',
     possibleInterpretation:
       data.analysis.possibleInterpretation || '',
@@ -214,13 +221,16 @@ async function analyzeIncidentWithAI(
  */
 function formatTroubleshootingForStorage(
   analysis: IncidentAnalysis,
+  checkedSteps: number[],
 ): string {
+  const completionRecord = `[Employee checked self-help steps: ${checkedSteps.join(',')}]`
   return [
     'Basic Self-Help:',
     analysis.basicSelfHelp,
     '',
     'IT Troubleshooting Suggestions:',
     analysis.itTroubleshooting,
+    completionRecord,
   ].join('\n')
 }
 
@@ -407,55 +417,6 @@ export function IncidentDescriptionFields({
   )
 }
 
-export function IncidentAnalysisResult({
-  analysis,
-  reviewNote,
-}: {
-  analysis: IncidentAnalysis
-  reviewNote: string
-}) {
-  return (
-    <>
-      <div className="employee-ai-result-heading">
-        <svg
-          className="admin-icon"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3Z" />
-          <path d="m19 16 .6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6L19 16Z" />
-        </svg>
-
-        <div>
-          <h3>BatangAI Analysis Result</h3>
-          <p>{reviewNote}</p>
-        </div>
-      </div>
-
-      <div className="employee-ai-block">
-        <span>Incident Summary</span>
-        <p>{analysis.summary}</p>
-      </div>
-
-      <div className="employee-ai-block">
-        <span>Possible Interpretation</span>
-        <p>
-          {analysis.possibleInterpretation ||
-            'No possible interpretation was generated from the provided information.'}
-        </p>
-      </div>
-
-      <div className="employee-ai-block">
-        <span>Basic Self-Help</span>
-        <p>
-          {analysis.basicSelfHelp ||
-            'No basic self-help steps were generated. Please wait for IT Support assistance.'}
-        </p>
-      </div>
-    </>
-  )
-}
-
 function getInitialValues(): IncidentFormValues {
   return {
     department: getCurrentUserDepartment(),
@@ -605,10 +566,12 @@ function ReportIncident() {
   const [phase, setPhase] =
     useState<'form' | 'result'>('form')
 
-  const [resolutionStatus, setResolutionStatus] =
-    useState<
-      'resolved' | 'unresolved' | null
-    >(null)
+  const [issueResolved, setIssueResolved] =
+    useState<'yes' | 'no' | ''>('')
+
+  const [checkedSelfHelpSteps, setCheckedSelfHelpSteps] =
+    useState<number[]>([])
+
 
   const [aiAnalysis, setAiAnalysis] =
     useState<IncidentAnalysis | null>(null)
@@ -636,6 +599,8 @@ function ReportIncident() {
     setAnalysisError('')
     setSubmitError('')
     setAiAnalysis(null)
+    setIssueResolved('')
+    setCheckedSelfHelpSteps([])
 
     try {
       setAnalyzing(true)
@@ -684,19 +649,17 @@ function ReportIncident() {
       return
     }
 
-    if (!resolutionStatus) {
-      setSubmitError(
-        'Please select whether the basic self-help resolved the issue before submitting.',
-      )
-
-      return
-    }
 
     if (!aiAnalysis) {
       setSubmitError(
         'Please continue with the incident submission.',
       )
 
+      return
+    }
+
+    if (!issueResolved) {
+      setSubmitError('Please choose whether the basic self-help resolved the issue.')
       return
     }
 
@@ -715,6 +678,7 @@ function ReportIncident() {
           },
           body: JSON.stringify({
             userId,
+            resolvedByUser: issueResolved === 'yes',
 
             affectedIssue:
               values.affectedService,
@@ -737,12 +701,9 @@ function ReportIncident() {
             // Severity is set by Admin/Secretary only.
             severity: null,
 
-            /*
-             * Classification is based on the employee-selected
-             * issue category. It is not presented as an AI decision.
-             */
+            /* AI classification is saved alongside the report. */
             classification:
-              values.issueCategory,
+              analysis.classification || values.issueCategory,
 
             summary:
               analysis.summary,
@@ -755,6 +716,9 @@ function ReportIncident() {
             troubleshooting:
               formatTroubleshootingForStorage(
                 analysis,
+                issueResolved === 'yes'
+                  ? parseSelfHelpSteps(analysis.basicSelfHelp).map((_, index) => index)
+                  : checkedSelfHelpSteps,
               ),
           }),
         },
@@ -815,7 +779,6 @@ function ReportIncident() {
 
       setPhase('form')
 
-      setResolutionStatus(null)
 
       setAiAnalysis(null)
 
@@ -824,6 +787,7 @@ function ReportIncident() {
       alert(
         `Incident submitted successfully!\nIncident ID: ${data.incidentID}`,
       )
+      navigate('/employee/incidents')
     } catch (error) {
       console.error(
         'Submit incident error:',
@@ -845,13 +809,17 @@ function ReportIncident() {
 
     setPhase('form')
 
-    setResolutionStatus(null)
 
     setAiAnalysis(null)
 
     setAnalysisError('')
 
     navigate('/employee/incidents')
+  }
+
+  const editReport = () => {
+    setSubmitError('')
+    setPhase('form')
   }
 
   return (
@@ -971,15 +939,6 @@ function ReportIncident() {
                   troubleshooting guidance.
                 </p>
               </div>
-
-              <button
-                className="modal-close"
-                type="button"
-                aria-label="Close report form"
-                onClick={closeReport}
-              >
-                ×
-              </button>
             </header>
 
             <div className="employee-report-dialog-body">
@@ -1061,80 +1020,51 @@ function ReportIncident() {
                   className="employee-ai-result"
                   aria-live="polite"
                 >
-                  {aiAnalysis && (
-                    <IncidentAnalysisResult
-                      analysis={
-                        aiAnalysis
-                      }
-                      reviewNote="Review the incident summary and basic self-help before submitting. Technical troubleshooting suggestions are reserved for IT Support review."
-                    />
-                  )}
+                  <section className="employee-self-help" aria-labelledby="employee-self-help-title">
+                    <h3 id="employee-self-help-title">Basic Self Help</h3>
+                    {parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length ? (
+                      <ol className="employee-self-help-checklist">
+                        {parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').map((step, index) => (
+                          <li key={index} className={checkedSelfHelpSteps.includes(index) ? 'is-checked' : ''}>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={checkedSelfHelpSteps.includes(index)}
+                                onChange={event => setCheckedSelfHelpSteps(current =>
+                                  event.target.checked
+                                    ? [...current, index]
+                                    : current.filter(stepIndex => stepIndex !== index),
+                                )}
+                              />
+                              <span>{step}</span>
+                            </label>
+                          </li>
+                        ))}
+                      </ol>
+                    ) : <p>No troubleshooting steps were provided. You can still submit the report for IT assistance.</p>}
+                    {parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length > 0 && (
+                      <p className="employee-self-help-progress" aria-live="polite">
+                        {checkedSelfHelpSteps.length} of {parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length} steps completed
+                      </p>
+                    )}
+                  </section>
 
-                  <section className="employee-resolution-check">
-                    <h3>
-                      Did the basic self-help resolve the issue?
-                    </h3>
-
-                    <p>
-                      Select the result of your
-                      basic self-help attempt.
-                      IT Support remains responsible
-                      for technical review and final
-                      incident handling.
-                    </p>
-
+                  <section className="employee-resolution-choice" aria-labelledby="employee-resolution-title">
+                    <h3 id="employee-resolution-title">Were you able to resolve the issue?</h3>
+                    <p>Using the steps above, did you fix the problem?</p>
                     <div className="employee-resolution-options">
-                      <button
-                        type="button"
-                        className={`employee-resolution-option resolved${
-                          resolutionStatus ===
-                          'resolved'
-                            ? ' selected'
-                            : ''
-                        }`}
-                        onClick={() =>
-                          setResolutionStatus(
-                            'resolved',
-                          )
-                        }
-                      >
-                        <b>✓</b>
-
-                        <strong>
-                          Yes, Resolved!
-                        </strong>
-
-                        <span>
-                          Basic self-help resolved
-                          the issue
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        className={`employee-resolution-option unresolved${
-                          resolutionStatus ===
-                          'unresolved'
-                            ? ' selected'
-                            : ''
-                        }`}
-                        onClick={() =>
-                          setResolutionStatus(
-                            'unresolved',
-                          )
-                        }
-                      >
-                        <b>×</b>
-
-                        <strong>
-                          Not Resolved
-                        </strong>
-
-                        <span>
-                          Submit for IT Support
-                          review
-                        </span>
-                      </button>
+                      <label className={issueResolved === 'yes' ? 'is-selected' : ''}>
+                        <input type="radio" name="issueResolved" value="yes" checked={issueResolved === 'yes'} onChange={() => setIssueResolved('yes')} />
+                        <span className="employee-resolution-icon employee-resolution-icon--yes" aria-hidden="true">&#10003;</span>
+                        <strong>Yes, Resolved!</strong>
+                        <small>Mark as resolved by user</small>
+                      </label>
+                      <label className={issueResolved === 'no' ? 'is-selected' : ''}>
+                        <input type="radio" name="issueResolved" value="no" checked={issueResolved === 'no'} onChange={() => setIssueResolved('no')} />
+                        <span className="employee-resolution-icon employee-resolution-icon--no" aria-hidden="true">&#215;</span>
+                        <strong>Not Resolved</strong>
+                        <small>Assign to IT personnel</small>
+                      </label>
                     </div>
                   </section>
 
@@ -1151,19 +1081,15 @@ function ReportIncident() {
                     <button
                       className="employee-ai-back"
                       type="button"
-                      onClick={() => {
-                        setAiAnalysis(null)
+                      onClick={closeReport}
+                    >
+                      Close
+                    </button>
 
-                        setAnalysisError(
-                          '',
-                        )
-
-                        setSubmitError(
-                          '',
-                        )
-
-                        setPhase('form')
-                      }}
+                    <button
+                      className="employee-ai-edit"
+                      type="button"
+                      onClick={editReport}
                     >
                       Edit Report
                     </button>

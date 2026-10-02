@@ -450,22 +450,22 @@ function getEmployeeTroubleshooting(
 
   const itSectionMarker =
     'IT Troubleshooting Suggestions:'
+  const completionRecord = troubleshooting.match(/\[Employee checked self-help steps: [^\]]*\]/i)?.[0] ?? ''
 
   const markerIndex =
     troubleshooting.indexOf(
       itSectionMarker,
     )
 
-  if (markerIndex === -1) {
-    return troubleshooting.trim()
-  }
+  const employeeHelp = markerIndex === -1
+    ? troubleshooting
+    : troubleshooting.slice(0, markerIndex)
 
-  const basicSelfHelp =
-    troubleshooting
-      .slice(0, markerIndex)
-      .trim()
+  const basicSelfHelp = employeeHelp
+    .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
+    .trim()
 
-  return basicSelfHelp || null
+  return [basicSelfHelp, completionRecord].filter(Boolean).join('\n') || null
 }
 
 /* ---------- Page ---------- */
@@ -1519,6 +1519,7 @@ function Incidents() {
           onClose={
             closeViewing
           }
+          showSelfHelpChecklist
         />
       )}
 

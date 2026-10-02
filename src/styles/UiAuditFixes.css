@@ -238,6 +238,59 @@ body:not(.keyboard-navigation) [role="menuitem"]:focus {
   background-color: var(--card-bg, #ffffff);
 }
 
+/* The admin incident form fits in a desktop viewport when its sections share
+   the available width. Keep the smaller-screen form scrollable and stacked. */
+@media (min-width: 761px) {
+  .new-incident-modal {
+    width: min(94vw, 1040px);
+    max-width: 1040px !important;
+    max-height: calc(100svh - 40px);
+  }
+
+  .new-incident-body {
+    overflow: visible;
+    padding: 14px 20px 18px;
+  }
+
+  .new-incident-body > .incident-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .new-incident-body .incident-form-section {
+    min-width: 0;
+    padding: 16px;
+  }
+
+  .new-incident-body .incident-form-section-header {
+    margin-bottom: 12px;
+  }
+
+  .new-incident-body .incident-form-grid {
+    gap: 12px 14px;
+  }
+
+  .new-incident-body .incident-field textarea {
+    min-height: 112px;
+  }
+
+  .new-incident-footer {
+    margin-top: 0;
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .new-incident-modal {
+    max-height: calc(100svh - 24px);
+  }
+
+  .new-incident-body {
+    overflow-y: auto;
+  }
+}
+
 .employee-incident-modal,
 .um-modal,
 .incident-detail-modal,

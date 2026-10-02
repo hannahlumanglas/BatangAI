@@ -555,7 +555,8 @@ type DeviceDraft = Omit<
 type UserOption = {
   userID: string | number
   fullName: string
-  department: string
+  employeeId: string
+  role: string
   status: string
 }
 
@@ -1093,7 +1094,7 @@ function AddDeviceModal({
                     value={user.userID}
                   >
                     {user.fullName} —{' '}
-                    {user.department}
+                    {user.employeeId}
                   </option>
                 ))}
               </select>
@@ -1354,7 +1355,9 @@ function DeviceMonitoring({
             ) {
               setUsers(
                 data.users.filter(
-                  user => user.status === 'Active',
+                  user =>
+                    user.status?.toLowerCase() === 'active' &&
+                    user.role?.toLowerCase() === 'employee',
                 ),
               )
             }

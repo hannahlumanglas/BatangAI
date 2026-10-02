@@ -1,5 +1,6 @@
 import './IncidentDetailModal.css'
 import type { ReactNode } from 'react'
+import { parseSelfHelpSteps } from '../utils/selfHelp'
 
 export type IncidentDetail = {
   incidentID: string
@@ -30,6 +31,7 @@ type Props = {
   incident: IncidentDetail
   onClose: () => void
   footer?: ReactNode
+  showSelfHelpChecklist?: boolean
 }
 
 function statusClass(status?: string | null) {
@@ -59,10 +61,18 @@ function displayDuration(value: IncidentDetail['durationMinutes']) {
     : value
 }
 
-export function IncidentDetailModal({ incident, onClose, footer }: Props) {
+export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChecklist = false }: Props) {
   const status = incident.status || 'Pending'
   const severity = incident.severity || 'Low'
   const duration = displayDuration(incident.durationMinutes)
+  const troubleshooting = displayTroubleshooting(incident.troubleshooting)
+  const checkedMatch = troubleshooting.match(/\[Employee checked self-help steps: ([^\]]*)\]/i)
+  const savedCheckedSteps = new Set((checkedMatch?.[1] || '').split(',').map(value => Number(value.trim()) - 1).filter(index => Number.isInteger(index) && index >= 0))
+  const selfHelpText = troubleshooting.replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
+  const selfHelpSteps = parseSelfHelpSteps(selfHelpText)
+  // A confirmed employee resolution means every suggested self-help step was
+  // completed, including reports created before check data was saved.
+  const resolvedByReporter = Boolean(incident.resolvedBy && incident.employeeName && incident.resolvedBy.trim() === incident.employeeName.trim())
 
   return (
     <div className="modal-overlay incident-detail-overlay" onMouseDown={event => event.target === event.currentTarget && onClose()}>
@@ -93,12 +103,21 @@ export function IncidentDetailModal({ incident, onClose, footer }: Props) {
           <section className="incident-detail-section incident-detail-section--service"><h3>Affected Issue / Service</h3><p>{incident.affectedIssue || 'Not specified'}</p></section>
           <section className="incident-detail-section incident-detail-section--description"><h3>Detailed Problem Description</h3><p>{incident.description || 'No problem description provided.'}</p></section>
 
-          {(incident.classification || incident.summary || incident.troubleshooting) && (
+          {(incident.classification || incident.summary || incident.troubleshooting || showSelfHelpChecklist) && (
             <section className="incident-ai-analysis">
               <h3 className="incident-ai-analysis-title">BatangAI Analysis</h3>
               {incident.classification && <AnalysisBlock label="Classification" value={incident.classification} />}
               {incident.summary && <AnalysisBlock label="Incident Summary" value={incident.summary} />}
-              {incident.troubleshooting && <AnalysisBlock label="Troubleshooting" value={displayTroubleshooting(incident.troubleshooting)} />}
+              {showSelfHelpChecklist ? (
+                <div className="incident-ai-block">
+                  <span>Basic Self-Help</span>
+                  {selfHelpSteps.length ? <ul className="incident-self-help-checklist">
+                    {selfHelpSteps.map((step, index) => <li key={`${index}-${step}`}>
+                      <label><input type="checkbox" checked={resolvedByReporter || savedCheckedSteps.has(index)} readOnly /><span>{step}</span></label>
+                    </li>)}
+                  </ul> : <p>No basic self-help guidance was recorded.</p>}
+                </div>
+              ) : incident.troubleshooting && <AnalysisBlock label="Troubleshooting" value={troubleshooting} />}
             </section>
           )}
 
@@ -107,11 +126,14 @@ export function IncidentDetailModal({ incident, onClose, footer }: Props) {
               <h3>Resolution Information</h3>
               <div className="incident-resolution-grid">
                 {incident.resolutionNotes && <ResolutionField label="Resolution Notes" value={incident.resolutionNotes} />}
-                {incident.resolvedBy && <ResolutionField label="Resolved By" value={incident.resolvedBy} detail="IT Personnel" />}
+                {incident.resolvedBy && <ResolutionField label="Resolved By" value={incident.resolvedBy} detail={incident.resolvedBy === incident.employeeName ? 'Reporter' : 'IT Personnel'} />}
                 {incident.resolvedAt && <ResolutionField label="Resolution Date/Time" value={incident.resolvedAt} />}
                 {duration && <ResolutionField label="Troubleshooting Duration" value={duration} />}
               </div>
             </section>
+          )}
+          {incident.resolvedBy && incident.resolvedBy === incident.employeeName && (
+            <section className="incident-resolution-panel"><h3>Resolution Result</h3><p>Resolved by the reporting employee using basic self-help.</p></section>
           )}
         </div>
 

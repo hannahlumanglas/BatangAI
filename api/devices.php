@@ -280,13 +280,13 @@ if ($assignedUserId !== '' && !ctype_digit($assignedUserId)) {
     respond(['success' => false, 'message' => 'Invalid assigned user.'], 400);
 }
 if ($assignedUserId !== '') {
-    $userCheck = $conn->prepare('SELECT userID FROM users WHERE userID = ? AND status = \'Active\' LIMIT 1');
+    $userCheck = $conn->prepare("SELECT userID FROM users WHERE userID = ? AND LOWER(status) = 'active' AND LOWER(role) = 'employee' LIMIT 1");
     $userCheck->bind_param('i', $assignedUserId);
     $userCheck->execute();
     if ($userCheck->get_result()->num_rows === 0) {
         $userCheck->close();
         $conn->close();
-        respond(['success' => false, 'message' => 'The selected user is no longer active.'], 400);
+        respond(['success' => false, 'message' => 'The selected employee is no longer active or is not an employee.'], 400);
     }
     $userCheck->close();
 }

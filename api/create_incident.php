@@ -57,6 +57,7 @@ $severity = trim((string)($data["severity"] ?? "Low"));
 $classification = trim((string)($data["classification"] ?? ""));
 $summary = trim((string)($data["summary"] ?? ""));
 $troubleshooting = trim((string)($data["troubleshooting"] ?? ""));
+$resolvedByUser = ($data["resolvedByUser"] ?? false) === true;
 
 /*
 |--------------------------------------------------------------------------
@@ -134,15 +135,17 @@ $incidentID = "INC-" . date("Ymd") . "-" . strtoupper(substr(uniqid(), -5));
 |--------------------------------------------------------------------------
 */
 
-$status = "Pending";
+$status = $resolvedByUser ? "Resolved" : "Pending";
 $assigned = "No";
+$resolvedAt = $resolvedByUser ? date('Y-m-d H:i:s') : null;
+$resolvedBy = $resolvedByUser ? $employeeName : null;
 
 /*
 |--------------------------------------------------------------------------
 | Insert incident into MySQL
 |--------------------------------------------------------------------------
 |
-| We intentionally use exactly 15 placeholders.
+| Insert the incident and any user-confirmed resolution details.
 |
 */
 
@@ -163,9 +166,13 @@ $sql = "
         summary,
         troubleshooting,
         userId,
-        assigned
+        assigned,
+        resolvedAt,
+        resolvedBy
     )
     VALUES (
+        ?,
+        ?,
         ?,
         ?,
         ?,
@@ -205,12 +212,12 @@ if (!$stmt) {
 | Bind parameters
 |--------------------------------------------------------------------------
 |
-| 16 placeholders = 16 variables
+| 18 placeholders = 18 variables
 |
 */
 
 $stmt->bind_param(
-    "ssssssssssssssss",
+    "ssssssssssssssssss",
     $incidentID,
     $affectedIssue,
     $classification,
@@ -226,7 +233,9 @@ $stmt->bind_param(
     $summary,
     $troubleshooting,
     $userId,
-    $assigned
+    $assigned,
+    $resolvedAt,
+    $resolvedBy
 );
 
 /*

@@ -295,6 +295,39 @@ const initialIncidentFormValues: IncidentFormValues = {
   description: '',
 }
 
+interface IncidentAiAnalysis {
+  summary: string
+  possibleInterpretation: string
+  basicSelfHelp: string
+  itTroubleshooting: string
+}
+
+async function analyzeNewIncident(values: IncidentFormValues): Promise<IncidentAiAnalysis> {
+  const response = await fetch(`${API_BASE_URL}/analyze_incident.php`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      department: values.department,
+      location: values.location,
+      issueCategory: values.issueCategory,
+      deviceType: values.deviceType,
+      connectionType: values.connectionType,
+      affectedService: values.affectedService,
+      description: values.description,
+    }),
+  })
+  const data = await response.json()
+  if (!response.ok || !data.success || !data.analysis) {
+    throw new Error(data.message || 'AI assistance is currently unavailable. Please try again.')
+  }
+  return {
+    summary: data.analysis.summary || '',
+    possibleInterpretation: data.analysis.possibleInterpretation || '',
+    basicSelfHelp: data.analysis.basicSelfHelp || '',
+    itTroubleshooting: data.analysis.itTroubleshooting || '',
+  }
+}
+
 const ISSUE_CATEGORIES = [
   'Network Connectivity',
   'Hardware Malfunction',
@@ -633,13 +666,14 @@ function getBasicSelfHelpText(
   const markerIndex = troubleshooting.indexOf(marker)
 
   if (markerIndex === -1) {
-    return repairTextEncoding(troubleshooting.replace(/^Basic Self-Help:\s*/i, '').trim())
+    return repairTextEncoding(troubleshooting.replace(/^Basic Self-Help:\s*/i, '').replace(/\[Employee checked self-help steps: [^\]]*\]/i, '').trim())
   }
 
   return repairTextEncoding(
     troubleshooting
       .slice(0, markerIndex)
       .replace(/^Basic Self-Help:\s*/i, '')
+      .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
       .trim() ||
     'No basic self-help guidance was recorded.'
   )
@@ -662,6 +696,7 @@ function getITTroubleshootingText(
   return repairTextEncoding(
     troubleshooting
       .slice(markerIndex + marker.length)
+      .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
       .trim() ||
     'No IT troubleshooting suggestions were recorded.'
   )
@@ -1142,7 +1177,10 @@ function Incidents({
 
   const [values, setValues] =
     useState<IncidentFormValues>(
-      initialIncidentFormValues,
+      () => ({
+        ...initialIncidentFormValues,
+        department: getAuthSession()?.user.department?.trim() ?? '',
+      }),
     )
 
   const [errors, setErrors] =
@@ -1155,11 +1193,18 @@ function Incidents({
       >
     >({})
 
+  const [analyzingNewIncident, setAnalyzingNewIncident] = useState(false)
+
   const overlayRef =
     useRef<HTMLDivElement>(null)
 
   const openNewIncident = () => {
-    setValues(initialIncidentFormValues)
+    // Read the current session when opening the form so the reporter's
+    // registered department is populated even if their profile changed.
+    setValues({
+      ...initialIncidentFormValues,
+      department: getAuthSession()?.user.department?.trim() ?? '',
+    })
     setErrors({})
     setIsNewIncidentOpen(true)
   }
@@ -1260,18 +1305,28 @@ function Incidents({
     )
   }
 
-  const handleSubmitNewIncident = (
+  const handleSubmitNewIncident = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
 
-    if (!validate()) {
+    if (analyzingNewIncident || !validate()) {
       return
     }
 
-    alert(
-      'The Admin New Incident form is not connected to the database yet.',
-    )
+    setAnalyzingNewIncident(true)
+    try {
+      const analysis = await analyzeNewIncident(values)
+      alert([
+        `Summary: ${analysis.summary}`,
+        `Basic self-help: ${analysis.basicSelfHelp}`,
+        `IT troubleshooting: ${analysis.itTroubleshooting}`,
+      ].join('\n\n'))
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'AI assistance is currently unavailable. Please try again.')
+    } finally {
+      setAnalyzingNewIncident(false)
+    }
   }
 
   const handleOverlayMouseDown = (
@@ -2157,8 +2212,9 @@ function Incidents({
                   <button
                     className="btn-primary btn-block"
                     type="submit"
+                    disabled={analyzingNewIncident}
                   >
-                    Save Incident
+                    {analyzingNewIncident ? 'Analyzing with BatangAI…' : 'Analyze with BatangAI'}
                   </button>
                 </footer>
               </form>
@@ -2262,10 +2318,6 @@ function Incidents({
                 <h3 className="incident-ai-analysis-title">AI Analysis</h3>
                 {viewingIncident.classification && <div className="incident-ai-block"><span>Classification</span><p>{viewingIncident.classification}</p></div>}
                 {viewingIncident.summary && <div className="incident-ai-block"><span>Incident Summary</span><p>{viewingIncident.summary}</p></div>}
-                {!viewingIncident.classification && !viewingIncident.summary && <p className="incident-detail-empty">No AI analysis is available for this incident.</p>}
-              </section>}
-
-              {detailTab === 'troubleshooting' && <div className="incident-troubleshooting">
                 <section className="incident-checklist-card">
                   <header><div><h3>Basic Self-Help</h3><p>Check off each step as you complete it.</p></div></header>
                   {splitTroubleshootingSteps(getBasicSelfHelpText(viewingIncident.troubleshooting)).length > 0 ? <ul>
@@ -2275,6 +2327,10 @@ function Incidents({
                     })}
                   </ul> : <p className="incident-detail-empty">No basic self-help guidance was recorded.</p>}
                 </section>
+                {!viewingIncident.classification && !viewingIncident.summary && <p className="incident-detail-empty">No AI analysis is available for this incident.</p>}
+              </section>}
+
+              {detailTab === 'troubleshooting' && <div className="incident-troubleshooting">
                 {!isSecretary && <section className="incident-checklist-card incident-checklist-card--it">
                   <header><div><h3>IT Support Suggestions</h3><p>Technical guidance for IT personnel to review.</p></div><span className="incident-it-badge">IT</span></header>
                   {splitTroubleshootingSteps(getITTroubleshootingText(viewingIncident.troubleshooting)).length > 0 ? <ul>

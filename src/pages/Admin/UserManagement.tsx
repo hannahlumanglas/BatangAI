@@ -17,6 +17,7 @@ const USERS_API_URL = `${API_BASE_URL}/users.php`
 const UPDATE_USER_API_URL = `${API_BASE_URL}/update_user.php`
 const CREATE_USER_API_URL = `${API_BASE_URL}/create_user.php`
 const UPDATE_USER_STATUS_API_URL = `${API_BASE_URL}/update_user_status.php`
+const DELETE_USER_API_URL = `${API_BASE_URL}/delete_user.php`
 /* ---------- Types ---------- */
 type UserRole =
   | 'Employee'
@@ -596,12 +597,14 @@ function UserDetails({
   onSaved,
   onClose,
   onToggleStatus,
+  onDelete,
 }: {
   user: User
   departments: string[]
   onSaved: () => Promise<void>
   onClose: () => void
   onToggleStatus: (user: User) => Promise<void>
+  onDelete: (user: User) => Promise<void>
 }) {
   const departmentOptions = [...new Set([...departments, user.department].map(item => item.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
   const [values, setValues] = useState({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
@@ -672,7 +675,7 @@ function UserDetails({
         {error && <p className="um-form-message um-form-error">{error}</p>}
       </article>
       <ChangePasswordCard user={user} onSaved={onSaved} resetMode />
-      <footer className="um-inline-save-actions"><button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => void onToggleStatus(user)}>{user.status === 'Active' ? 'Disable Account' : 'Enable Account'}</button><span className="um-inline-save-spacer" /><button type="button" className="um-btn-secondary" onClick={onClose}>Cancel</button><button type="button" className="um-btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer>
+      <footer className="um-inline-save-actions"><button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => void onToggleStatus(user)}>{user.status === 'Active' ? 'Disable Account' : 'Enable Account'}</button><button type="button" className="um-btn-danger" onClick={() => void onDelete(user)}>Delete Account</button><span className="um-inline-save-spacer" /><button type="button" className="um-btn-secondary" onClick={onClose}>Cancel</button><button type="button" className="um-btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer>
     </div>
   )
 }
@@ -1901,6 +1904,35 @@ function UserManagement() {
       window.alert(requestError instanceof Error ? requestError.message : 'Unable to update the account status. Please try again.')
     }
   }
+  const handleDeleteUser = async (user: User) => {
+    if (!window.confirm(`Permanently delete ${user.name}'s account? This action cannot be undone.`)) return
+
+    const adminUserID = session?.user?.userID
+    const targetUserID = user.userID
+    if (adminUserID === undefined || adminUserID === null || String(adminUserID).trim() === '') {
+      window.alert('Administrator session not found. Please log in again.')
+      return
+    }
+    if (targetUserID === undefined || targetUserID === null || String(targetUserID).trim() === '') {
+      window.alert('Unable to identify the selected user.')
+      return
+    }
+
+    try {
+      const response = await fetch(DELETE_USER_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ adminUserID, userID: targetUserID }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) throw new Error(data.message || 'Unable to delete the account.')
+      setUsers(current => current.filter(item => item.id !== user.id))
+      setSelectedUserId(null)
+      window.alert(data.message || `${user.name}'s account was deleted.`)
+    } catch (requestError) {
+      window.alert(requestError instanceof Error ? requestError.message : 'Unable to delete the account. Please try again.')
+    }
+  }
   /* AFTER CREATE */
   const handleUserCreated = (
     createdUser: User,
@@ -2103,7 +2135,7 @@ function UserManagement() {
               <button className="um-inline-details-close" type="button" onClick={() => setSelectedUserId(null)} aria-label="Close user details">
                 <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
               </button>
-              <UserDetails user={selectedUser} departments={departments} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} />
+              <UserDetails user={selectedUser} departments={departments} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} onDelete={handleDeleteUser} />
             </section>
           )}
         </div>

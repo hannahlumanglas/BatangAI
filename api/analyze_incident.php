@@ -131,10 +131,12 @@ You are an AI support assistant for BatangAI, an AI-integrated network incident 
 Analyze the network incident information provided below.
 
 Your purpose is limited to:
-1. Summarizing the reported incident.
-2. Providing a cautious possible interpretation of the issue based only on the information provided.
-3. Providing safe, practical troubleshooting steps that a normal employee may try before IT intervention.
-4. Providing technical troubleshooting suggestions intended for IT Support review.
+1. Classifying the incident based on the reported details.
+2. Extracting concise keywords from the report.
+3. Summarizing the reported incident.
+4. Providing a cautious possible interpretation of the issue based only on the information provided.
+5. Providing safe, practical troubleshooting steps that a normal employee may try before IT intervention.
+6. Providing technical troubleshooting suggestions intended for IT Support review.
 
 Important rules:
 
@@ -156,9 +158,11 @@ Important rules:
 
 Return ONLY a valid JSON object.
 
-The JSON object must contain exactly these four keys:
+The JSON object must contain exactly these six keys:
 
 {
+  "classification": "Short incident category based only on the report.",
+  "keywords": ["keyword one", "keyword two"],
   "summary": "Concise summary of the reported incident.",
   "possibleInterpretation": "Cautious possible interpretation of the issue.",
   "basicSelfHelp": "Safe basic steps the employee may try.",
@@ -361,6 +365,12 @@ if (!is_array($analysis)) {
 */
 
 $summary = trim($analysis["summary"] ?? "");
+$classification = trim($analysis["classification"] ?? $issueCategory);
+$keywords = $analysis["keywords"] ?? [];
+if (!is_array($keywords)) {
+    $keywords = [];
+}
+$keywords = array_values(array_filter($keywords, "is_string"));
 
 $possibleInterpretation = trim(
     $analysis["possibleInterpretation"] ?? ""
@@ -401,6 +411,8 @@ echo json_encode([
     "success" => true,
     "aiAvailable" => true,
     "analysis" => [
+        "classification" => $classification,
+        "keywords" => $keywords,
         "summary" => $summary,
         "possibleInterpretation" => $possibleInterpretation,
         "basicSelfHelp" => $basicSelfHelp,
