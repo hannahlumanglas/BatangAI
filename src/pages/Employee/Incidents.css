@@ -8,8 +8,8 @@
 
 .employee-table-wrap { overflow:auto; }
 
-.employee-incidents-card table { width:100%; min-width:980px; border-collapse:collapse; color:var(--text-primary); font-size:var(--font-table); text-align:left; table-layout:fixed; }
-.employee-incidents-card th:nth-child(1) { width:14%; }.employee-incidents-card th:nth-child(2) { width:27%; }.employee-incidents-card th:nth-child(3) { width:15%; }.employee-incidents-card th:nth-child(4) { width:13%; }.employee-incidents-card th:nth-child(5) { width:14%; }.employee-incidents-card th:nth-child(6) { width:17%; }
+.employee-incidents-card table { width:100%; min-width:0; border-collapse:collapse; color:var(--text-primary); font-size:var(--font-table); text-align:left; table-layout:fixed; }
+.employee-incidents-card th:nth-child(1) { width:28%; }.employee-incidents-card th:nth-child(2) { width:22%; }.employee-incidents-card th:nth-child(3) { width:22%; }.employee-incidents-card th:nth-child(4) { width:28%; }
 
 .employee-incidents-card th {
   height:48px;
@@ -29,8 +29,8 @@
 .employee-incidents-card td { padding:15px 21px; border-top:1px solid var(--border-color); vertical-align:middle; }
 .employee-incidents-card td:first-child { color:var(--primary); font-weight:700; }
 .employee-empty { padding:28px !important; color:var(--text-secondary) !important; font-weight:400 !important; text-align:center; }
-.employee-incidents-card th:last-child { text-align:center; }
-.employee-actions { display:flex; align-items:center; justify-content:center; gap:10px; min-height:35px; white-space:nowrap; }
+.employee-incidents-card th:last-child { text-align:left; }
+.employee-actions { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:35px; white-space:nowrap; }
 
 .employee-view-button {
   display:inline-flex;
@@ -63,6 +63,13 @@
 .employee-action-menu button:hover { background:var(--hover-bg); }.employee-action-menu button.danger { color:var(--danger); }.employee-action-menu .admin-icon { width:15px; height:15px; }
 .employee-action-menu button:disabled { color:var(--text-secondary); opacity:.5; cursor:not-allowed; background:transparent; }
 .employee-edit-modal footer button.employee-view-button:disabled, .employee-edit-modal footer button.employee-cancel:disabled { opacity:.6; cursor:not-allowed; }
+.employee-delete-confirmation { width:min(100%,480px); }
+.employee-delete-confirmation > section { display:grid; gap:12px; }
+.employee-delete-confirmation > section p { margin:0; color:var(--text-primary); line-height:1.55; }
+.employee-delete-confirmation .employee-delete-error { padding:10px 12px; color:var(--danger); background:var(--danger-bg); border:1px solid var(--danger); border-radius:8px; }
+.employee-delete-confirm-button { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:42px; padding:0 16px; color:#fff; font:inherit; font-weight:700; background:var(--danger); border:0; border-radius:9px; cursor:pointer; }
+.employee-delete-confirm-button .admin-icon { width:16px; height:16px; }
+.employee-delete-confirm-button:disabled,.employee-delete-confirmation .employee-cancel:disabled { opacity:.6; cursor:not-allowed; }
 
 .employee-modal-overlay { position:fixed; z-index:20; inset:0; display:grid; place-items:center; padding:20px; background:var(--overlay-bg); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
 .employee-incident-modal { width:min(100%,680px); max-height:calc(100vh - 40px); overflow:auto; padding:0; color:var(--text-primary); background:var(--card-bg); border:1px solid var(--border-color); border-radius:18px; box-shadow:var(--card-shadow-hover); }
@@ -88,3 +95,5 @@
   .employee-detail-grid, .employee-edit-grid { grid-template-columns:1fr; }
   .employee-incident-modal > header { flex-wrap:wrap; }
 }
+
+

@@ -96,11 +96,19 @@
 
 .maa-table-card { padding:0; overflow:hidden; }
 
-.maa-table-card table { width:100%; border-collapse:collapse; color:var(--text-primary); font-size:var(--font-table); text-align:left; }
+.maa-table-card table { width:100%; border-collapse:collapse; table-layout:fixed; color:var(--text-primary); font-size:var(--font-table); text-align:left; }
+
+/* Keep every incident field in its own predictable lane, with more room between them. */
+.maa-col-id { width:16%; }
+.maa-col-reporter { width:24%; }
+.maa-col-severity { width:15%; }
+.maa-col-status { width:17%; }
+.maa-col-assigned { width:16%; }
+.maa-col-actions { width:12%; }
 
 .maa-table-card th {
   height:48px;
-  padding:0 21px;
+  padding:0 26px;
   background:var(--hover-bg);
   color:var(--success);
   font-size:11px;
@@ -109,7 +117,7 @@
   letter-spacing:.05em;
 }
 
-.maa-table-card td { padding:16px 21px; border-top:1px solid var(--border-color); vertical-align:middle; font-size:14px; }
+.maa-table-card td { padding:16px 26px; border-top:1px solid var(--border-color); vertical-align:middle; font-size:14px; }
 
 .maa-table-card td:first-child { color:var(--text-heading); font-weight:700; }
 
@@ -143,8 +151,9 @@
 .maa-table-card td .tag.medium-tag { color:var(--warning); }
 .maa-table-card td .tag.low-tag { color:var(--success); }
 
-.maa-assigned { color:var(--text-primary); font-size:14px; font-weight:600; }
-.maa-unassigned { color:var(--text-muted); font-size:14px; font-style:italic; }
+.maa-assigned { display:inline-flex; align-items:center; max-width:100%; color:var(--text-primary); font-size:14px; font-weight:600; }
+.maa-assigned .person-name { min-width:0; }
+.maa-unassigned { display:inline-flex; align-items:center; min-height:28px; padding:0 10px; color:var(--text-secondary); font-size:12px; font-style:normal; font-weight:600; background:var(--hover-bg); border:1px solid var(--border-color); border-radius:999px; }
 
 .maa-empty { padding:40px 21px; color:var(--text-secondary); font-size:var(--font-body); text-align:center; }
 
@@ -152,7 +161,7 @@
 
 /* ---------- Row actions ---------- */
 
-.maa-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
+.maa-actions { display:flex; align-items:center; justify-content:flex-end; gap:12px; white-space:nowrap; }
 
 .maa-view-btn {
   display:grid;
@@ -461,7 +470,10 @@
 .maa-ai-summary { margin:0; color:var(--text-secondary); font-size:var(--font-body); line-height:1.55; }
 
 .maa-ai-steps { display:grid; gap:10px; margin:0; padding:0; list-style:none; }
-.maa-ai-steps li { display:flex; align-items:flex-start; gap:10px; color:var(--text-primary); font-size:var(--font-body); line-height:1.45; }
+.maa-ai-checklist-label { margin:14px 0 0; color:var(--text-secondary); font-size:var(--font-secondary); font-weight:700; }
+.maa-ai-steps li { color:var(--text-primary); font-size:var(--font-body); line-height:1.45; }
+.maa-ai-steps li label { display:grid; grid-template-columns:16px 22px minmax(0, 1fr); align-items:start; gap:9px; cursor:default; }
+.maa-ai-steps li input { margin:4px 0 0; accent-color:var(--success); }
 
 .maa-ai-step-num {
   display:grid;
@@ -514,6 +526,8 @@
   .maa-stats { grid-template-columns:repeat(3,1fr); gap:10px; }
   .maa-table-card { overflow-x:auto; }
   .maa-table-card table { min-width:760px; }
+  .maa-table-card th,
+  .maa-table-card td { padding-right:18px; padding-left:18px; }
 }
 
 @media(max-width:650px){

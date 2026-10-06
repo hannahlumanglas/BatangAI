@@ -206,7 +206,7 @@ type Incident = IncidentDetail & {
   reporterProfilePhoto: string | null
   reporterEmail: string | null
   department: string
-  severity: Severity
+  severity: Severity | null
   status: Status
   assignedTo: string | null
   assignedToUserId: string | null
@@ -224,6 +224,7 @@ type Incident = IncidentDetail & {
   aiDuration: string
   aiSummary: string
   aiSteps: string[]
+  aiCheckedSteps: number[]
 }
 
 type Personnel = {
@@ -240,6 +241,7 @@ type ApiIncident = {
   incidentID: string
   affectedIssue?: string | null
   classification?: string | null
+  keywords?: string[] | null
   connectionType?: string | null
   createdAt?: string | null
   department?: string | null
@@ -592,9 +594,22 @@ function ProfileMenu({
 
 function parseTroubleshooting(
   value: string | null | undefined,
-): string[] {
+): { steps: string[]; checkedSteps: number[] } {
   if (!value) {
-    return ['No troubleshooting steps recorded.']
+    return { steps: ['No self-help steps recorded.'], checkedSteps: [] }
+  }
+
+  const checkedMatch = value.match(/\[Employee checked self-help steps: ([^\]]*)\]/i)
+  const checkedSteps = (checkedMatch?.[1] || '').split(',')
+    .map(item => Number(item.trim()))
+    .filter(index => Number.isInteger(index) && index >= 0)
+  const basicHelp = value.match(/Basic Self-Help:\s*([\s\S]*?)(?=\n\s*IT Troubleshooting Suggestions:|\n\s*\[Employee checked self-help steps:|$)/i)?.[1]
+
+  if (basicHelp !== undefined) {
+    const steps = basicHelp.split(/\r?\n/)
+      .map(step => step.replace(/^\s*(\d+[.)]|[-*])\s*/, '').trim())
+      .filter(Boolean)
+    return { steps: steps.length ? steps : ['No self-help steps recorded.'], checkedSteps }
   }
 
   try {
@@ -606,7 +621,7 @@ function parseTroubleshooting(
         .filter(Boolean)
 
       if (steps.length > 0) {
-        return steps
+        return { steps, checkedSteps: [] }
       }
     }
   } catch {
@@ -622,9 +637,7 @@ function parseTroubleshooting(
     )
     .filter(Boolean)
 
-  return steps.length > 0
-    ? steps
-    : ['No troubleshooting steps recorded.']
+  return { steps: steps.length > 0 ? steps : ['No self-help steps recorded.'], checkedSteps: [] }
 }
 
 function formatDateTime(
@@ -661,10 +674,11 @@ function formatDateTime(
   }
 }
 
-function mapSeverity(value: string | null | undefined): Severity {
+function mapSeverity(value: string | null | undefined): Severity | null {
   if (value === 'High') return 'High'
   if (value === 'Medium') return 'Medium'
-  return 'Low'
+  if (value === 'Low') return 'Low'
+  return null
 }
 
 function mapStatus(value: string | null | undefined): Status {
@@ -703,6 +717,7 @@ function mapIncident(item: ApiIncident): Incident {
     assignedToName: item.assignedToName || null,
     affectedIssue: item.affectedIssue || 'Not specified',
     classification: item.classification || null,
+    keywords: item.keywords || null,
     connectionType: item.connectionType || null,
     createdAt: `${dateTime.date} at ${dateTime.time}`,
     issueCategory: item.issueCategory || null,
@@ -757,9 +772,10 @@ function mapIncident(item: ApiIncident): Incident {
       item.summary ||
       'No AI summary available.',
 
-    aiSteps: parseTroubleshooting(
-      item.troubleshooting,
-    ),
+    ...(() => {
+      const selfHelp = parseTroubleshooting(item.troubleshooting)
+      return { aiSteps: selfHelp.steps, aiCheckedSteps: selfHelp.checkedSteps }
+    })(),
   }
 }
 
@@ -917,6 +933,11 @@ function ManageAndAssign({
   const [statusFilter, setStatusFilter] =
     useState<'All Statuses' | Status>(
       'All Statuses',
+    )
+
+  const [severityFilter, setSeverityFilter] =
+    useState<'All Severities' | Severity>(
+      'All Severities',
     )
 
   const [assigningId, setAssigningId] =
@@ -1085,6 +1106,10 @@ function ManageAndAssign({
       statusFilter === 'All Statuses' ||
       i.status === statusFilter
 
+    const matchesSeverity =
+      severityFilter === 'All Severities' ||
+      i.severity === severityFilter
+
     const q = search.trim().toLowerCase()
 
     const matchesSearch =
@@ -1093,7 +1118,7 @@ function ManageAndAssign({
       i.reporter.toLowerCase().includes(q) ||
       i.department.toLowerCase().includes(q)
 
-    return matchesStatus && matchesSearch
+    return matchesStatus && matchesSeverity && matchesSearch
   })
 
   /* ---------- Assignment ---------- */
@@ -1500,12 +1525,38 @@ function ManageAndAssign({
                 </option>
               </select>
             </label>
+
+            <label className="maa-status-filter">
+              <select
+                value={severityFilter}
+                onChange={e =>
+                  setSeverityFilter(
+                    e.target.value as
+                      | 'All Severities'
+                      | Severity,
+                  )
+                }
+              >
+                <option>All Severities</option>
+                <option>High</option>
+                <option>Medium</option>
+                <option>Low</option>
+              </select>
+            </label>
           </div>
 
           {/* Incident Table */}
 
           <article className="dashboard-card maa-table-card">
             <table>
+              <colgroup>
+                <col className="maa-col-id" />
+                <col className="maa-col-reporter" />
+                <col className="maa-col-severity" />
+                <col className="maa-col-status" />
+                <col className="maa-col-assigned" />
+                <col className="maa-col-actions" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>ID</th>
@@ -1513,7 +1564,6 @@ function ManageAndAssign({
                   <th>Severity</th>
                   <th>Status</th>
                   <th>Assigned To</th>
-                  <th>Date</th>
                   <th />
                 </tr>
               </thead>
@@ -1522,7 +1572,7 @@ function ManageAndAssign({
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={6}
                       className="maa-empty"
                     >
                       Loading incidents...
@@ -1551,12 +1601,10 @@ function ManageAndAssign({
                         <td>
                           <span
                             className={`tag ${
-                              severityTagClass[
-                                i.severity
-                              ]
+                              i.severity ? severityTagClass[i.severity] : ''
                             }`}
                           >
-                            {i.severity}
+                            {i.severity ?? 'Not set'}
                           </span>
                         </td>
 
@@ -1597,14 +1645,6 @@ function ManageAndAssign({
                         </td>
 
                         <td>
-                          {i.date}
-                          <br />
-                          <small>
-                            {i.time}
-                          </small>
-                        </td>
-
-                        <td>
                           <div className="maa-actions">
                             <button
                               type="button"
@@ -1617,7 +1657,7 @@ function ManageAndAssign({
                               <Icon name="eye" />
                             </button>
 
-                            {!isIT && (
+                            {!isIT && i.status !== 'Resolved' && i.status !== 'Closed' && (
                               <button
                                 type="button"
                                 className="maa-assign-btn"
@@ -1775,7 +1815,8 @@ function ManageAndAssign({
           incident={viewingIncident}
           onClose={closeView}
           footer={
-            !isIT && viewingIncident.status !== 'Resolved' ? (
+            !isIT &&
+            viewingIncident.status !== 'Resolved' ? (
               <>
                 <label className="maa-detail-action">
                   Severity
@@ -1789,6 +1830,7 @@ function ManageAndAssign({
                     }
                     disabled={savingSeverity}
                   >
+                    <option value="" disabled>Select severity</option>
                     <option value="Low">Low</option>
                     <option value="Medium">Medium</option>
                     <option value="High">High</option>
@@ -2131,17 +2173,19 @@ function ManageAndAssign({
                     }
                   </p>
 
+                  <p className="maa-ai-checklist-label">Basic Self-Help completed by employee</p>
                   <ol className="maa-ai-steps">
                     {viewingIncident.aiSteps.map(
                       (step, index) => (
                         <li
                           key={`${viewingIncident.id}-${index}`}
+                          className={viewingIncident.aiCheckedSteps.includes(index) ? 'is-employee-checked' : ''}
                         >
-                          <span className="maa-ai-step-num">
-                            {index + 1}
-                          </span>
-
-                          {step}
+                          <label>
+                            <input type="checkbox" checked={viewingIncident.aiCheckedSteps.includes(index)} readOnly />
+                            <span className="maa-ai-step-num">{index + 1}</span>
+                            <span>{step}</span>
+                          </label>
                         </li>
                       ),
                     )}
@@ -2152,7 +2196,7 @@ function ManageAndAssign({
 
             {/* Assignment */}
 
-            {!isIT && (
+            {!isIT && viewingIncident.status !== 'Resolved' && viewingIncident.status !== 'Closed' && (
               <button
                 type="button"
                 className="maa-assign-full"

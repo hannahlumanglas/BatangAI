@@ -9,10 +9,20 @@ import {
   signOut,
 } from '../../auth'
 import { PersonName } from '../../components/PersonName'
+import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
 import { API_BASE_URL } from '../../apiConfig'
+import {
+  analyzeIncidentWithAI,
+  IncidentDescriptionFields,
+  IncidentDetailsFields,
+} from '../Employee/ReportIncident'
+import type {
+  IncidentAnalysis,
+  IncidentFormValues,
+} from '../Employee/ReportIncident'
 
 type IconName =
   | 'dashboard'
@@ -213,6 +223,7 @@ type Incident = {
   incidentID: string
   affectedIssue: string
   classification: string | null
+  keywords: string[] | null
   connectionType: string | null
   createdAt: string
   department: string
@@ -224,7 +235,7 @@ type Incident = {
   location: string
   resolvedAt: string | null
   resolvedBy: string | null
-  severity: 'High' | 'Medium' | 'Low'
+  severity: 'High' | 'Medium' | 'Low' | null
   status: 'Pending' | 'In Progress' | 'Resolved' | 'Closed'
   summary: string | null
   troubleshooting: string | null
@@ -259,7 +270,6 @@ const STATUS_OPTIONS = [
   'Pending',
   'In Progress',
   'Resolved',
-  'Closed',
 ]
 
 const SEVERITY_OPTIONS = [
@@ -273,84 +283,16 @@ const SEVERITY_OPTIONS = [
    NEW INCIDENT FORM
    =========================================================== */
 
-interface IncidentFormValues {
-  department: string
-  location: string
-  issueCategory: string
-  deviceType: string
-  connectionType: string
-  severity: string
-  affectedService: string
-  description: string
-}
-
 const initialIncidentFormValues: IncidentFormValues = {
+  severity: '',
   department: '',
   location: '',
   issueCategory: '',
   deviceType: '',
   connectionType: '',
-  severity: '',
   affectedService: '',
   description: '',
 }
-
-interface IncidentAiAnalysis {
-  summary: string
-  possibleInterpretation: string
-  basicSelfHelp: string
-  itTroubleshooting: string
-}
-
-async function analyzeNewIncident(values: IncidentFormValues): Promise<IncidentAiAnalysis> {
-  const response = await fetch(`${API_BASE_URL}/analyze_incident.php`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      department: values.department,
-      location: values.location,
-      issueCategory: values.issueCategory,
-      deviceType: values.deviceType,
-      connectionType: values.connectionType,
-      affectedService: values.affectedService,
-      description: values.description,
-    }),
-  })
-  const data = await response.json()
-  if (!response.ok || !data.success || !data.analysis) {
-    throw new Error(data.message || 'AI assistance is currently unavailable. Please try again.')
-  }
-  return {
-    summary: data.analysis.summary || '',
-    possibleInterpretation: data.analysis.possibleInterpretation || '',
-    basicSelfHelp: data.analysis.basicSelfHelp || '',
-    itTroubleshooting: data.analysis.itTroubleshooting || '',
-  }
-}
-
-const ISSUE_CATEGORIES = [
-  'Network Connectivity',
-  'Hardware Malfunction',
-  'Software / Application Error',
-  'Email / Communication',
-  'Printer / Peripheral',
-  'Server / System Downtime',
-  'Security / Access Issue',
-  'Other',
-]
-
-const DEVICE_TYPES = [
-  'Desktop Computer',
-  'Laptop',
-  'Printer',
-  'Router',
-  'Switch',
-]
-
-const CONNECTION_TYPES = [
-  'LAN',
-  'Wi-Fi',
-]
 
 /* ===========================================================
    THEME
@@ -679,123 +621,6 @@ function getBasicSelfHelpText(
   )
 }
 
-function getITTroubleshootingText(
-  troubleshooting: string | null,
-): string {
-  if (!troubleshooting) {
-    return 'No IT troubleshooting suggestions were recorded.'
-  }
-
-  const marker = 'IT Troubleshooting Suggestions:'
-  const markerIndex = troubleshooting.indexOf(marker)
-
-  if (markerIndex === -1) {
-    return 'No IT troubleshooting suggestions were recorded.'
-  }
-
-  return repairTextEncoding(
-    troubleshooting
-      .slice(markerIndex + marker.length)
-      .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
-      .trim() ||
-    'No IT troubleshooting suggestions were recorded.'
-  )
-}
-
-function splitTroubleshootingSteps(text: string): string[] {
-  const normalized = repairTextEncoding(text)
-    .replace(/\r\n?/g, '\n')
-    .replace(/\u00a0/g, ' ')
-    .trim()
-
-  if (!normalized) return []
-
-  const withoutLeadingLabel = normalized
-    .replace(/^IT Troubleshooting Suggestions:\s*/i, '')
-    .replace(/^Basic Self-Help:\s*/i, '')
-    .trim()
-
-  const withBoundaries = withoutLeadingLabel
-    .replace(/\s+(?=\d+\.\s+)/g, '\n')
-    .replace(/^\s*[-•]\s+/gm, '')
-
-  const steps = withBoundaries
-    .split(/\n+/)
-    .map(step => step.trim())
-    .map(step => step.replace(/^\d+[.)]\s*/, '').trim())
-    .filter(Boolean)
-
-  return steps
-}
-
-function parseDatabaseDate(value: string | null): Date | null {
-  if (!value) return null
-
-  const normalized = value.trim().replace(' ', 'T')
-  const parsed = new Date(normalized)
-
-  return Number.isNaN(parsed.getTime()) ? null : parsed
-}
-
-function formatIncidentDateTime(value: string | null): string {
-  const parsed = parseDatabaseDate(value)
-
-  if (!parsed) return 'Not recorded'
-
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(parsed)
-}
-
-function formatElapsedDuration(totalSeconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(totalSeconds))
-  const hours = Math.floor(safeSeconds / 3600)
-  const minutes = Math.floor((safeSeconds % 3600) / 60)
-  const seconds = safeSeconds % 60
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m ${seconds}s`
-  }
-
-  return `${minutes}m ${seconds}s`
-}
-
-function getIncidentDurationText(
-  incident: Incident,
-  nowMs: number,
-): string {
-  if (
-    incident.status === 'In Progress' &&
-    incident.startedAt
-  ) {
-    const startedAt = parseDatabaseDate(
-      incident.startedAt,
-    )
-
-    if (startedAt) {
-      const elapsedSeconds =
-        (nowMs - startedAt.getTime()) / 1000
-
-      return `${formatElapsedDuration(elapsedSeconds)} (live)`
-    }
-  }
-
-  if (
-    (incident.status === 'Resolved' ||
-      incident.status === 'Closed') &&
-    incident.durationMinutes !== null
-  ) {
-    return `${incident.durationMinutes} min`
-  }
-
-  return 'Not started'
-}
-
 /* ===========================================================
    PAGE
    =========================================================== */
@@ -941,6 +766,9 @@ function Incidents({
 
   const [apiError, setApiError] =
     useState('')
+
+  const [deletingId, setDeletingId] =
+    useState<string | null>(null)
 
   const fetchIncidents = async () => {
     try {
@@ -1115,11 +943,42 @@ function Incidents({
   const [viewingId, setViewingId] =
     useState<string | null>(null)
 
-  const [detailTab, setDetailTab] = useState<'overview' | 'analysis' | 'troubleshooting'>('overview')
-  const [checkedTroubleshooting, setCheckedTroubleshooting] = useState<Record<string, boolean>>({})
-
   const [actionMenuId, setActionMenuId] =
     useState<string | null>(null)
+
+  useEffect(() => {
+    if (actionMenuId === null) {
+      return
+    }
+
+    const handleOutsidePointerDown = (
+      event: PointerEvent,
+    ) => {
+      const target = event.target
+      if (
+        target instanceof Element &&
+        target.closest('.incident-more-menu')
+      ) {
+        return
+      }
+
+      setActionMenuId(null)
+    }
+
+    document.addEventListener(
+      'pointerdown',
+      handleOutsidePointerDown,
+      true,
+    )
+
+    return () => {
+      document.removeEventListener(
+        'pointerdown',
+        handleOutsidePointerDown,
+        true,
+      )
+    }
+  }, [actionMenuId])
 
   const viewingIncident =
     incidents.find(
@@ -1128,44 +987,54 @@ function Incidents({
         viewingId,
     ) ?? null
 
-  const [liveNow, setLiveNow] =
-    useState(() => Date.now())
-
-  useEffect(() => {
-    if (
-      !viewingIncident ||
-      viewingIncident.status !== 'In Progress' ||
-      !viewingIncident.startedAt
-    ) {
-      setLiveNow(Date.now())
-      return
-    }
-
-    const updateLiveTime = () => {
-      setLiveNow(Date.now())
-    }
-
-    updateLiveTime()
-
-    const intervalId = window.setInterval(
-      updateLiveTime,
-      1000,
-    )
-
-    return () => {
-      window.clearInterval(intervalId)
-    }
-  }, [
-    viewingIncident?.incidentID,
-    viewingIncident?.status,
-    viewingIncident?.startedAt,
-  ])
-
   const closeViewing = () => {
     setViewingId(null)
     setActionMenuId(null)
-    setDetailTab('overview')
-    setCheckedTroubleshooting({})
+  }
+
+  const handleDeleteIncident = async (incident: Incident) => {
+    setActionMenuId(null)
+
+    if (incident.status !== 'Pending') {
+      alert('Only pending incidents can be deleted. Incidents already being worked on or resolved must be managed by IT Personnel or an Administrator.')
+      return
+    }
+
+    if (!window.confirm(`Delete incident ${incident.incidentID}? This cannot be undone.`)) {
+      return
+    }
+
+    try {
+      setDeletingId(incident.incidentID)
+      const response = await fetch(`${API_BASE_URL}/delete_incident.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ incidentID: incident.incidentID }),
+      })
+
+      const responseText = await response.text()
+      let data: { success?: boolean; message?: string }
+      try {
+        data = JSON.parse(responseText)
+      } catch {
+        console.error('Invalid JSON from delete_incident.php:', responseText)
+        throw new Error('The server returned an invalid response.')
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to delete the incident.')
+      }
+
+      setIncidents(current => current.filter(item => item.incidentID !== incident.incidentID))
+    } catch (error) {
+      console.error('Delete incident error:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete the incident.')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   /* =========================================================
@@ -1183,17 +1052,10 @@ function Incidents({
       }),
     )
 
-  const [errors, setErrors] =
-    useState<
-      Partial<
-        Record<
-          keyof IncidentFormValues,
-          string
-        >
-      >
-    >({})
-
   const [analyzingNewIncident, setAnalyzingNewIncident] = useState(false)
+  const [newIncidentAnalysis, setNewIncidentAnalysis] =
+    useState<IncidentAnalysis | null>(null)
+  const [newIncidentAnalysisError, setNewIncidentAnalysisError] = useState('')
 
   const overlayRef =
     useRef<HTMLDivElement>(null)
@@ -1205,12 +1067,22 @@ function Incidents({
       ...initialIncidentFormValues,
       department: getAuthSession()?.user.department?.trim() ?? '',
     })
-    setErrors({})
+    setNewIncidentAnalysis(null)
+    setNewIncidentAnalysisError('')
     setIsNewIncidentOpen(true)
   }
 
   const closeNewIncident = () => {
     setIsNewIncidentOpen(false)
+  }
+
+  const handleNewIncidentFieldChange = (
+    field: keyof IncidentFormValues,
+    value: string,
+  ) => {
+    setValues(previous => ({ ...previous, [field]: value }))
+    setNewIncidentAnalysis(null)
+    setNewIncidentAnalysisError('')
   }
 
   useEffect(() => {
@@ -1244,86 +1116,26 @@ function Incidents({
     isNewIncidentOpen,
   ])
 
-  const handleFieldChange = (
-    field: keyof IncidentFormValues,
-    value: string,
-  ) => {
-    setValues(prev => ({
-      ...prev,
-      [field]: value,
-    }))
-
-    setErrors(prev => {
-      if (!prev[field]) return prev
-
-      const next = {
-        ...prev,
-      }
-
-      delete next[field]
-
-      return next
-    })
-  }
-
-  const validate = () => {
-    const requiredFields: (
-      keyof IncidentFormValues
-    )[] = [
-      'location',
-      'issueCategory',
-      'deviceType',
-      'connectionType',
-      'severity',
-      'affectedService',
-      'description',
-    ]
-
-    const nextErrors: Partial<
-      Record<
-        keyof IncidentFormValues,
-        string
-      >
-    > = {}
-
-    requiredFields.forEach(
-      field => {
-        if (
-          !values[field].trim()
-        ) {
-          nextErrors[field] =
-            'This field is required.'
-        }
-      },
-    )
-
-    setErrors(nextErrors)
-
-    return (
-      Object.keys(nextErrors)
-        .length === 0
-    )
-  }
-
   const handleSubmitNewIncident = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
 
-    if (analyzingNewIncident || !validate()) {
+    if (analyzingNewIncident) {
       return
     }
 
     setAnalyzingNewIncident(true)
+    setNewIncidentAnalysisError('')
     try {
-      const analysis = await analyzeNewIncident(values)
-      alert([
-        `Summary: ${analysis.summary}`,
-        `Basic self-help: ${analysis.basicSelfHelp}`,
-        `IT troubleshooting: ${analysis.itTroubleshooting}`,
-      ].join('\n\n'))
+      const analysis = await analyzeIncidentWithAI(values)
+      setNewIncidentAnalysis(analysis)
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'AI assistance is currently unavailable. Please try again.')
+      setNewIncidentAnalysisError(
+        error instanceof Error
+          ? error.message
+          : 'AI assistance is currently unavailable. Please try again.',
+      )
     } finally {
       setAnalyzingNewIncident(false)
     }
@@ -1545,18 +1357,6 @@ function Incidents({
               </select>
             </label>
 
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={
-                fetchIncidents
-              }
-              disabled={loading}
-            >
-              {loading
-                ? 'Refreshing...'
-                : 'Refresh'}
-            </button>
           </section>
 
           {/* =================================================
@@ -1609,7 +1409,6 @@ function Incidents({
                 <tr>
                   <th>ID</th>
                   <th>REPORTER</th>
-                  <th>DEPARTMENT</th>
                   <th>SEVERITY</th>
                   <th>STATUS</th>
                   <th>ACTION</th>
@@ -1624,7 +1423,7 @@ function Incidents({
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={6}
                       style={{
                         textAlign:
                           'center',
@@ -1653,29 +1452,17 @@ function Incidents({
 
                           <td>
                             <PersonName
-                              name={
-                                incident.employeeName
-                              }
-                              profilePhoto={
-                                incident.reporterProfilePhoto
-                              }
+                              name={incident.employeeName}
+                              profilePhoto={incident.reporterProfilePhoto}
                               compact
                             />
                           </td>
 
                           <td>
-                            {
-                              incident.department
-                            }
-                          </td>
-
-                          <td>
                             <span
-                              className={`tag ${incident.severity.toLowerCase()}-tag`}
+                              className={incident.severity ? `tag ${incident.severity.toLowerCase()}-tag` : 'tag'}
                             >
-                              {
-                                incident.severity
-                              }
+                              {incident.severity ?? 'Not set'}
                             </span>
                           </td>
 
@@ -1743,6 +1530,8 @@ function Incidents({
                                 <div className="incident-row-menu">
                                   <button
                                     type="button"
+                                    disabled={incident.status === 'Resolved' || incident.status === 'Closed'}
+                                    title={incident.status === 'Resolved' || incident.status === 'Closed' ? 'Resolved incidents cannot be edited.' : undefined}
                                     onClick={() => {
                                       setActionMenuId(
                                         null,
@@ -1759,15 +1548,9 @@ function Incidents({
                                   <button
                                     className="incident-delete-action"
                                     type="button"
-                                    onClick={() => {
-                                      setActionMenuId(
-                                        null,
-                                      )
-
-                                      alert(
-                                        'Delete Incident is not connected yet. No database record was deleted.',
-                                      )
-                                    }}
+                                    disabled={incident.status !== 'Pending' || deletingId === incident.incidentID}
+                                    title={incident.status !== 'Pending' ? 'Only pending incidents can be deleted.' : undefined}
+                                    onClick={() => void handleDeleteIncident(incident)}
                                   >
                                     Delete
                                   </button>
@@ -1789,7 +1572,7 @@ function Incidents({
                         0 && (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={6}
                             style={{
                               textAlign:
                                 'center',
@@ -1898,306 +1681,35 @@ function Incidents({
                 onSubmit={
                   handleSubmitNewIncident
                 }
-                noValidate
               >
                 <div className="incident-form">
-                  <fieldset
-                    className="incident-form-section"
-                  >
-                    <legend className="sr-only">
-                      Incident Details
-                    </legend>
-
-                    <div className="incident-form-section-header">
-                      <span className="incident-form-badge">
-                        1
-                      </span>
-
-                      <h3>
-                        Incident
-                        Details
-                      </h3>
-                    </div>
-
-                    <div className="incident-form-grid">
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Department
-                        </span>
-
-                        <input
-                          type="text"
-                          value={
-                            values.department
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'department',
-                              e.target
-                                .value,
-                            )
-                          }
-                          placeholder="Enter department"
-                        />
-                      </label>
-
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Location / Room
-                          <em>*</em>
-                        </span>
-
-                        <input
-                          type="text"
-                          placeholder="e.g. 2nd Floor, IT Room"
-                          value={
-                            values.location
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'location',
-                              e.target
-                                .value,
-                            )
-                          }
-                        />
-
-                        {errors.location && (
-                          <span className="incident-field-error">
-                            {
-                              errors.location
-                            }
-                          </span>
-                        )}
-                      </label>
-
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Issue Category
-                          <em>*</em>
-                        </span>
-
-                        <select
-                          value={
-                            values.issueCategory
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'issueCategory',
-                              e.target
-                                .value,
-                            )
-                          }
-                        >
-                          <option value="">
-                            Select a
-                            category
-                          </option>
-
-                          {ISSUE_CATEGORIES.map(
-                            category => (
-                              <option
-                                key={
-                                  category
-                                }
-                                value={
-                                  category
-                                }
-                              >
-                                {category}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      </label>
-
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Device Type
-                          <em>*</em>
-                        </span>
-
-                        <select
-                          value={
-                            values.deviceType
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'deviceType',
-                              e.target
-                                .value,
-                            )
-                          }
-                        >
-                          <option value="">
-                            Select a
-                            device type
-                          </option>
-
-                          {DEVICE_TYPES.map(
-                            device => (
-                              <option
-                                key={
-                                  device
-                                }
-                                value={
-                                  device
-                                }
-                              >
-                                {device}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      </label>
-
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Connection Type
-                          <em>*</em>
-                        </span>
-
-                        <select
-                          value={
-                            values.connectionType
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'connectionType',
-                              e.target
-                                .value,
-                            )
-                          }
-                        >
-                          <option value="">
-                            Select a
-                            connection
-                            type
-                          </option>
-
-                          {CONNECTION_TYPES.map(
-                            connection => (
-                              <option
-                                key={
-                                  connection
-                                }
-                                value={
-                                  connection
-                                }
-                              >
-                                {connection}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      </label>
-
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Severity
-                          <em>*</em>
-                        </span>
-
-                        <select
-                          value={
-                            values.severity
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'severity',
-                              e.target
-                                .value,
-                            )
-                          }
-                        >
-                          <option value="">
-                            Select
-                            severity
-                          </option>
-
-                          <option value="Low">
-                            Low
-                          </option>
-
-                          <option value="Medium">
-                            Medium
-                          </option>
-
-                          <option value="High">
-                            High
-                          </option>
-                        </select>
-                      </label>
-                    </div>
-                  </fieldset>
-
-                  <fieldset
-                    className="incident-form-section"
-                  >
-                    <legend className="sr-only">
-                      Problem
-                      Description
-                    </legend>
-
-                    <div className="incident-form-section-header">
-                      <span className="incident-form-badge">
-                        2
-                      </span>
-
-                      <h3>
-                        Problem
-                        Description
-                      </h3>
-                    </div>
-
-                    <div className="incident-form-grid incident-form-grid--single">
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Affected Issue /
-                          Service
-                          <em>*</em>
-                        </span>
-
-                        <input
-                          type="text"
-                          placeholder="e.g. Records System login"
-                          value={
-                            values.affectedService
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'affectedService',
-                              e.target
-                                .value,
-                            )
-                          }
-                        />
-                      </label>
-
-                      <label className="incident-field">
-                        <span className="incident-field-label">
-                          Detailed Problem
-                          Description
-                          <em>*</em>
-                        </span>
-
-                        <textarea
-                          rows={4}
-                          placeholder="Describe what happened, when it started, and any error messages you saw."
-                          value={
-                            values.description
-                          }
-                          onChange={e =>
-                            handleFieldChange(
-                              'description',
-                              e.target
-                                .value,
-                            )
-                          }
-                        />
-                      </label>
-                    </div>
-                  </fieldset>
+                  <IncidentDetailsFields
+                    values={values}
+                    onChange={handleNewIncidentFieldChange}
+                    showSeverity
+                  />
+                  <IncidentDescriptionFields
+                    values={values}
+                    onChange={handleNewIncidentFieldChange}
+                  />
+                  {newIncidentAnalysisError && (
+                    <p className="incident-field-error" role="alert">
+                      {newIncidentAnalysisError}
+                    </p>
+                  )}
+                  {newIncidentAnalysis && (
+                    <section className="incident-ai-analysis" aria-live="polite">
+                      <h3 className="incident-ai-analysis-title">BatangAI Analysis</h3>
+                      <div className="incident-ai-summary-grid">
+                        <div className="incident-ai-block"><span>Classification</span><p>{newIncidentAnalysis.classification}</p></div>
+                        <div className="incident-ai-block"><span>Keywords</span><p>{newIncidentAnalysis.keywords.join(', ')}</p></div>
+                        <div className="incident-ai-block"><span>Summary</span><p>{newIncidentAnalysis.summary}</p></div>
+                        <div className="incident-ai-block"><span>Possible Interpretation</span><p>{newIncidentAnalysis.possibleInterpretation}</p></div>
+                        <div className="incident-ai-block"><span>Basic Self-Help</span><p style={{ whiteSpace: 'pre-line' }}>{newIncidentAnalysis.basicSelfHelp}</p></div>
+                        <div className="incident-ai-block"><span>IT Troubleshooting Suggestions</span><p style={{ whiteSpace: 'pre-line' }}>{newIncidentAnalysis.itTroubleshooting}</p></div>
+                      </div>
+                    </section>
+                  )}
                 </div>
 
                 <footer className="new-incident-footer">
@@ -2226,137 +1738,21 @@ function Incidents({
           REAL DATABASE INCIDENT DETAIL
           ===================================================== */}
 
-      {viewingIncident && ((viewingIncident: Incident) => (
-        <div
-          className="modal-overlay"
-          onMouseDown={event => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
-              closeViewing()
-            }
+      {viewingIncident && (
+        <IncidentDetailModal
+          incident={{
+            ...viewingIncident,
+            troubleshooting: viewingIncident.troubleshooting
+              ? [
+                  getBasicSelfHelpText(viewingIncident.troubleshooting),
+                  viewingIncident.troubleshooting.match(/\[Employee checked self-help steps: [^\]]*\]/i)?.[0] ?? '',
+                ].filter(Boolean).join('\n')
+              : null,
           }}
-        >
-          <div
-            className="incident-detail-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="incident-detail-title"
-          >
-            <header className="incident-detail-header">
-              <div>
-                <h2 id="incident-detail-title">
-                  {
-                    viewingIncident.incidentID
-                  }
-                </h2>
-
-                <p>
-                  Reported{' '}
-                  {formatIncidentDateTime(
-                    viewingIncident.createdAt,
-                  )}
-                </p>
-              </div>
-
-              <button
-                className="modal-close"
-                type="button"
-                aria-label="Close dialog"
-                onClick={
-                  closeViewing
-                }
-              >
-                <Icon name="close" />
-              </button>
-            </header>
-
-            <nav className="incident-detail-tabs" role="tablist" aria-label="Incident details">
-              {([
-                ['overview', 'Overview'],
-                ['analysis', 'AI Analysis'],
-                ['troubleshooting', 'Troubleshooting'],
-              ] as const).map(([tab, label]) => (
-                <button key={tab} type="button" role="tab" aria-selected={detailTab === tab}
-                  className={detailTab === tab ? 'is-active' : ''} onClick={() => setDetailTab(tab)}>{label}</button>
-              ))}
-            </nav>
-            <div className="incident-detail-body" role="tabpanel">
-              {detailTab === 'overview' && <>
-                <h3 className="incident-detail-group-title">Incident Information</h3>
-                <div className="incident-detail-grid">
-                  <div className="incident-detail-field"><span>Reporter</span><strong><PersonName name={viewingIncident.employeeName} profilePhoto={viewingIncident.reporterProfilePhoto} /></strong></div>
-                  <div className="incident-detail-field"><span>Department</span><strong>{viewingIncident.department}</strong></div>
-                  <div className="incident-detail-field"><span>Location / Room</span><strong>{viewingIncident.location}</strong></div>
-                  <div className="incident-detail-field"><span>Issue Category</span><strong>{viewingIncident.issueCategory}</strong></div>
-                  <div className="incident-detail-field"><span>Device Type</span><strong>{viewingIncident.deviceType || 'Not specified'}</strong></div>
-                  <div className="incident-detail-field"><span>Connection Type</span><strong>{viewingIncident.connectionType || 'Not specified'}</strong></div>
-                  <div className="incident-detail-field"><span>Severity</span><strong><span className={`tag ${viewingIncident.severity.toLowerCase()}-tag`}>{viewingIncident.severity}</span></strong></div>
-                  <div className="incident-detail-field"><span>Status</span><strong><span className={`tag ${viewingIncident.status === 'Resolved' ? 'resolved-tag' : viewingIncident.status === 'In Progress' ? 'progress-tag' : 'pending-tag'}`}>{viewingIncident.status}</span></strong></div>
-                  <div className="incident-detail-field"><span>Assigned</span><strong>{viewingIncident.assigned}</strong></div>
-                  <div className="incident-detail-field"><span>Assigned To</span><strong>{viewingIncident.assignedToName || viewingIncident.assignedTo || 'Not assigned'}</strong></div>
-                </div>
-
-                <section className="incident-detail-section">
-                  <h3>Incident Timeline</h3>
-                  <div className="incident-detail-grid">
-                    <div className="incident-detail-field"><span>Reported At</span><strong>{formatIncidentDateTime(viewingIncident.createdAt)}</strong></div>
-                    <div className="incident-detail-field"><span>Assigned At</span><strong>{formatIncidentDateTime(viewingIncident.assignedAt)}</strong></div>
-                    <div className="incident-detail-field"><span>Started At</span><strong>{formatIncidentDateTime(viewingIncident.startedAt)}</strong></div>
-                    <div className="incident-detail-field"><span>Resolved At</span><strong>{formatIncidentDateTime(viewingIncident.resolvedAt)}</strong></div>
-                    <div className="incident-detail-field"><span>Duration</span><strong>{getIncidentDurationText(viewingIncident, liveNow)}</strong></div>
-                  </div>
-                  {viewingIncident.status === 'In Progress' && viewingIncident.startedAt && <p className="incident-resolution-meta">Duration updates automatically while this incident is in progress.</p>}
-                </section>
-                <section className="incident-detail-section incident-detail-section--service"><h3>Affected Issue / Service</h3><p>{viewingIncident.affectedIssue}</p></section>
-                <section className="incident-detail-section incident-detail-section--description"><h3>Detailed Problem Description</h3><p>{viewingIncident.description}</p></section>
-                {viewingIncident.resolutionNotes && <section className="incident-detail-section"><h3>Resolution Notes</h3><p>{viewingIncident.resolutionNotes}</p></section>}
-              </>}
-
-              {detailTab === 'analysis' && <section className="incident-ai-analysis">
-                <h3 className="incident-ai-analysis-title">AI Analysis</h3>
-                {viewingIncident.classification && <div className="incident-ai-block"><span>Classification</span><p>{viewingIncident.classification}</p></div>}
-                {viewingIncident.summary && <div className="incident-ai-block"><span>Incident Summary</span><p>{viewingIncident.summary}</p></div>}
-                <section className="incident-checklist-card">
-                  <header><div><h3>Basic Self-Help</h3><p>Check off each step as you complete it.</p></div></header>
-                  {splitTroubleshootingSteps(getBasicSelfHelpText(viewingIncident.troubleshooting)).length > 0 ? <ul>
-                    {splitTroubleshootingSteps(getBasicSelfHelpText(viewingIncident.troubleshooting)).map((step, index) => {
-                      const key = `${viewingIncident.incidentID}-basic-${index}`;
-                      return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
-                    })}
-                  </ul> : <p className="incident-detail-empty">No basic self-help guidance was recorded.</p>}
-                </section>
-                {!viewingIncident.classification && !viewingIncident.summary && <p className="incident-detail-empty">No AI analysis is available for this incident.</p>}
-              </section>}
-
-              {detailTab === 'troubleshooting' && <div className="incident-troubleshooting">
-                {!isSecretary && <section className="incident-checklist-card incident-checklist-card--it">
-                  <header><div><h3>IT Support Suggestions</h3><p>Technical guidance for IT personnel to review.</p></div><span className="incident-it-badge">IT</span></header>
-                  {splitTroubleshootingSteps(getITTroubleshootingText(viewingIncident.troubleshooting)).length > 0 ? <ul>
-                    {splitTroubleshootingSteps(getITTroubleshootingText(viewingIncident.troubleshooting)).map((step, index) => {
-                      const key = `${viewingIncident.incidentID}-it-${index}`;
-                      return <li key={key}><label><input type="checkbox" checked={!!checkedTroubleshooting[key]} onChange={event => setCheckedTroubleshooting(current => ({ ...current, [key]: event.target.checked }))} /><span>{step}</span></label></li>;
-                    })}
-                  </ul> : <p className="incident-detail-empty">No technical suggestions were recorded.</p>}
-                </section>}
-              </div>}
-            </div>
-
-            <footer className="incident-detail-footer">
-              <button
-                className="btn-secondary"
-                type="button"
-                onClick={
-                  closeViewing
-                }
-              >
-                Close
-              </button>
-            </footer>
-          </div>
-        </div>
-      ))(viewingIncident!)}
+          onClose={closeViewing}
+          showSelfHelpChecklist
+        />
+      )}
     </div>
   )
 }

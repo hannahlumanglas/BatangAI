@@ -601,13 +601,17 @@ function DeviceCard({
   expanded,
   onToggle,
   onPing,
+  onDelete,
   pinging,
+  deleting,
 }: {
   device: Device
   expanded: boolean
   onToggle: () => void
   onPing: () => void
+  onDelete: () => void
   pinging: boolean
+  deleting: boolean
 }) {
   return (
     <article
@@ -781,6 +785,16 @@ function DeviceCard({
               </p>
             </div>
           </div>
+          <div className="dm-card-actions">
+            <button
+              className="dm-delete"
+              type="button"
+              disabled={deleting}
+              onClick={onDelete}
+            >
+              {deleting ? 'Deleting…' : 'Delete Device'}
+            </button>
+          </div>
         </div>
       </div>
     </article>
@@ -821,7 +835,7 @@ function AddDeviceModal({
     const next: Record<string, string> = {}
 
     if (!name.trim()) {
-      next.name = 'Device name is required.'
+      next.name = 'Property number is required.'
     }
 
     if (!ip.trim()) {
@@ -926,13 +940,13 @@ function AddDeviceModal({
                 className="dm-field-label"
                 htmlFor="dev-name"
               >
-                Device Name<em>*</em>
+                Property Number<em>*</em>
               </label>
 
               <input
                 id="dev-name"
                 type="text"
-                placeholder="e.g. Switch - Records Office"
+                placeholder="e.g. PROP-2024-001"
                 value={name}
                 onChange={e =>
                   setName(e.target.value)
@@ -1277,6 +1291,7 @@ function DeviceMonitoring({
   const deviceRequestInFlight = useRef(false)
 
   const [pingingId, setPingingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [showAddModal, setShowAddModal] =
     useState(false)
@@ -1498,6 +1513,28 @@ function DeviceMonitoring({
     }
   }
 
+  const deleteDevice = async (device: Device) => {
+    if (!window.confirm(`Delete ${device.name} (${device.id})? This cannot be undone.`)) return
+    setDeletingId(device.id)
+    try {
+      const response = await fetch(DEVICES_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', deviceID: device.id }),
+      })
+      const data = await response.json() as { success?: boolean; message?: string }
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Unable to delete device.')
+      }
+      setDeviceList(list => list.filter(item => item.id !== device.id))
+      setExpandedId(current => current === device.id ? null : current)
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to delete device.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <div
       className={`admin-shell${
@@ -1631,40 +1668,36 @@ function DeviceMonitoring({
               <Icon name="plus" />
               Add Device
             </button>
-          </div>
+            <div className="dm-filter-group">
+              <label className="dm-filter-select" aria-label="Filter by device type">
+                <select
+                  aria-label="Filter by device type"
+                  value={typeFilter}
+                  onChange={e =>
+                    setTypeFilter(e.target.value)
+                  }
+                >
+                  <option>All Types</option>
+                  <option>Router</option>
+                  <option>Switch</option>
+                  <option>Access Point</option>
+                </select>
+              </label>
 
-          <div className="dm-filters incident-tools">
-            <label className="dm-filter-select">
-              Type
-
-              <select
-                value={typeFilter}
-                onChange={e =>
-                  setTypeFilter(e.target.value)
-                }
-              >
-                <option>All Types</option>
-                <option>Router</option>
-                <option>Switch</option>
-                <option>Access Point</option>
-              </select>
-            </label>
-
-            <label className="dm-filter-select">
-              Status
-
-              <select
-                value={statusFilter}
-                onChange={e =>
-                  setStatusFilter(e.target.value)
-                }
-              >
-                <option>All Statuses</option>
-                <option>Online</option>
-                <option>Offline</option>
-                <option>Unknown</option>
-              </select>
-            </label>
+              <label className="dm-filter-select" aria-label="Filter by device status">
+                <select
+                  aria-label="Filter by device status"
+                  value={statusFilter}
+                  onChange={e =>
+                    setStatusFilter(e.target.value)
+                  }
+                >
+                  <option>All Statuses</option>
+                  <option>Online</option>
+                  <option>Offline</option>
+                </select>
+              </label>
+            </div>
           </div>
 
           {loadingDevices ? (
@@ -1706,6 +1739,8 @@ function DeviceMonitoring({
                     expandedId === device.id
                   }
                   pinging={pingingId === device.id}
+                  deleting={deletingId === device.id}
+                  onDelete={() => void deleteDevice(device)}
                   onPing={() => void pingDevice(device)}
                   onToggle={() =>
                     setExpandedId(current =>

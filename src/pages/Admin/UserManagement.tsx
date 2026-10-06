@@ -164,7 +164,17 @@ async function updateUserOnServer(payload: Record<string, string>) {
     body: JSON.stringify(payload),
   })
 
-  const data = await response.json()
+  const responseText = await response.text()
+  let data: { success?: boolean; message?: string }
+  try {
+    data = JSON.parse(responseText)
+  } catch {
+    throw new Error(
+      responseText.trim().startsWith('<')
+        ? 'The server returned an error page instead of JSON. Check the PHP server log and try again.'
+        : 'The server returned an invalid response. Please try again.',
+    )
+  }
 
   if (!response.ok || !data.success) {
     throw new Error(data.message || 'Unable to update the user.')
@@ -626,8 +636,8 @@ function UserDetails({
       <article className="dashboard-card um-account-card um-inline-account-card">
         <header className="um-panel-heading um-account-heading">
           <div>
-            <p className="um-eyebrow">User profile</p>
-            <h2>Account Information</h2>
+            <p className="um-eyebrow">USER PROFILE</p>
+            <h2>User details</h2>
           </div>
         </header>
 
@@ -666,7 +676,7 @@ function UserDetails({
           </div>
         </section>
         <section className="um-inline-info-section">
-          <h3 className="um-inline-section-title">Role Details</h3>
+          <h3 className="um-inline-section-title">Access</h3>
           <div className="um-inline-edit-grid um-inline-role-grid">
             <label className="um-field"><span>Department</span><select value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))}><option value="" disabled>Select department</option>{departmentOptions.map(department => <option key={department} value={department}>{department}</option>)}</select></label>
             <label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option value="Secretary">Help Desk</option><option>IT Personnel</option><option>Administrator</option></select></label>
@@ -704,6 +714,8 @@ function CreateUserModal({
     useState('')
   const [submitting, setSubmitting] =
     useState(false)
+  const [showCreatePassword, setShowCreatePassword] = useState(false)
+  const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false)
   const [departmentOpen, setDepartmentOpen] =
     useState(false)
   const [departmentHighlight, setDepartmentHighlight] =
@@ -1205,20 +1217,25 @@ function CreateUserModal({
               Password
             </span>
 
-            <input
-              type="password"
-              value={form.password}
-              onChange={e =>
-                updateField(
-                  'password',
-                  e.target.value,
-                )
-              }
-              placeholder="Enter password"
-              autoComplete="new-password"
-              disabled={submitting}
-              required
-            />
+            <div className="um-password-input-wrap um-create-password-wrap">
+              <input
+                type={showCreatePassword ? 'text' : 'password'}
+                value={form.password}
+                onChange={e =>
+                  updateField(
+                    'password',
+                    e.target.value,
+                  )
+                }
+                placeholder="Enter password"
+                autoComplete="new-password"
+                disabled={submitting}
+                required
+              />
+              <button type="button" onClick={() => setShowCreatePassword(value => !value)} aria-label={showCreatePassword ? 'Hide password' : 'Show password'}>
+                <PasswordVisibilityIcon visible={showCreatePassword} />
+              </button>
+            </div>
           </label>
 
           <label className="um-field">
@@ -1226,22 +1243,25 @@ function CreateUserModal({
               Confirm Password
             </span>
 
-            <input
-              type="password"
-              value={
-                form.confirmPassword
-              }
-              onChange={e =>
-                updateField(
-                  'confirmPassword',
-                  e.target.value,
-                )
-              }
-              placeholder="Re-enter password"
-              autoComplete="new-password"
-              disabled={submitting}
-              required
-            />
+            <div className="um-password-input-wrap um-create-password-wrap">
+              <input
+                type={showCreateConfirmPassword ? 'text' : 'password'}
+                value={form.confirmPassword}
+                onChange={e =>
+                  updateField(
+                    'confirmPassword',
+                    e.target.value,
+                  )
+                }
+                placeholder="Re-enter password"
+                autoComplete="new-password"
+                disabled={submitting}
+                required
+              />
+              <button type="button" onClick={() => setShowCreateConfirmPassword(value => !value)} aria-label={showCreateConfirmPassword ? 'Hide confirmation password' : 'Show confirmation password'}>
+                <PasswordVisibilityIcon visible={showCreateConfirmPassword} />
+              </button>
+            </div>
           </label>
 
           <p className="um-password-hint">
@@ -1857,6 +1877,13 @@ function UserManagement() {
       ),
     [departmentFilter, query, roleFilter, users],
   )
+  const roleCounts = useMemo(() => ({
+    total: users.length,
+    administrator: users.filter(user => user.role === 'Administrator').length,
+    helpdesk: users.filter(user => user.role === 'Secretary').length,
+    employee: users.filter(user => user.role === 'Employee').length,
+    itPersonnel: users.filter(user => user.role === 'IT Personnel').length,
+  }), [users])
   const departments = useMemo(
     () => [...new Set(users.map(user => user.department.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
     [users],
@@ -2055,6 +2082,20 @@ function UserManagement() {
         {/*  CONTENT*/}
         <div className="dashboard-content">
           {!selectedUser && <>
+          <section className="statistics-grid um-stats" aria-label="User counts">
+            {([
+              ['Total User', roleCounts.total, 'blue'],
+              ['Administrator', roleCounts.administrator, 'purple'],
+              ['Helpdesk', roleCounts.helpdesk, 'orange'],
+              ['Employee', roleCounts.employee, 'green'],
+              ['IT Personnel', roleCounts.itPersonnel, 'red'],
+            ] as const).map(([label, count, tone]) => (
+              <article className={`stat-card stat-card--${tone} um-role-stat`} key={label}>
+                <div className="stat-icon"><Icon name="users" /></div>
+                <div><h3>{label}</h3><strong>{loadingUsers ? '…' : count}</strong></div>
+              </article>
+            ))}
+          </section>
           {/* SEARCH / FILTER / CREATE */}
           <section className="incident-tools um-tools">
             <label className="incident-search">
@@ -2071,10 +2112,17 @@ function UserManagement() {
               />
             </label>
 
-            <label className="um-filter-select">
-              Role
+            <button
+              type="button"
+              className="um-btn-primary um-create-user-btn"
+              onClick={() => setShowCreateUser(true)}
+            >
+              + Create User
+            </button>
+
+            <label className="um-filter-select" aria-label="Filter by role">
               <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
-                <option value="">All roles</option>
+                <option value="">All Roles</option>
                 <option>Employee</option>
                 <option value="Secretary">Help Desk</option>
                 <option>IT Personnel</option>
@@ -2082,25 +2130,13 @@ function UserManagement() {
               </select>
             </label>
 
-            <label className="um-filter-select">
-              Department
+            <label className="um-filter-select" aria-label="Filter by department">
               <select value={departmentFilter} onChange={event => setDepartmentFilter(event.target.value)}>
-                <option value="">All departments</option>
+                <option value="">All Departments</option>
                 {departments.map(item => <option key={item}>{item}</option>)}
               </select>
             </label>
 
-            <button
-              type="button"
-              className="um-btn-primary um-create-user-btn"
-              onClick={() =>
-                setShowCreateUser(
-                  true,
-                )
-              }
-            >
-              + Create User
-            </button>
           </section>
           {/* ERROR */}
           {usersError && (
@@ -2132,9 +2168,6 @@ function UserManagement() {
           </>}
           {selectedUser && (
             <section className="um-inline-user-details" aria-label={`Profile and account security for ${selectedUser.name}`}>
-              <button className="um-inline-details-close" type="button" onClick={() => setSelectedUserId(null)} aria-label="Close user details">
-                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg>
-              </button>
               <UserDetails user={selectedUser} departments={departments} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} onDelete={handleDeleteUser} />
             </section>
           )}

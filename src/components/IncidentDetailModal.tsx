@@ -1,6 +1,6 @@
 import './IncidentDetailModal.css'
 import type { ReactNode } from 'react'
-import { parseSelfHelpSteps } from '../utils/selfHelp'
+import { parseSelfHelpSteps, parseTechnicianSteps } from '../utils/selfHelp'
 
 export type IncidentDetail = {
   incidentID: string
@@ -13,6 +13,7 @@ export type IncidentDetail = {
   deviceType?: string | null
   employeeName?: string | null
   issueCategory?: string | null
+  keywords?: string[] | null
   location?: string | null
   resolutionNotes?: string | null
   resolvedAt?: string | null
@@ -32,18 +33,9 @@ type Props = {
   onClose: () => void
   footer?: ReactNode
   showSelfHelpChecklist?: boolean
-}
-
-function statusClass(status?: string | null) {
-  const value = status?.trim().toLowerCase()
-  if (value === 'resolved' || value === 'closed') return 'resolved-tag'
-  if (value === 'in progress' || value === 'ongoing') return 'progress-tag'
-  return 'pending-tag'
-}
-
-function severityClass(severity?: string | null) {
-  const value = severity?.trim().toLowerCase()
-  return value === 'high' || value === 'medium' ? `${value}-tag` : 'low-tag'
+  showTechnicianChecklist?: boolean
+  checkedTechnicianSteps?: number[]
+  onTechnicianStepChange?: (index: number, checked: boolean) => void
 }
 
 function displayTroubleshooting(value: IncidentDetail['troubleshooting']) {
@@ -61,15 +53,47 @@ function displayDuration(value: IncidentDetail['durationMinutes']) {
     : value
 }
 
-export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChecklist = false }: Props) {
-  const status = incident.status || 'Pending'
-  const severity = incident.severity || 'Low'
+function formatIncidentDateTime(value: string | null | undefined) {
+  if (!value) return 'Not recorded'
+  const parsed = new Date(value.trim().replace(' ', 'T'))
+  if (Number.isNaN(parsed.getTime())) return 'Not recorded'
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(parsed)
+}
+
+export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChecklist = false, showTechnicianChecklist = false, checkedTechnicianSteps = [], onTechnicianStepChange }: Props) {
   const duration = displayDuration(incident.durationMinutes)
   const troubleshooting = displayTroubleshooting(incident.troubleshooting)
   const checkedMatch = troubleshooting.match(/\[Employee checked self-help steps: ([^\]]*)\]/i)
-  const savedCheckedSteps = new Set((checkedMatch?.[1] || '').split(',').map(value => Number(value.trim()) - 1).filter(index => Number.isInteger(index) && index >= 0))
-  const selfHelpText = troubleshooting.replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
-  const selfHelpSteps = parseSelfHelpSteps(selfHelpText)
+  // ReportIncident stores the checked steps as zero-based array indexes.
+  // Keep that representation here so, for example, "0,1" restores steps 1 and 2.
+  const savedCheckedSteps = new Set((checkedMatch?.[1] || '').split(',').map(value => Number(value.trim())).filter(index => Number.isInteger(index) && index >= 0))
+  const selfHelpSteps = parseSelfHelpSteps(troubleshooting)
+  const technicianSteps = parseTechnicianSteps(troubleshooting)
+  const savedTechnicianMatch = troubleshooting.match(/\[IT checked troubleshooting steps: ([^\]]*)\]/i)
+  const savedTechnicianSteps = new Set((savedTechnicianMatch?.[1] || '').split(',').map(value => Number(value.trim())).filter(index => Number.isInteger(index) && index >= 0))
+  const keywords = (incident.keywords || []).filter(keyword => typeof keyword === 'string')
+  const keywordExtraction = [
+    ['Reporter', incident.employeeName],
+    ['Department', incident.department],
+    ['Location / Room', incident.location],
+    ['Issue Category', incident.issueCategory],
+    ['Device Type', incident.deviceType],
+    ['Connection Type', incident.connectionType],
+    ['Severity', incident.severity],
+    ['Status', incident.status],
+  ]
+    .filter(([, value]) => typeof value === 'string' && value.trim() !== '')
+    .map(([label, value]) => `${label}: ${value}`)
+  if (keywords.length) {
+    keywordExtraction.push(`Extracted terms: ${keywords.join(', ')}`)
+  }
   // A confirmed employee resolution means every suggested self-help step was
   // completed, including reports created before check data was saved.
   const resolvedByReporter = Boolean(incident.resolvedBy && incident.employeeName && incident.resolvedBy.trim() === incident.employeeName.trim())
@@ -80,44 +104,52 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
         <header className="incident-detail-header">
           <div>
             <h2 id="incident-detail-title">{incident.incidentID}</h2>
-            <p>Reported {incident.createdAt || '-'}</p>
+            <p>Reported {formatIncidentDateTime(incident.createdAt)}</p>
           </div>
-          <button className="modal-close" type="button" aria-label="Close dialog" onClick={onClose}>x</button>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close incident details">
+            <span aria-hidden="true">×</span>
+          </button>
         </header>
 
         <div className="incident-detail-body">
-          <h3 className="incident-detail-group-title">Incident Information</h3>
-          <div className="incident-detail-grid">
-            <DetailField label="Reporter" value={incident.employeeName || 'Not specified'} />
-            <DetailField label="Department" value={incident.department || 'Not specified'} />
-            <DetailField label="Location / Room" value={incident.location || 'Not specified'} />
-            <DetailField label="Issue Category" value={incident.issueCategory || 'Not specified'} />
-            <DetailField label="Device Type" value={incident.deviceType || 'Not specified'} />
-            <DetailField label="Connection Type" value={incident.connectionType || 'Not specified'} />
-            <DetailField label="Severity" value={<span className={`tag ${severityClass(severity)}`}>{severity}</span>} />
-            <DetailField label="Status" value={<span className={`tag ${statusClass(status)}`}>{status}</span>} />
-            <DetailField label="Assigned" value={incident.assigned || 'No'} />
-            <DetailField label="Assigned To" value={incident.assignedToName || incident.assignedTo || 'Not assigned'} />
-          </div>
-
-          <section className="incident-detail-section incident-detail-section--service"><h3>Affected Issue / Service</h3><p>{incident.affectedIssue || 'Not specified'}</p></section>
-          <section className="incident-detail-section incident-detail-section--description"><h3>Detailed Problem Description</h3><p>{incident.description || 'No problem description provided.'}</p></section>
-
-          {(incident.classification || incident.summary || incident.troubleshooting || showSelfHelpChecklist) && (
+          {(incident.classification || incident.keywords?.length || incident.summary || incident.troubleshooting || showSelfHelpChecklist || showTechnicianChecklist) && (
             <section className="incident-ai-analysis">
               <h3 className="incident-ai-analysis-title">BatangAI Analysis</h3>
-              {incident.classification && <AnalysisBlock label="Classification" value={incident.classification} />}
-              {incident.summary && <AnalysisBlock label="Incident Summary" value={incident.summary} />}
+              <div className="incident-ai-summary-grid">
+                <AnalysisBlock label="Classification" value={incident.classification || ''} />
+                <div className="incident-ai-block incident-keyword-block">
+                  <span>Keyword Extraction</span>
+                  <dl className="incident-keyword-list">
+                    {keywordExtraction.map(item => {
+                      const separator = item.indexOf(': ')
+                      return <div key={item}><dt>{item.slice(0, separator)}</dt><dd>{item.slice(separator + 2)}</dd></div>
+                    })}
+                  </dl>
+                </div>
+                <AnalysisBlock label="Summarization" value={incident.summary || ''} />
+              </div>
               {showSelfHelpChecklist ? (
                 <div className="incident-ai-block">
                   <span>Basic Self-Help</span>
                   {selfHelpSteps.length ? <ul className="incident-self-help-checklist">
-                    {selfHelpSteps.map((step, index) => <li key={`${index}-${step}`}>
+                    {selfHelpSteps.map((step, index) => <li key={`${index}-${step}`} className={resolvedByReporter || savedCheckedSteps.has(index) ? 'is-checked' : ''}>
                       <label><input type="checkbox" checked={resolvedByReporter || savedCheckedSteps.has(index)} readOnly /><span>{step}</span></label>
                     </li>)}
                   </ul> : <p>No basic self-help guidance was recorded.</p>}
                 </div>
               ) : incident.troubleshooting && <AnalysisBlock label="Troubleshooting" value={troubleshooting} />}
+              {showTechnicianChecklist && <div className="incident-ai-block">
+                <span>Technician Troubleshooting Steps</span>
+                {technicianSteps.length ? <ul className="incident-self-help-checklist">
+                  {technicianSteps.map((step, index) => {
+                    const checked = checkedTechnicianSteps.includes(index) || savedTechnicianSteps.has(index)
+                    return <li key={`tech-${index}-${step}`} className={checked ? 'is-checked' : ''}>
+                      <label><input type="checkbox" checked={checked} disabled={!onTechnicianStepChange || savedTechnicianSteps.has(index)} onChange={event => onTechnicianStepChange?.(index, event.target.checked)} /><span>{step}</span></label>
+                    </li>
+                  })}
+                </ul> : <p>No technician troubleshooting steps were generated.</p>}
+                {technicianSteps.length > 0 && <p>{Math.max(checkedTechnicianSteps.length, savedTechnicianSteps.size)} of {technicianSteps.length} steps completed</p>}
+              </div>}
             </section>
           )}
 
@@ -137,17 +169,10 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
           )}
         </div>
 
-        <footer className="incident-detail-footer">
-          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          {footer}
-        </footer>
+        {footer && <footer className="incident-detail-footer">{footer}</footer>}
       </section>
     </div>
   )
-}
-
-function DetailField({ label, value }: { label: string; value: ReactNode }) {
-  return <div className="incident-detail-field"><span>{label}</span><strong>{value}</strong></div>
 }
 
 function AnalysisBlock({ label, value }: { label: string; value: string }) {
@@ -157,3 +182,4 @@ function AnalysisBlock({ label, value }: { label: string; value: string }) {
 function ResolutionField({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div className="incident-resolution-field"><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>
 }
+

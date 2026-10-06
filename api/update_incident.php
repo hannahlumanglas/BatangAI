@@ -110,6 +110,53 @@ if (empty($setParts)) {
     exit;
 }
 
+/*
+ * Lock the incident row while checking its status and applying the edit.
+ * This prevents a request racing with a resolution from changing a ticket
+ * after it becomes Resolved or Closed.
+ */
+$conn->begin_transaction();
+$statusStmt = $conn->prepare(
+    "SELECT status FROM incidents WHERE incidentID = ? FOR UPDATE"
+);
+
+if (!$statusStmt) {
+    $conn->rollback();
+    http_response_code(500);
+    echo json_encode([
+        "success" => false,
+        "message" => "Failed to verify incident status."
+    ]);
+    exit;
+}
+
+$statusStmt->bind_param("s", $incidentID);
+$statusStmt->execute();
+$statusResult = $statusStmt->get_result();
+$currentIncident = $statusResult->fetch_assoc();
+$statusStmt->close();
+
+if (!$currentIncident) {
+    $conn->rollback();
+    http_response_code(404);
+    echo json_encode([
+        "success" => false,
+        "message" => "Incident not found."
+    ]);
+    exit;
+}
+
+$currentStatus = strtolower(trim((string) $currentIncident['status']));
+if ($currentStatus === 'resolved' || $currentStatus === 'closed') {
+    $conn->rollback();
+    http_response_code(403);
+    echo json_encode([
+        "success" => false,
+        "message" => "Resolved incidents cannot be edited."
+    ]);
+    exit;
+}
+
 $sql = "
     UPDATE incidents
     SET " . implode(", ", $setParts) . "
@@ -119,6 +166,7 @@ $sql = "
 $stmt = $conn->prepare($sql);
 
 if (!$stmt) {
+    $conn->rollback();
     http_response_code(500);
 
     echo json_encode([
@@ -135,6 +183,7 @@ $bindValues[] = $incidentID;
 $stmt->bind_param($bindTypes, ...$bindValues);
 
 if (!$stmt->execute()) {
+    $conn->rollback();
     http_response_code(500);
 
     echo json_encode([
@@ -148,6 +197,8 @@ if (!$stmt->execute()) {
 
     exit;
 }
+
+$conn->commit();
 
 echo json_encode([
     "success" => true,

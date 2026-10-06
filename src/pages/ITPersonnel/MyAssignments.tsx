@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { PersonName } from '../../components/PersonName'
+import { IncidentDetailModal, type IncidentDetail } from '../../components/IncidentDetailModal'
 import {
   getAuthSession,
   getCurrentUserId,
@@ -16,6 +17,7 @@ import '../Admin/Dashboard.css'
 import './MyAssignments.css'
 import '../Admin/Incidents.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { parseTechnicianSteps } from '../../utils/selfHelp'
 
 type Status = 'available' | 'in-progress' | 'solved'
 
@@ -43,6 +45,8 @@ type Ticket = {
   resolvedBy?: string
   resolvedAt?: string
   assignedToName?: string
+  technicianCheckedSteps: number[]
+  incidentDetail: IncidentDetail
 }
 
 type IconName =
@@ -469,41 +473,11 @@ function normalizeTroubleshootingText(value: unknown): string {
   return ''
 }
 
-function splitTroubleshootingSections(value: unknown) {
-  const raw = normalizeTroubleshootingText(value)
-  const marker = 'IT Troubleshooting Suggestions:'
-  const markerIndex = raw.indexOf(marker)
-
-  const basicRaw = markerIndex >= 0
-    ? raw.slice(0, markerIndex)
-    : raw
-  const itRaw = markerIndex >= 0
-    ? raw.slice(markerIndex + marker.length)
-    : ''
-
-  const toSteps = (text: string) =>
-    text
-      .replace(/^Basic Self-Help:\s*/i, '')
-      .replace(/^IT Troubleshooting Suggestions:\s*/i, '')
-      .replace(/\r\n?/g, '\n')
-      .replace(/\u00a0/g, ' ')
-      .replace(/\s+(?=\d+\.\s+)/g, '\n')
-      .replace(/^\s*[-•]\s+/gm, '')
-      .split(/\n+/)
-      .map(step => step.trim())
-      .map(step => step.replace(/^\d+[.)]\s*/, '').trim())
-      .filter(Boolean)
-
-  return {
-    basicSelfHelp: toSteps(basicRaw),
-    itSuggestions: toSteps(itRaw),
-  }
-}
-
 function MyAssignments() {
   const navigate = useNavigate()
 
   const [tickets, setTickets] = useState<Ticket[]>([])
+  const ticketsRef = useRef<Ticket[]>([])
   const [selected, setSelected] = useState<Ticket | null>(
     null,
   )
@@ -592,6 +566,11 @@ function MyAssignments() {
 
           return {
             id: incident.incidentID,
+            incidentDetail: incident,
+            technicianCheckedSteps: (() => {
+              const match = troubleshooting.match(/\[IT checked troubleshooting steps: ([^\]]*)\]/i)
+              return (match?.[1] || '').split(',').map((item: string) => Number(item.trim())).filter((index: number) => Number.isInteger(index) && index >= 0)
+            })(),
 
             title:
               incident.affectedIssue ||
@@ -677,7 +656,14 @@ function MyAssignments() {
           }
         })
 
-      setTickets(mappedTickets)
+      const previousSteps = new Map(ticketsRef.current.map(ticket => [ticket.id, ticket.technicianCheckedSteps]))
+      const refreshedTickets = mappedTickets.map(ticket => {
+        const saved = ticket.technicianCheckedSteps
+        const local = previousSteps.get(ticket.id) || []
+        return saved.length ? ticket : { ...ticket, technicianCheckedSteps: local }
+      })
+      ticketsRef.current = refreshedTickets
+      setTickets(refreshedTickets)
     } catch (err) {
       console.error(
         'Error loading assignments:',
@@ -783,6 +769,11 @@ function MyAssignments() {
   }
 
   const openResolution = (ticket: Ticket) => {
+    const technicianSteps = parseTechnicianSteps(ticket.troubleshooting || '')
+    if (!technicianSteps.length || ticket.technicianCheckedSteps.length !== technicianSteps.length) {
+      alert('Please complete every technician troubleshooting step in View Report & AI before resolving this incident.')
+      return
+    }
     setResolutionTicket(ticket)
     setResolutionNotes(
       ticket.resolutionNotes || '',
@@ -796,6 +787,22 @@ function MyAssignments() {
 
     setResolutionTicket(null)
     setResolutionNotes('')
+  }
+
+  const updateTechnicianStep = (ticketId: string, index: number, checked: boolean) => {
+    const update = (ticket: Ticket): Ticket => {
+      if (ticket.id !== ticketId) return ticket
+      const next = checked
+        ? [...new Set([...ticket.technicianCheckedSteps, index])].sort((a, b) => a - b)
+        : ticket.technicianCheckedSteps.filter(step => step !== index)
+      return { ...ticket, technicianCheckedSteps: next }
+    }
+    setTickets(current => {
+      const next = current.map(update)
+      ticketsRef.current = next
+      return next
+    })
+    setSelected(current => current ? update(current) : current)
   }
 
   const resolveIncident = async () => {
@@ -831,6 +838,7 @@ function MyAssignments() {
             actorUserId: currentUserId,
             resolvedBy: currentUserName,
             resolutionNotes: notes,
+            technicianCheckedSteps: resolutionTicket.technicianCheckedSteps,
           }),
         },
       )
@@ -1126,6 +1134,7 @@ function MyAssignments() {
           }
           onTakeAction={takeAction}
           onResolve={openResolution}
+          onTechnicianStepChange={(index, checked) => updateTechnicianStep(selected.id, index, checked)}
           actionLoading={actionLoading}
           resolutionLoading={resolutionLoading}
         />
@@ -1300,6 +1309,7 @@ function ReportModal({
   onClose,
   onTakeAction,
   onResolve,
+  onTechnicianStepChange,
   actionLoading,
   resolutionLoading,
 }: {
@@ -1307,33 +1317,19 @@ function ReportModal({
   onClose: () => void
   onTakeAction: (id: string) => void
   onResolve: (ticket: Ticket) => void
+  onTechnicianStepChange: (index: number, checked: boolean) => void
   actionLoading: string | null
   resolutionLoading: boolean
 }) {
-  const statusText =
-    ticket.status === 'available'
-      ? 'Pending'
-      : ticket.status === 'in-progress'
-        ? 'In Progress'
-        : 'Resolved'
-
-  const { basicSelfHelp, itSuggestions } =
-    splitTroubleshootingSections(ticket.troubleshooting)
-
   const footer =
     ticket.status === 'available' ? (
       <button
         className="btn-primary"
         type="button"
-        disabled={
-          actionLoading === ticket.id ||
-          resolutionLoading
-        }
+        disabled={actionLoading === ticket.id || resolutionLoading}
         onClick={() => onTakeAction(ticket.id)}
       >
-        {actionLoading === ticket.id
-          ? 'Updating...'
-          : 'Take Action'}
+        {actionLoading === ticket.id ? 'Updating...' : 'Take Action'}
       </button>
     ) : ticket.status === 'in-progress' ? (
       <button
@@ -1347,181 +1343,17 @@ function ReportModal({
     ) : undefined
 
   return (
-    <div
-      className="incident-detail-overlay"
-      role="presentation"
-      onMouseDown={event => {
-        if (event.target === event.currentTarget) {
-          onClose()
-        }
-      }}
-    >
-      <section
-        className="incident-detail-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="it-assignment-detail-title"
-      >
-        <header className="incident-detail-header">
-          <div>
-            <h2 id="it-assignment-detail-title">
-              {ticket.id}
-            </h2>
-            <p>
-              Reported {ticket.date}
-            </p>
-          </div>
-          <button
-            className="modal-close"
-            type="button"
-            aria-label="Close dialog"
-            onClick={onClose}
-          >
-            ×
-          </button>
-        </header>
-
-        <div className="incident-detail-body">
-          <h3 className="incident-detail-group-title">
-            Incident Information
-          </h3>
-
-          <div className="incident-detail-grid">
-            <div className="incident-detail-field">
-              <span>Reporter</span>
-              <strong>
-                <PersonName
-                  name={ticket.reporter}
-                  profilePhoto={ticket.reporterProfilePhoto}
-                />
-              </strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Department</span>
-              <strong>{ticket.office}</strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Location / Room</span>
-              <strong>{ticket.location || 'Not specified'}</strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Issue Category</span>
-              <strong>{ticket.issueCategory || 'Not specified'}</strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Device Type</span>
-              <strong>{ticket.deviceType || 'Not specified'}</strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Connection Type</span>
-              <strong>{ticket.connectionType || 'Not specified'}</strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Severity</span>
-              <strong>
-                <span className={`tag ${ticket.severity.toLowerCase()}-tag`}>
-                  {ticket.severity}
-                </span>
-              </strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Status</span>
-              <strong>
-                <span className={`tag ${
-                  statusText === 'Resolved'
-                    ? 'resolved-tag'
-                    : statusText === 'In Progress'
-                      ? 'progress-tag'
-                      : 'pending-tag'
-                }`}>
-                  {statusText}
-                </span>
-              </strong>
-            </div>
-            <div className="incident-detail-field">
-              <span>Assigned To</span>
-              <strong>{ticket.assignedToName || 'Not assigned'}</strong>
-            </div>
-          </div>
-
-          <section className="incident-detail-section incident-detail-section--description">
-            <h3>Detailed Problem Description</h3>
-            <p>{ticket.description || 'No problem description provided.'}</p>
-          </section>
-
-          {(ticket.classification || ticket.summary) && (
-            <section className="incident-ai-analysis">
-              <h3 className="incident-ai-analysis-title">
-                AI Analysis
-              </h3>
-
-              {ticket.classification && (
-                <div className="incident-ai-block">
-                  <span>Classification</span>
-                  <p>{ticket.classification}</p>
-                </div>
-              )}
-
-              {ticket.summary && (
-                <div className="incident-ai-block">
-                  <span>Incident Summary</span>
-                  <p>{ticket.summary}</p>
-                </div>
-              )}
-            </section>
-          )}
-
-          <section className="incident-ai-analysis incident-troubleshooting-section">
-            <h3 className="incident-ai-analysis-title">
-              TROUBLESHOOTING SUGGESTION
-            </h3>
-
-            <div className="incident-ai-block">
-              <span>EMPLOYEE - BASIC SELF-HELP</span>
-              {basicSelfHelp.length > 0 ? (
-                <ol className="incident-ai-steps">
-                  {basicSelfHelp.map((step, index) => (
-                    <li key={`basic-${index}`}>{step}</li>
-                  ))}
-                </ol>
-              ) : (
-                <p>No basic self-help guidance was recorded.</p>
-              )}
-            </div>
-
-            <div className="incident-ai-block incident-it-review-panel">
-              <div className="incident-it-review-heading">
-                <h4>IT SUPPORT - TECHNICAL SUGGESTIONS</h4>
-              </div>
-
-              {itSuggestions.length > 0 ? (
-                <ol className="incident-ai-steps">
-                  {itSuggestions.map((step, index) => (
-                    <li key={`it-${index}`}>{step}</li>
-                  ))}
-                </ol>
-              ) : (
-                <p>No technical suggestions were recorded.</p>
-              )}
-            </div>
-          </section>
-
-          {ticket.resolutionNotes && (
-            <section className="incident-detail-section">
-              <h3>Resolution Notes</h3>
-              <p>{ticket.resolutionNotes}</p>
-            </section>
-          )}
-        </div>
-
-        <footer className="incident-detail-footer">
-          {footer}
-        </footer>
-      </section>
-    </div>
+    <IncidentDetailModal
+      incident={ticket.incidentDetail}
+      onClose={onClose}
+      footer={footer}
+      showSelfHelpChecklist
+      showTechnicianChecklist
+      checkedTechnicianSteps={ticket.technicianCheckedSteps}
+      onTechnicianStepChange={onTechnicianStepChange}
+    />
   )
 }
-
 function ResolutionModal({
   ticket,
   resolutionNotes,

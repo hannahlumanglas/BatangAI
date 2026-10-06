@@ -126,6 +126,7 @@ export const DEVICE_TYPES = [
 export const CONNECTION_TYPES = ['LAN', 'Wi-Fi']
 
 export type IncidentFormValues = {
+  severity: string
   department: string
   location: string
   issueCategory: string
@@ -156,7 +157,7 @@ export type IncidentAnalysis = {
  * Gemini is the only source of the incident analysis
  * and troubleshooting suggestions.
  */
-async function analyzeIncidentWithAI(
+export async function analyzeIncidentWithAI(
   values: IncidentFormValues,
 ): Promise<IncidentAnalysis> {
   const response = await fetch(
@@ -202,7 +203,9 @@ async function analyzeIncidentWithAI(
   }
 
   return {
-    classification: data.analysis.classification || values.issueCategory,
+    classification: typeof data.analysis.classification === 'string'
+      ? data.analysis.classification.trim()
+      : '',
     keywords: Array.isArray(data.analysis.keywords)
       ? data.analysis.keywords.filter((keyword: unknown) => typeof keyword === 'string')
       : [],
@@ -238,6 +241,7 @@ export function IncidentDetailsFields({
   values,
   onChange,
   departmentEditable = false,
+  showSeverity = false,
 }: {
   values: IncidentFormValues
   onChange: (
@@ -245,6 +249,7 @@ export function IncidentDetailsFields({
     value: string,
   ) => void
   departmentEditable?: boolean
+  showSeverity?: boolean
 }) {
   return (
     <fieldset className="incident-form-section">
@@ -352,6 +357,24 @@ export function IncidentDetailsFields({
             ))}
           </select>
         </label>
+
+        {showSeverity && (
+          <label className="incident-field">
+            <span className="incident-field-label">
+              Severity <em>*</em>
+            </span>
+            <select
+              required
+              value={values.severity}
+              onChange={e => onChange('severity', e.target.value)}
+            >
+              <option value="">Select severity</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </label>
+        )}
       </div>
     </fieldset>
   )
@@ -419,6 +442,7 @@ export function IncidentDescriptionFields({
 
 function getInitialValues(): IncidentFormValues {
   return {
+    severity: '',
     department: getCurrentUserDepartment(),
     location: '',
     issueCategory: '',
@@ -663,6 +687,16 @@ function ReportIncident() {
       return
     }
 
+    const selfHelpSteps = parseSelfHelpSteps(aiAnalysis.basicSelfHelp)
+    if (
+      issueResolved === 'yes' &&
+      selfHelpSteps.length > 0 &&
+      checkedSelfHelpSteps.length < selfHelpSteps.length
+    ) {
+      setSubmitError('Please mark each self-help step you tried before confirming that the issue is resolved.')
+      return
+    }
+
     const analysis = aiAnalysis
 
     try {
@@ -703,7 +737,10 @@ function ReportIncident() {
 
             /* AI classification is saved alongside the report. */
             classification:
-              analysis.classification || values.issueCategory,
+              analysis.classification,
+
+            keywords:
+              analysis.keywords,
 
             summary:
               analysis.summary,
@@ -784,9 +821,6 @@ function ReportIncident() {
 
       setAnalysisError('')
 
-      alert(
-        `Incident submitted successfully!\nIncident ID: ${data.incidentID}`,
-      )
       navigate('/employee/incidents')
     } catch (error) {
       console.error(
@@ -1051,19 +1085,19 @@ function ReportIncident() {
 
                   <section className="employee-resolution-choice" aria-labelledby="employee-resolution-title">
                     <h3 id="employee-resolution-title">Were you able to resolve the issue?</h3>
-                    <p>Using the steps above, did you fix the problem?</p>
+                    <p>Try the steps above, mark the steps you completed, then choose the result before submitting.</p>
                     <div className="employee-resolution-options">
                       <label className={issueResolved === 'yes' ? 'is-selected' : ''}>
                         <input type="radio" name="issueResolved" value="yes" checked={issueResolved === 'yes'} onChange={() => setIssueResolved('yes')} />
                         <span className="employee-resolution-icon employee-resolution-icon--yes" aria-hidden="true">&#10003;</span>
                         <strong>Yes, Resolved!</strong>
-                        <small>Mark as resolved by user</small>
+                        <small>Save to All Incidents as resolved by you</small>
                       </label>
                       <label className={issueResolved === 'no' ? 'is-selected' : ''}>
                         <input type="radio" name="issueResolved" value="no" checked={issueResolved === 'no'} onChange={() => setIssueResolved('no')} />
                         <span className="employee-resolution-icon employee-resolution-icon--no" aria-hidden="true">&#215;</span>
                         <strong>Not Resolved</strong>
-                        <small>Assign to IT personnel</small>
+                        <small>Save as pending for admin or secretary assignment</small>
                       </label>
                     </div>
                   </section>
@@ -1104,7 +1138,11 @@ function ReportIncident() {
 
                       {submitting
                         ? 'Submitting…'
-                        : 'Submit Incident'}
+                        : issueResolved === 'yes'
+                          ? 'Submit as Resolved'
+                          : issueResolved === 'no'
+                            ? 'Submit for IT Assignment'
+                            : 'Submit Incident'}
                     </button>
                   </div>
                 </section>

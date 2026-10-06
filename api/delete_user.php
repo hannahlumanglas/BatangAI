@@ -217,5 +217,3 @@ echo json_encode([
 
 $deleteStmt->close();
 $conn->close();
-
-?>

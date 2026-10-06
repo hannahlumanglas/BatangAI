@@ -166,13 +166,14 @@ type EmployeeIncident = {
   issueCategory: string
   deviceType: string
   connectionType: string
-  severity: 'High' | 'Medium' | 'Low'
+  severity: 'High' | 'Medium' | 'Low' | null
   affectedIssue: string
   description: string
   status: Status
   createdAt: string
   employeeName: string
   classification: string | null
+  keywords: string[] | null
   summary: string | null
   troubleshooting: string | null
   assigned: 'Yes' | 'No'
@@ -324,7 +325,7 @@ function normalizeStatus(
 
 function normalizeSeverity(
   value: unknown,
-): 'High' | 'Medium' | 'Low' {
+): 'High' | 'Medium' | 'Low' | null {
   if (
     value === 'High' ||
     value === 'Medium' ||
@@ -333,7 +334,7 @@ function normalizeSeverity(
     return value
   }
 
-  return 'Low'
+  return null
 }
 
 function normalizeIncident(
@@ -388,6 +389,9 @@ function normalizeIncident(
     classification:
       incident.classification ??
       null,
+
+    keywords:
+      incident.keywords ?? null,
 
     summary:
       incident.summary ?? null,
@@ -448,21 +452,10 @@ function getEmployeeTroubleshooting(
     return null
   }
 
-  const itSectionMarker =
-    'IT Troubleshooting Suggestions:'
   const completionRecord = troubleshooting.match(/\[Employee checked self-help steps: [^\]]*\]/i)?.[0] ?? ''
-
-  const markerIndex =
-    troubleshooting.indexOf(
-      itSectionMarker,
-    )
-
-  const employeeHelp = markerIndex === -1
-    ? troubleshooting
-    : troubleshooting.slice(0, markerIndex)
-
-  const basicSelfHelp = employeeHelp
+  const basicSelfHelp = troubleshooting
     .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
+    .split(/IT Troubleshooting Suggestions:/i)[0]
     .trim()
 
   return [basicSelfHelp, completionRecord].filter(Boolean).join('\n') || null
@@ -515,6 +508,7 @@ function Incidents() {
     editForm,
     setEditForm,
   ] = useState<IncidentFormValues>({
+    severity: '',
     department: '',
     location: '',
     issueCategory: '',
@@ -538,6 +532,8 @@ function Incidents() {
     deletingId,
     setDeletingId,
   ] = useState<string | null>(null)
+  const [deletionTarget, setDeletionTarget] = useState<EmployeeIncident | null>(null)
+  const [deleteError, setDeleteError] = useState('')
 
   const handleLogout = () => {
     localStorage.removeItem(
@@ -667,8 +663,16 @@ function Incidents() {
      ========================================================= */
 
   useEffect(() => {
-    const handleDocumentClick =
-      () => {
+    const handleOutsidePointerDown =
+      (event: PointerEvent) => {
+        const target = event.target
+        if (
+          target instanceof Element &&
+          target.closest('.employee-more-wrap')
+        ) {
+          return
+        }
+
         setMenuOpenId(null)
       }
 
@@ -677,14 +681,16 @@ function Incidents() {
     }
 
     document.addEventListener(
-      'click',
-      handleDocumentClick,
+      'pointerdown',
+      handleOutsidePointerDown,
+      true,
     )
 
     return () => {
       document.removeEventListener(
-        'click',
-        handleDocumentClick,
+        'pointerdown',
+        handleOutsidePointerDown,
+        true,
       )
     }
   }, [menuOpenId])
@@ -766,6 +772,11 @@ function Incidents() {
   ) => {
     setMenuOpenId(null)
 
+    if (incident.status === 'Resolved' || incident.status === 'Closed') {
+      alert('Resolved incidents cannot be edited.')
+      return
+    }
+
     if (
       incident.status !==
       'Pending'
@@ -780,6 +791,7 @@ function Incidents() {
     setEditError('')
 
     setEditForm({
+      severity: incident.severity ?? '',
       department:
         incident.department,
 
@@ -982,31 +994,16 @@ function Incidents() {
      DELETE INCIDENT
      ========================================================= */
 
-  const handleDelete = async (
-    incident: EmployeeIncident,
-  ) => {
+  const handleDelete = (incident: EmployeeIncident) => {
     setMenuOpenId(null)
+    if (incident.status !== 'Pending') return
+    setDeleteError('')
+    setDeletionTarget(incident)
+  }
 
-    if (
-      incident.status !==
-      'Pending'
-    ) {
-      alert(
-        'This incident is already being worked on, so it can no longer be deleted. Please contact IT Personnel or the Administrator.',
-      )
-
-      return
-    }
-
-    const confirmed =
-      window.confirm(
-        `Delete incident ${incident.incidentID}? This cannot be undone.`,
-      )
-
-    if (!confirmed) {
-      return
-    }
-
+  const confirmDeleteIncident = async () => {
+    if (!deletionTarget || deletingId) return
+    const incident = deletionTarget
     try {
       setDeletingId(
         incident.incidentID,
@@ -1071,13 +1068,14 @@ function Incidents() {
             incident.incidentID,
         ),
       )
+      setDeletionTarget(null)
     } catch (error) {
       console.error(
         'Delete incident error:',
         error,
       )
 
-      alert(
+      setDeleteError(
         error instanceof Error
           ? error.message
           : 'Failed to delete the incident.',
@@ -1296,14 +1294,6 @@ function Incidents() {
                     </th>
 
                     <th>
-                      Issue / Service
-                    </th>
-
-                    <th>
-                      Category
-                    </th>
-
-                    <th>
                       Severity
                     </th>
 
@@ -1322,7 +1312,7 @@ function Incidents() {
                     <tr>
                       <td
                         className="employee-empty"
-                        colSpan={6}
+                        colSpan={4}
                       >
                         Loading your incident reports...
                       </td>
@@ -1332,7 +1322,7 @@ function Incidents() {
                     <tr>
                       <td
                         className="employee-empty"
-                        colSpan={6}
+                        colSpan={4}
                       >
                         No incident reports yet. Submit one from Report Incident.
                       </td>
@@ -1352,24 +1342,10 @@ function Incidents() {
                           </td>
 
                           <td>
-                            {
-                              incident.affectedIssue
-                            }
-                          </td>
-
-                          <td>
-                            {
-                              incident.issueCategory
-                            }
-                          </td>
-
-                          <td>
                             <span
-                              className={`tag ${incident.severity.toLowerCase()}-tag`}
+                              className={incident.severity ? `tag ${incident.severity.toLowerCase()}-tag` : 'tag'}
                             >
-                              {
-                                incident.severity
-                              }
+                              {incident.severity ?? 'Not set'}
                             </span>
                           </td>
 
@@ -1654,6 +1630,29 @@ function Incidents() {
                 {savingEdit
                   ? 'Saving...'
                   : 'Save Changes'}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+      {deletionTarget && (
+        <div className="employee-modal-overlay" role="presentation" onMouseDown={event => event.target === event.currentTarget && !deletingId && setDeletionTarget(null)}>
+          <section className="employee-incident-modal employee-delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="delete-incident-title">
+            <header>
+              <div>
+                <h2 id="delete-incident-title">Delete incident?</h2>
+                <p>{deletionTarget.incidentID}</p>
+              </div>
+              <button type="button" aria-label="Close" disabled={Boolean(deletingId)} onClick={() => setDeletionTarget(null)}><Icon name="close" /></button>
+            </header>
+            <section>
+              <p>This permanently deletes the pending incident report. This action cannot be undone.</p>
+              {deleteError && <p className="employee-delete-error" role="alert">{deleteError}</p>}
+            </section>
+            <footer>
+              <button type="button" className="employee-cancel" disabled={Boolean(deletingId)} onClick={() => setDeletionTarget(null)}>Cancel</button>
+              <button type="button" className="employee-delete-confirm-button" disabled={Boolean(deletingId)} onClick={() => void confirmDeleteIncident()}>
+                <Icon name="trash" />{deletingId ? 'Deleting...' : 'Delete incident'}
               </button>
             </footer>
           </section>

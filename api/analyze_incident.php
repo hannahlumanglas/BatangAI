@@ -47,11 +47,12 @@ if ($apiKey === "") {
 
 if (!$apiKey) {
     http_response_code(503);
+    error_log("Gemini analysis unavailable: GEMINI_API_KEY is not configured.");
 
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "AI assistance is currently unavailable. You may still submit your incident. IT Support can review the report manually.",
+        "message" => "Gemini AI is not configured on the API server. Set GEMINI_API_KEY to enable analysis.",
     ]);
 
     exit;
@@ -155,6 +156,9 @@ Important rules:
 - Do not determine the final resolution or ticket status.
 - If the information is insufficient, state what additional information IT Support may need.
 - Keep the response practical and concise.
+- Base the classification and keywords on the submitted incident fields, not on a fixed default list.
+- Extract keywords from the actual department, location, issue category, device, connection type, affected service, and description. Choose terms that distinguish this report from other incidents.
+- Write the summary as a concise, complete summary of the user's entire submitted incident report, not just the issue category or one detail. Cover every relevant field supplied: department, location, issue category, device type, connection type, affected service, and the user's full problem description. Preserve the key symptoms and circumstances from the description, combine related details into a clear paragraph, and omit only fields that were not provided. Do not add details that are absent.
 
 Return ONLY a valid JSON object.
 
@@ -163,7 +167,7 @@ The JSON object must contain exactly these six keys:
 {
   "classification": "Short incident category based only on the report.",
   "keywords": ["keyword one", "keyword two"],
-  "summary": "Concise summary of the reported incident.",
+  "summary": "Concise but complete paragraph summarizing the entire user-submitted report and all relevant supplied details.",
   "possibleInterpretation": "Cautious possible interpretation of the issue.",
   "basicSelfHelp": "Safe basic steps the employee may try.",
   "itTroubleshooting": "Technical troubleshooting suggestions intended for IT Support review."
@@ -191,47 +195,153 @@ PROMPT;
 */
 
 $requestBody = [
-    "model" => "gemini-3.5-flash",
+    "model" => "gemini-3.8-flash",
     "input" => $prompt,
     "store" => false,
+    "response_format" => [
+        "type" => "text",
+        "mime_type" => "application/json",
+        "schema" => [
+            "type" => "object",
+            "properties" => [
+                "classification" => ["type" => "string"],
+                "keywords" => ["type" => "array", "items" => ["type" => "string"]],
+                "summary" => ["type" => "string"],
+                "possibleInterpretation" => ["type" => "string"],
+                "basicSelfHelp" => ["type" => "string"],
+                "itTroubleshooting" => ["type" => "string"],
+            ],
+            "required" => [
+                "classification",
+                "keywords",
+                "summary",
+                "possibleInterpretation",
+                "basicSelfHelp",
+                "itTroubleshooting",
+            ],
+        ],
+    ],
 ];
 
-$jsonRequestBody = json_encode($requestBody);
+$response = false;
+$curlError = "";
+$httpCode = 0;
+foreach (["gemini-3.8-flash", "gemini-3.7-flash"] as $model) {
+    $requestBody["model"] = $model;
+    $jsonRequestBody = json_encode($requestBody);
+    if ($jsonRequestBody === false) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "aiAvailable" => false, "message" => "Failed to prepare the AI assistance request."]);
+        exit;
+    }
 
-if ($jsonRequestBody === false) {
-    http_response_code(500);
+    for ($attempt = 1; $attempt <= 2; $attempt++) {
+        $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/interactions");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                "Content-Type: application/json",
+                "x-goog-api-key: " . $apiKey,
+            ],
+            CURLOPT_POSTFIELDS => $jsonRequestBody,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 60,
+        ]);
 
-    echo json_encode([
-        "success" => false,
-        "aiAvailable" => false,
-        "message" => "Failed to prepare the AI assistance request.",
-    ]);
+        $response = curl_exec($ch);
+        $curlError = curl_error($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-    exit;
+        $isTransientFailure = $response === false || in_array($httpCode, [408, 500, 502, 503, 504], true);
+        if (!$isTransientFailure) {
+            break 2;
+        }
+        if ($attempt < 2) {
+            error_log(sprintf("Gemini transient failure for %s (HTTP %d); retrying.", $model, $httpCode));
+            usleep(750000 + random_int(0, 250000));
+        }
+    }
+
+    if ($httpCode < 200 || $httpCode >= 300) {
+        error_log(sprintf("Gemini model %s remained unavailable (HTTP %d); trying fallback model.", $model, $httpCode));
+    }
 }
 
-$ch = curl_init(
-    "https://generativelanguage.googleapis.com/v1/interactions"
-);
+/*
+|--------------------------------------------------------------------------
+| Legacy endpoint fallback
+|--------------------------------------------------------------------------
+|
+| If Interactions remains unavailable after both model attempts, try the
+| still-supported generateContent endpoint once before reporting an outage.
+| Keep its response in the same shape used by the parser below.
+|
+*/
+if ($response === false || $httpCode < 200 || $httpCode >= 300) {
+    $generateBody = [
+        "contents" => [["parts" => [["text" => $prompt]]]],
+        "generationConfig" => [
+            "responseMimeType" => "application/json",
+            "responseSchema" => $requestBody["response_format"]["schema"],
+        ],
+    ];
+    $generateJson = json_encode($generateBody);
 
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_HTTPHEADER => [
-        "Content-Type: application/json",
-        "x-goog-api-key: " . $apiKey,
-    ],
-    CURLOPT_POSTFIELDS => $jsonRequestBody,
-    CURLOPT_CONNECTTIMEOUT => 10,
-    CURLOPT_TIMEOUT => 60,
-]);
+    if ($generateJson !== false) {
+        $ch = curl_init("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent");
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                "Content-Type: application/json",
+                "x-goog-api-key: " . $apiKey,
+            ],
+            CURLOPT_POSTFIELDS => $generateJson,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 60,
+        ]);
 
-$response = curl_exec($ch);
+        $generateResponse = curl_exec($ch);
+        $generateError = curl_error($ch);
+        $generateCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
 
-$curlError = curl_error($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if (is_string($generateResponse) && $generateCode >= 200 && $generateCode < 300) {
+            $generateData = json_decode($generateResponse, true);
+            $generateText = $generateData["candidates"][0]["content"]["parts"][0]["text"] ?? "";
+            $responseData = [
+                "steps" => [[
+                    "type" => "model_output",
+                    "content" => [["type" => "text", "text" => $generateText]],
+                ]],
+            ];
+            $response = $generateResponse;
+            $httpCode = $generateCode;
+            error_log("Gemini Interactions failed; generateContent fallback succeeded.");
+        } else {
+            error_log(sprintf(
+                "Gemini generateContent fallback failed (HTTP %d): %s",
+                $generateCode,
+                $generateError !== "" ? $generateError : "upstream returned an error"
+            ));
+        }
+    }
+}
 
-curl_close($ch);
+$upstreamData = is_string($response) ? json_decode($response, true) : null;
+$upstreamMessage = is_array($upstreamData)
+    ? (string)($upstreamData["error"]["message"] ?? "")
+    : "";
+
+if ($response === false || $httpCode < 200 || $httpCode >= 300) {
+    error_log(sprintf(
+        "Gemini request failed (HTTP %d): %s",
+        $httpCode,
+        $curlError !== "" ? $curlError : ($upstreamMessage !== "" ? $upstreamMessage : "upstream returned an error")
+    ));
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -241,11 +351,12 @@ curl_close($ch);
 
 if ($response === false) {
     http_response_code(503);
+    error_log("Gemini analysis failed: upstream connection error: " . ($curlError !== "" ? $curlError : "unknown cURL error"));
 
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "AI assistance is currently unavailable. You may still submit your incident. IT Support can review the report manually.",
+        "message" => "The API server could not connect to Gemini. Check the server's internet connection and try again.",
     ]);
 
     exit;
@@ -257,15 +368,18 @@ if ($response === false) {
 |--------------------------------------------------------------------------
 */
 
-$responseData = json_decode($response, true);
+$responseData = isset($responseData) && is_array($responseData)
+    ? $responseData
+    : json_decode($response, true);
 
 if (!is_array($responseData)) {
     http_response_code(503);
+    error_log("Gemini analysis failed: upstream returned invalid JSON.");
 
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "AI assistance is currently unavailable. You may still submit your incident. IT Support can review the report manually.",
+        "message" => "Gemini returned an unreadable response. Please try again.",
     ]);
 
     exit;
@@ -279,11 +393,20 @@ if (!is_array($responseData)) {
 
 if ($httpCode < 200 || $httpCode >= 300) {
     http_response_code(503);
+    if ($httpCode === 401 || $httpCode === 403) {
+        $failureMessage = "Gemini rejected the API key. Check GEMINI_API_KEY on the API server.";
+    } elseif ($httpCode === 429) {
+        $failureMessage = "Gemini AI usage limit reached. Please try again later.";
+    } elseif ($httpCode === 503) {
+        $failureMessage = "Gemini is temporarily unavailable after automatic retries. Please try again shortly.";
+    } else {
+        $failureMessage = "Gemini analysis failed (HTTP " . (int)$httpCode . "). Check the server log for details.";
+    }
 
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "AI assistance is currently unavailable. You may still submit your incident. IT Support can review the report manually.",
+        "message" => $failureMessage,
     ]);
 
     exit;
@@ -328,11 +451,12 @@ if (
 
 if ($outputText === "") {
     http_response_code(503);
+    error_log("Gemini analysis failed: completed response contained no model text.");
 
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "AI assistance is currently unavailable. You may still submit your incident. IT Support can review the report manually.",
+        "message" => "Gemini returned no analysis text. Please try again.",
     ]);
 
     exit;
@@ -348,11 +472,12 @@ $analysis = json_decode($outputText, true);
 
 if (!is_array($analysis)) {
     http_response_code(503);
+    error_log("Gemini analysis failed: model output was not valid JSON.");
 
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "AI assistance is currently unavailable. You may still submit your incident. IT Support can review the report manually.",
+        "message" => "Gemini returned analysis in an unexpected format. Please try again.",
     ]);
 
     exit;
@@ -365,12 +490,15 @@ if (!is_array($analysis)) {
 */
 
 $summary = trim($analysis["summary"] ?? "");
-$classification = trim($analysis["classification"] ?? $issueCategory);
+$classification = trim($analysis["classification"] ?? "");
 $keywords = $analysis["keywords"] ?? [];
 if (!is_array($keywords)) {
     $keywords = [];
 }
-$keywords = array_values(array_filter($keywords, "is_string"));
+$keywords = array_values(array_filter(
+    array_map(static fn($keyword) => is_string($keyword) ? trim($keyword) : "", $keywords),
+    static fn($keyword) => $keyword !== ""
+));
 
 $possibleInterpretation = trim(
     $analysis["possibleInterpretation"] ?? ""
@@ -385,17 +513,20 @@ $itTroubleshooting = trim(
 );
 
 if (
+    $classification === "" ||
+    count($keywords) === 0 ||
     $summary === "" ||
     $possibleInterpretation === "" ||
     $basicSelfHelp === "" ||
     $itTroubleshooting === ""
 ) {
     http_response_code(503);
+    error_log("Gemini analysis failed: model output was missing one or more required fields.");
 
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "AI assistance is currently unavailable. You may still submit your incident. IT Support can review the report manually.",
+        "message" => "Gemini returned incomplete analysis. Please try again.",
     ]);
 
     exit;

@@ -110,6 +110,7 @@ $sql = "
         status = 'Pending',
         startedAt = NULL
     WHERE incidentID = ?
+      AND status NOT IN ('Resolved', 'Closed')
 ";
 
 $stmt = $conn->prepare($sql);
@@ -148,17 +149,33 @@ if (!$stmt->execute()) {
 }
 
 if ($stmt->affected_rows === 0) {
-    http_response_code(404);
+    $statusStmt = $conn->prepare('SELECT status FROM incidents WHERE incidentID = ? LIMIT 1');
+    $statusStmt->bind_param('s', $incidentID);
+    $statusStmt->execute();
+    $existingIncident = $statusStmt->get_result()->fetch_assoc();
+    $statusStmt->close();
 
-    echo json_encode([
-        "success" => false,
-        "message" => "Incident not found."
-    ]);
+    $isAlreadyResolved = $existingIncident && in_array(
+        (string)$existingIncident['status'],
+        ['Resolved', 'Closed'],
+        true
+    );
 
-    $stmt->close();
-    $conn->close();
+    if (!$existingIncident || $isAlreadyResolved) {
+        http_response_code($isAlreadyResolved ? 409 : 404);
 
-    exit;
+        echo json_encode([
+            "success" => false,
+            "message" => $isAlreadyResolved
+                ? "Resolved incidents cannot be assigned."
+                : "Incident not found."
+        ]);
+
+        $stmt->close();
+        $conn->close();
+
+        exit;
+    }
 }
 
 echo json_encode([

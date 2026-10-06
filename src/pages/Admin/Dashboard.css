@@ -304,6 +304,29 @@ button, input, select, textarea { font:inherit; }
 /* Extra bottom clearance for the two-line department labels under the bar chart. */
 .chart-card { padding-bottom:46px; }
 
+/* Bring the dashboard charts in gently when the page first loads. */
+.chart-plot > .bar-item > strong {
+  transform:scaleY(0);
+  transform-origin:bottom;
+  animation:dashboard-bar-rise .7s cubic-bezier(.2,.75,.25,1) forwards;
+}
+.chart-plot > .bar-item:nth-of-type(1) > strong { animation-delay:.08s; }
+.chart-plot > .bar-item:nth-of-type(2) > strong { animation-delay:.16s; }
+.chart-plot > .bar-item:nth-of-type(3) > strong { animation-delay:.24s; }
+.chart-plot > .bar-item:nth-of-type(4) > strong { animation-delay:.32s; }
+.chart-plot > .bar-item:nth-of-type(5) > strong { animation-delay:.4s; }
+.chart-plot > .bar-item:nth-of-type(6) > strong { animation-delay:.48s; }
+.donut-chart { animation:dashboard-donut-reveal .8s cubic-bezier(.2,.75,.25,1) both; }
+@keyframes dashboard-bar-rise { to { transform:scaleY(1); } }
+@keyframes dashboard-donut-reveal {
+  from { opacity:0; transform:scale(.55) rotate(-35deg); }
+  to { opacity:1; transform:scale(1) rotate(0); }
+}
+@media(prefers-reduced-motion:reduce) {
+  .chart-plot > .bar-item > strong,
+  .donut-chart { animation:none; transform:none; }
+}
+
 
 /* Account access now lives in the avatar menu. These rules apply to every role. */
 .sidebar-nav button:last-child{display:none}.theme-toggle-button{display:none!important}.admin-topbar>.topbar-title{margin-right:auto}.profile-menu-trigger{gap:0!important;margin-left:12px!important;padding:0!important;border:0!important}.profile-menu-trigger>div:not(.topbar-avatar),.profile-menu-trigger>.profile-menu-chevron{display:none!important}.topbar-avatar{overflow:hidden;background-image:var(--saved-profile-avatar,none);background-size:cover;background-position:center}.has-profile-avatar .topbar-avatar{color:transparent}.topbar-avatar img{width:100%;height:100%;object-fit:cover}.profile-shell .admin-sidebar{width:254px}.profile-shell .admin-main{width:calc(100% - 254px);margin-left:254px}.profile-shell .admin-topbar{padding-left:28px}.profile-shell .topbar-title{margin-right:auto}@media(max-width:900px){.profile-shell .admin-sidebar{width:74px}.profile-shell .admin-main{width:calc(100% - 74px);margin-left:74px}}

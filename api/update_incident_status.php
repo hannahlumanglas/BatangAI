@@ -83,7 +83,7 @@ if (
 */
 
 $assignmentStmt = $conn->prepare(
-    "SELECT incidentID
+    "SELECT incidentID, status
      FROM incidents
      WHERE incidentID = ?
        AND assignedTo = ?
@@ -108,6 +108,24 @@ if (!$assignment) {
     echo json_encode([
         "success" => false,
         "message" => "This incident is not assigned to the current IT Personnel account."
+    ]);
+
+    $conn->close();
+    exit;
+}
+
+$currentStatus = strtolower(trim((string) $assignment["status"]));
+$requestedStatus = strtolower($status);
+
+if (
+    ($requestedStatus === "in progress" && $currentStatus !== "pending") ||
+    ($requestedStatus === "resolved" && $currentStatus !== "in progress")
+) {
+    http_response_code(409);
+
+    echo json_encode([
+        "success" => false,
+        "message" => "Resolved incidents cannot be edited or reopened."
     ]);
 
     $conn->close();
@@ -203,6 +221,14 @@ if ($status === "Resolved") {
     $resolutionNotes = trim(
         $data["resolutionNotes"] ?? ""
     );
+    $checkedTechnicianSteps = $data["technicianCheckedSteps"] ?? null;
+
+    if (!is_array($checkedTechnicianSteps)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "Complete every technician troubleshooting step before resolving this incident."]);
+        $conn->close();
+        exit;
+    }
 
     if ($resolutionNotes === "") {
         http_response_code(400);
@@ -223,7 +249,7 @@ if ($status === "Resolved") {
     */
 
     $selectSql = "
-        SELECT startedAt
+        SELECT startedAt, troubleshooting
         FROM incidents
         WHERE incidentID = ?
         LIMIT 1
@@ -282,6 +308,27 @@ if ($status === "Resolved") {
         exit;
     }
 
+    $troubleshooting = (string)($incident["troubleshooting"] ?? "");
+    $sections = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
+    $technicianText = trim($sections[1] ?? "");
+    $technicianText = preg_replace('/\[Employee checked self-help steps: [^\]]*\]/i', '', $technicianText);
+    $technicianText = preg_replace('/\[IT checked troubleshooting steps: [^\]]*\]/i', '', $technicianText);
+    $technicianLines = preg_split('/\s+(?=(?:\d+[.)]|[-*\x{2022}])\s+)/u', trim((string)$technicianText));
+    $technicianLines = array_values(array_filter(array_map(function ($step) {
+        return trim(preg_replace('/^\s*(?:\d+[.)]|[-*\x{2022}])\s*/u', '', $step));
+    }, $technicianLines), function ($step) { return $step !== ""; }));
+    $stepCount = count($technicianLines);
+    $checkedTechnicianSteps = array_values(array_unique(array_map('intval', $checkedTechnicianSteps)));
+    sort($checkedTechnicianSteps);
+    if ($stepCount === 0 || count($checkedTechnicianSteps) !== $stepCount || $checkedTechnicianSteps !== range(0, $stepCount - 1)) {
+        http_response_code(400);
+        echo json_encode(["success" => false, "message" => "Complete every technician troubleshooting step before resolving this incident."]);
+        $conn->close();
+        exit;
+    }
+    $troubleshooting = preg_replace('/\s*\[IT checked troubleshooting steps: [^\]]*\]/i', '', $troubleshooting);
+    $troubleshooting = rtrim($troubleshooting) . "\n[IT checked troubleshooting steps: " . implode(',', $checkedTechnicianSteps) . "]";
+
     /*
     |--------------------------------------------------------------------------
     | UPDATE INCIDENT
@@ -302,6 +349,7 @@ if ($status === "Resolved") {
             resolvedAt = NOW(),
             resolvedBy = ?,
             resolutionNotes = ?,
+            troubleshooting = ?,
             durationMinutes =
                 CASE
                     WHEN startedAt IS NULL THEN 0
@@ -333,9 +381,10 @@ if ($status === "Resolved") {
     }
 
     $updateStmt->bind_param(
-        "sss",
+        "ssss",
         $resolvedBy,
         $resolutionNotes,
+        $troubleshooting,
         $incidentID
     );
 

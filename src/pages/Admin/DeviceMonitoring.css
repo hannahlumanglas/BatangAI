@@ -9,11 +9,15 @@
 .incident-tools .live:not(.selected):hover { background:var(--hover-bg); }
 :root[data-theme="dark"] .incident-tools .live:not(.selected) { background:var(--card-bg); border-color:var(--card-border); color:var(--text-secondary); }
 
-.dm-filters { gap:10px; }
-.dm-filter-select { display:flex; align-items:center; gap:9px; height:38px; padding:0 14px; color:var(--text-secondary); font-size:var(--font-input); font-weight:700; text-transform:uppercase; letter-spacing:.04em; background:var(--card-bg); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; transition:border-color .15s ease, box-shadow .15s ease; }
+.dm-filter-group { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
+.dm-filter-select { position:relative; display:flex; align-items:center; width:160px; height:48px; padding:0 16px; color:var(--text-heading); font-size:var(--font-input); font-weight:400; background:var(--card-bg); border:1px solid var(--border-color); border-radius:14px; cursor:pointer; transition:border-color .15s ease, box-shadow .15s ease; }
 .dm-filter-select:hover { border-color:var(--border-color); }
 .dm-filter-select:focus-within { border-color:var(--primary); box-shadow:0 0 0 3px rgba(10,102,255,.12); }
-.dm-filter-select select { height:100%; padding:0; color:var(--text-heading); font:inherit; font-size:var(--font-input); font-weight:700; text-transform:none; letter-spacing:normal; background:var(--card-bg); border:0; outline:0; appearance:auto; cursor:pointer; }
+.dm-filter-select::after { position:absolute; right:17px; top:19px; width:7px; height:7px; border-right:2px solid var(--text-secondary); border-bottom:2px solid var(--text-secondary); content:""; transform:rotate(45deg); pointer-events:none; }
+.dm-filter-select select { width:100%; height:100%; padding:0 22px 0 0; color:var(--text-heading); font:inherit; font-size:var(--font-input); font-weight:400; background:transparent; border:0; outline:0; appearance:none; cursor:pointer; }
+
+@media(max-width:900px){.dm-filter-group{flex-wrap:wrap}}
+@media(max-width:650px){.dm-filter-group{width:100%}.dm-filter-select{flex:1;justify-content:space-between}}
 
 .dm-grid { display:grid; grid-template-columns:1fr; gap:12px; }
 .dm-empty { padding:40px; color:var(--text-secondary); font-size:var(--font-body); text-align:center; }
@@ -43,6 +47,10 @@
 .dm-ping { padding:6px 12px; color:var(--primary); font:inherit; font-size:var(--font-secondary); font-weight:700; background:var(--card-bg); border:1px solid var(--border-color); border-radius:7px; cursor:pointer; }
 .dm-ping:hover:not(:disabled) { background:var(--hover-bg); }
 .dm-ping:disabled { opacity:.65; cursor:wait; }
+.dm-card-actions { display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-color); }
+.dm-delete { padding:8px 14px; color:var(--danger); font:inherit; font-size:var(--font-secondary); font-weight:700; background:var(--card-bg); border:1px solid var(--danger); border-radius:7px; cursor:pointer; }
+.dm-delete:hover:not(:disabled) { color:#fff; background:var(--danger); }
+.dm-delete:disabled { opacity:.65; cursor:wait; }
 
 /* Expanded details — two columns: full field list on the left, Throughput bar
    plus Devices Connected / Uptime metric cards on the right (see reference mockup). */

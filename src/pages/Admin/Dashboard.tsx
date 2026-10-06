@@ -1221,7 +1221,7 @@ function getSeverityClass(
       return 'medium-tag'
 
     default:
-      return 'low-tag'
+      return ''
   }
 }
 
@@ -1242,7 +1242,7 @@ function displaySeverity(
     return 'Medium'
   }
 
-  return 'Low'
+  return 'Not set'
 }
 
 function normalizeSeverity(
@@ -1261,9 +1261,11 @@ function normalizeSeverity(
     return 'medium'
   }
 
-  // This matches the existing display behaviour: absent or legacy/unrecognised
-  // severity values are presented as Low instead of being silently omitted.
-  return 'low'
+  if (value === 'low') {
+    return 'low'
+  }
+
+  return null
 }
 
 

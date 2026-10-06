@@ -242,6 +242,29 @@ if (($data['action'] ?? '') === 'ping') {
     ]);
 }
 
+if (($data['action'] ?? '') === 'delete') {
+    $deviceId = trim((string)($data['deviceID'] ?? ''));
+    if ($deviceId === '') {
+        $conn->close();
+        respond(['success' => false, 'message' => 'Device ID is required.'], 400);
+    }
+
+    $delete = $conn->prepare('DELETE FROM devices WHERE deviceID = ?');
+    $delete->bind_param('s', $deviceId);
+    if (!$delete->execute()) {
+        $delete->close();
+        $conn->close();
+        respond(['success' => false, 'message' => 'Unable to delete the device.'], 500);
+    }
+    $deleted = $delete->affected_rows > 0;
+    $delete->close();
+    $conn->close();
+    if (!$deleted) {
+        respond(['success' => false, 'message' => 'Device not found.'], 404);
+    }
+    respond(['success' => true, 'message' => 'Device deleted.']);
+}
+
 if (($data['action'] ?? '') !== 'add') {
     $conn->close();
     respond(['success' => false, 'message' => 'Invalid device request.'], 400);

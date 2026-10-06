@@ -53,11 +53,30 @@ $issueCategory = trim((string)($data["issueCategory"] ?? ""));
 $deviceType = trim((string)($data["deviceType"] ?? ""));
 $connectionType = trim((string)($data["connectionType"] ?? ""));
 $location = trim((string)($data["location"] ?? ""));
-$severity = trim((string)($data["severity"] ?? "Low"));
+$severity = isset($data["severity"]) && $data["severity"] !== ""
+    ? trim((string)$data["severity"])
+    : null;
 $classification = trim((string)($data["classification"] ?? ""));
+$keywords = $data["keywords"] ?? [];
+if (!is_array($keywords)) {
+    $keywords = [];
+}
+$keywords = array_values(array_filter($keywords, "is_string"));
+$keywordsJson = json_encode($keywords, JSON_UNESCAPED_UNICODE);
+if ($keywordsJson === false) {
+    $keywordsJson = "[]";
+}
 $summary = trim((string)($data["summary"] ?? ""));
 $troubleshooting = trim((string)($data["troubleshooting"] ?? ""));
-$resolvedByUser = ($data["resolvedByUser"] ?? false) === true;
+if (!array_key_exists("resolvedByUser", $data) || !is_bool($data["resolvedByUser"])) {
+    http_response_code(400);
+    echo json_encode([
+        "success" => false,
+        "message" => "Please confirm whether the issue was resolved by the self-help steps."
+    ]);
+    exit;
+}
+$resolvedByUser = $data["resolvedByUser"];
 
 /*
 |--------------------------------------------------------------------------
@@ -113,8 +132,14 @@ $allowedSeverity = [
     "Low"
 ];
 
-if (!in_array($severity, $allowedSeverity, true)) {
-    $severity = "Low";
+if ($severity !== null && !in_array($severity, $allowedSeverity, true)) {
+    http_response_code(400);
+    echo json_encode([
+        "success" => false,
+        "message" => "Severity must be High, Medium, or Low."
+    ]);
+    $conn->close();
+    exit;
 }
 
 /*
@@ -137,6 +162,10 @@ $incidentID = "INC-" . date("Ymd") . "-" . strtoupper(substr(uniqid(), -5));
 
 $status = $resolvedByUser ? "Resolved" : "Pending";
 $assigned = "No";
+$assignedAt = null;
+$assignedTo = null;
+$assignedToName = null;
+$startedAt = null;
 $resolvedAt = $resolvedByUser ? date('Y-m-d H:i:s') : null;
 $resolvedBy = $resolvedByUser ? $employeeName : null;
 
@@ -154,6 +183,7 @@ $sql = "
         incidentID,
         affectedIssue,
         classification,
+        keywords,
         connectionType,
         department,
         description,
@@ -167,10 +197,19 @@ $sql = "
         troubleshooting,
         userId,
         assigned,
+        assignedAt,
+        assignedTo,
+        assignedToName,
+        startedAt,
         resolvedAt,
         resolvedBy
     )
     VALUES (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
         ?,
         ?,
         ?,
@@ -212,15 +251,16 @@ if (!$stmt) {
 | Bind parameters
 |--------------------------------------------------------------------------
 |
-| 18 placeholders = 18 variables
+| 23 placeholders = 23 variables
 |
 */
 
 $stmt->bind_param(
-    "ssssssssssssssssss",
+    "sssssssssssssssssssssss",
     $incidentID,
     $affectedIssue,
     $classification,
+    $keywordsJson,
     $connectionType,
     $department,
     $description,
@@ -234,6 +274,10 @@ $stmt->bind_param(
     $troubleshooting,
     $userId,
     $assigned,
+    $assignedAt,
+    $assignedTo,
+    $assignedToName,
+    $startedAt,
     $resolvedAt,
     $resolvedBy
 );
@@ -267,7 +311,10 @@ if (!$stmt->execute()) {
 echo json_encode([
     "success" => true,
     "message" => "Incident created successfully.",
-    "incidentID" => $incidentID
+    "incidentID" => $incidentID,
+    "status" => $status,
+    "assigned" => $assigned,
+    "resolvedBy" => $resolvedBy
 ]);
 
 $stmt->close();

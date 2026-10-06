@@ -135,6 +135,7 @@ $sql = "
         incidents.incidentID,
         incidents.affectedIssue,
         incidents.classification,
+        incidents.keywords,
         incidents.connectionType,
         incidents.createdAt,
         incidents.department,
@@ -153,7 +154,7 @@ $sql = "
         incidents.assigned,
         incidents.assignedAt,
         incidents.assignedTo,
-        incidents.assignedToName,
+        COALESCE(NULLIF(assignee.fullName, ''), NULLIF(incidents.assignedToName, '')) AS assignedToName,
         incidents.durationMinutes,
         incidents.resolutionNotes,
         incidents.startedAt,
@@ -251,6 +252,7 @@ $stmt->bind_result(
     $incidentID,
     $affectedIssue,
     $classification,
+    $keywords,
     $connectionType,
     $createdAt,
     $department,
@@ -281,10 +283,16 @@ $incidents = [];
 
 while ($stmt->fetch()) {
 
+    $decodedKeywords = json_decode($keywords ?: "[]", true);
+    if (!is_array($decodedKeywords)) {
+        $decodedKeywords = [];
+    }
+
     $incidents[] = [
         "incidentID" => $incidentID,
         "affectedIssue" => $affectedIssue,
         "classification" => $classification,
+        "keywords" => $decodedKeywords,
         "connectionType" => $connectionType,
         "createdAt" => $createdAt,
         "department" => $department,

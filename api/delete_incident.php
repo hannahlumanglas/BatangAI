@@ -117,6 +117,7 @@ if ($incident['status'] !== 'Pending') {
 $deleteStmt = $conn->prepare("
     DELETE FROM incidents
     WHERE incidentID = ?
+      AND status = 'Pending'
 ");
 
 if (!$deleteStmt) {
@@ -148,11 +149,11 @@ if (!$deleteStmt->execute()) {
 }
 
 if ($deleteStmt->affected_rows === 0) {
-    http_response_code(404);
+    http_response_code(403);
 
     echo json_encode([
         "success" => false,
-        "message" => "Incident could not be deleted because it no longer exists."
+        "message" => "Only Pending incidents can be deleted."
     ]);
 
     $deleteStmt->close();
