@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AUTH_STORAGE_KEY,
   getAuthSession,
   getDefaultProfileAvatar,
+  getRoleDisplayName,
   getProfilePhotoUrl,
+  saveAuthSession,
   signOut,
 } from '../../auth'
 import logo from '../../assets/logo.png'
@@ -373,7 +374,7 @@ function ProfileMenu({
 
         <div>
           <strong>{account.name}</strong>
-          <span>{account.role}</span>
+          <span>{getRoleDisplayName(account.role)}</span>
         </div>
 
         <span className="profile-menu-chevron">
@@ -580,6 +581,29 @@ function Profile({
   */
   const [uploadingPhoto, setUploadingPhoto] =
     useState(false)
+  const [pendingPhoto, setPendingPhoto] =
+    useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] =
+    useState<string | null>(null)
+  const photoPreviewUrlRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrlRef.current) {
+        URL.revokeObjectURL(photoPreviewUrlRef.current)
+      }
+    }
+  }, [])
+
+  const updatePendingPhoto = (file: File | null) => {
+    if (photoPreviewUrlRef.current) {
+      URL.revokeObjectURL(photoPreviewUrlRef.current)
+    }
+    const previewUrl = file ? URL.createObjectURL(file) : null
+    photoPreviewUrlRef.current = previewUrl
+    setPendingPhoto(file)
+    setPhotoPreview(previewUrl)
+  }
 
   /*
   |--------------------------------------------------------------------------
@@ -653,7 +677,7 @@ function Profile({
       ],
       [
         'Role',
-        account.role,
+        getRoleDisplayName(account.role),
       ],
     ],
     [account],
@@ -800,12 +824,7 @@ function Profile({
   | users.profilePhoto
   |--------------------------------------------------------------------------
   */
-  const uploadAvatar = async (
-    file?: File,
-  ) => {
-    if (!file) {
-      return
-    }
+  const uploadAvatar = async (file: File) => {
 
     const currentSession = getAuthSession()
 
@@ -915,12 +934,7 @@ function Profile({
         },
       }
 
-      localStorage.setItem(
-        AUTH_STORAGE_KEY,
-        JSON.stringify(
-          updatedSession,
-        ),
-      )
+      saveAuthSession(updatedSession)
 
       // Let every mounted page refresh its avatar immediately.
       window.dispatchEvent(
@@ -954,6 +968,7 @@ function Profile({
       if (fileRef.current) {
         fileRef.current.value = ''
       }
+      updatePendingPhoto(null)
 
       setNotice(
         'Profile photo updated successfully.',
@@ -1263,7 +1278,7 @@ function Profile({
 
                   {avatar ? (
                     <img
-                      src={avatar}
+                      src={photoPreview || avatar}
                       alt="Profile"
                       onError={handleAvatarLoadError}
                     />
@@ -1280,9 +1295,7 @@ function Profile({
                   hidden
                   disabled={uploadingPhoto}
                   onChange={event =>
-                    uploadAvatar(
-                      event.target.files?.[0],
-                    )
+                    updatePendingPhoto(event.target.files?.[0] ?? null)
                   }
                 />
 
@@ -1294,10 +1307,33 @@ function Profile({
                     fileRef.current?.click()
                   }
                 >
-                  {uploadingPhoto
-                    ? 'Uploading...'
-                    : 'Change photo'}
+                  Change photo
                 </button>
+
+                {pendingPhoto && (
+                  <div className="profile-photo-actions">
+                    <button
+                      type="button"
+                      className="profile-photo-button"
+                      disabled={uploadingPhoto}
+                      onClick={() => {
+                        updatePendingPhoto(null)
+                        if (fileRef.current) fileRef.current.value = ''
+                        setNotice('')
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="profile-photo-button"
+                      disabled={uploadingPhoto}
+                      onClick={() => void uploadAvatar(pendingPhoto)}
+                    >
+                      {uploadingPhoto ? 'Saving...' : 'Save photo'}
+                    </button>
+                  </div>
+                )}
 
                 <small>
                   JPG, PNG, or WEBP.

@@ -5,7 +5,9 @@ import logo from '../../assets/logo.png'
 import { AdminNotifications } from './AdminNotifications'
 import {
   getAuthSession,
+  getRoleDisplayName,
   getProfilePhotoUrl,
+  signOut,
 } from '../../auth'
 import './Dashboard.css'
 import './GenerateReports.css'
@@ -361,7 +363,7 @@ function buildReport(
         'Department',
         'Issue Category',
         'Severity',
-        'Assigned IT Personnel',
+        'Assigned Technician',
         'Created At',
         'Resolved At',
         'Duration (Minutes)',
@@ -397,7 +399,7 @@ function buildReport(
         'Issue Category',
         'Severity',
         'Status',
-        'Assigned IT Personnel',
+        'Assigned Technician',
         'Created At',
         'Description',
       ],
@@ -474,7 +476,7 @@ function buildReport(
 
     return {
       headers: [
-        'IT Personnel',
+        'Technician',
         'Assigned Incidents',
         'Resolved Incidents',
         'Resolution Rate (%)',
@@ -566,7 +568,7 @@ function buildReport(
       'Issue Category',
       'Severity',
       'Status',
-      'Assigned IT Personnel',
+      'Assigned Technician',
       'Created At',
       'Resolved At',
       'Duration (Minutes)',
@@ -800,7 +802,7 @@ function ProfileMenu({
 
         <div>
           <strong>{name}</strong>
-          <span>{role}</span>
+          <span>{getRoleDisplayName(role)}</span>
         </div>
 
         <span
@@ -994,10 +996,7 @@ function GenerateReports() {
     useState<BuiltReport | null>(null)
 
   const handleLogout = () => {
-    localStorage.removeItem(
-      'batangai-admin-auth',
-    )
-
+    signOut()
     navigate('/')
   }
 

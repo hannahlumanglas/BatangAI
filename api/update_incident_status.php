@@ -69,7 +69,7 @@ if (
 
     echo json_encode([
         "success" => false,
-        "message" => "Only the assigned active IT Personnel may update this incident."
+        "message" => "Only the assigned active Technician may update this incident."
     ]);
 
     $conn->close();
@@ -107,7 +107,7 @@ if (!$assignment) {
 
     echo json_encode([
         "success" => false,
-        "message" => "This incident is not assigned to the current IT Personnel account."
+        "message" => "This incident is not assigned to the current Technician account."
     ]);
 
     $conn->close();

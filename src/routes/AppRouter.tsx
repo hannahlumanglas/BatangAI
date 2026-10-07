@@ -1,7 +1,13 @@
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
-import { hasRole } from '../auth'
+import {
+  hasRole,
+  initializeAuthSession,
+  revalidateAuthSession,
+  type AuthSession,
+} from '../auth'
 
 import Dashboard from '../pages/Admin/Dashboard'
 import Incidents from '../pages/Admin/Incidents'
@@ -37,6 +43,38 @@ function ProtectedRoute({
 }
 
 function AppRouter() {
+  const [authReady, setAuthReady] = useState(false)
+  const [, setAuthSession] = useState<AuthSession | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void initializeAuthSession().then(session => {
+      if (active) {
+        setAuthSession(session)
+        setAuthReady(true)
+      }
+    })
+
+    const validationTimer = window.setInterval(() => {
+      void revalidateAuthSession()
+        .then(session => {
+          if (active) setAuthSession(session)
+        })
+        .catch(error => {
+          console.error('Session revalidation error:', error)
+        })
+    }, 5 * 60 * 1000)
+
+    return () => {
+      active = false
+      window.clearInterval(validationTimer)
+    }
+  }, [])
+
+  if (!authReady) {
+    return <main role="status" aria-live="polite">Checking login session...</main>
+  }
+
   return (
     <BrowserRouter>
       <Routes>

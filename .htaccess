@@ -1,5 +1,10 @@
 RewriteEngine On
 
+# Keep environment files and other hidden files private.
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
 # Do not rewrite existing files or directories
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d

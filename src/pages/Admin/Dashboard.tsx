@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import type { JSX } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { AdminNotifications } from './AdminNotifications'
@@ -1300,6 +1301,11 @@ function Dashboard() {
   )
 
   const [
+    interpretationType,
+    setInterpretationType,
+  ] = useState<'department' | 'severity' | null>(null)
+
+  const [
     incidents,
     setIncidents,
   ] = useState<Incident[]>(
@@ -1730,6 +1736,21 @@ function Dashboard() {
     severityPeriod,
   ])
 
+  const departmentTotal = departmentData.reduce(
+    (total, item) => total + item.value,
+    0,
+  )
+  const severityTotal =
+    severity.high +
+    severity.medium +
+    severity.low
+  const leadingDepartment = departmentData[0]
+  const dominantSeverity = [
+    { label: 'High', count: severity.high, percentage: severity.highPct },
+    { label: 'Medium', count: severity.medium, percentage: severity.medPct },
+    { label: 'Low', count: severity.low, percentage: severity.lowPct },
+  ].sort((a, b) => b.count - a.count)[0]
+
 
   /* ------------------------------------------------------------------------
      RECENT INCIDENTS
@@ -2058,7 +2079,6 @@ function Dashboard() {
           ============================================================ */}
 
           <section className="dashboard-grid charts-grid">
-
             {/* ==========================================================
                 INCIDENTS BY DEPARTMENT
             ========================================================== */}
@@ -2073,14 +2093,25 @@ function Dashboard() {
                   Incidents by Department
                 </h2>
 
-                <PeriodFilter
-                  value={
-                    chartPeriod
-                  }
-                  onChange={
-                    setChartPeriod
-                  }
-                />
+                <div className="dashboard-chart-controls">
+                  <PeriodFilter
+                    value={
+                      chartPeriod
+                    }
+                    onChange={
+                      setChartPeriod
+                    }
+                  />
+                  <button
+                    className="dashboard-interpret-button"
+                    type="button"
+                    onClick={() =>
+                      setInterpretationType('department')
+                    }
+                  >
+                    Interpret
+                  </button>
+                </div>
 
               </header>
 
@@ -2202,14 +2233,25 @@ function Dashboard() {
                   Severity Breakdown
                 </h2>
 
-                <PeriodFilter
-                  value={
-                    severityPeriod
-                  }
-                  onChange={
-                    setSeverityPeriod
-                  }
-                />
+                <div className="dashboard-chart-controls">
+                  <PeriodFilter
+                    value={
+                      severityPeriod
+                    }
+                    onChange={
+                      setSeverityPeriod
+                    }
+                  />
+                  <button
+                    className="dashboard-interpret-button"
+                    type="button"
+                    onClick={() =>
+                      setInterpretationType('severity')
+                    }
+                  >
+                    Interpret
+                  </button>
+                </div>
 
               </header>
 
@@ -2304,6 +2346,147 @@ function Dashboard() {
             </article>
 
           </section>
+
+          {interpretationType && (
+            createPortal(
+              <div
+                className="dashboard-interpretation-overlay"
+                role="presentation"
+                onClick={() => setInterpretationType(null)}
+              >
+                <article
+                  className="dashboard-interpretation-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="dashboard-interpretation-title"
+                  aria-describedby="dashboard-interpretation-description"
+                  onClick={event => event.stopPropagation()}
+                >
+                  <header>
+                    <div>
+                      <h2 id="dashboard-interpretation-title">
+                        {interpretationType === 'department'
+                          ? 'Department Report Interpretation'
+                          : 'Severity Report Interpretation'}
+                      </h2>
+                      <p id="dashboard-interpretation-description">
+                        {interpretationType === 'department'
+                          ? `Incident reports by department · ${chartPeriod}`
+                          : `Incident severity breakdown · ${severityPeriod}`}
+                      </p>
+                    </div>
+                    <button
+                      className="dashboard-interpretation-close"
+                      type="button"
+                      aria-label="Close interpretation"
+                      onClick={() => setInterpretationType(null)}
+                    >
+                      ×
+                    </button>
+                  </header>
+
+                  {interpretationType === 'department' ? (
+                    <section className="dashboard-interpretation-report">
+                      <p className="dashboard-interpretation-period">
+                        Reporting period: <strong>{chartPeriod}</strong>
+                      </p>
+                      <div className="dashboard-interpretation-summary">
+                        <span>Total reported incidents</span>
+                        <strong>{departmentTotal}</strong>
+                      </div>
+                      {departmentTotal === 0 ? (
+                        <>
+                          <h3>Report Interpretation</h3>
+                          <p className="dashboard-interpretation-empty">
+                            No incidents were recorded by department during this reporting period, so no department trend can be identified.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <h3>Report Interpretation</h3>
+                          <p className="dashboard-interpretation-insight">
+                            During {chartPeriod.toLowerCase()}, {departmentTotal} incident
+                            {departmentTotal === 1 ? ' was' : 's were'} reported across the departments shown.{' '}
+                            {leadingDepartment
+                              ? `${leadingDepartment.label} recorded the most reports (${leadingDepartment.value}, ${Math.round((leadingDepartment.value / departmentTotal) * 100)}% of the total).`
+                              : ''}
+                          </p>
+                          <h3 className="dashboard-interpretation-breakdown-title">
+                            Department Report Breakdown
+                          </h3>
+                          <ul className="dashboard-interpretation-list">
+                            {departmentData.map(item => (
+                              <li key={item.label}>
+                                <span>{item.label}</span>
+                                <strong>{item.value}</strong>
+                                <span>
+                                  {Math.round((item.value / departmentTotal) * 100)}%
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </section>
+                  ) : (
+                    <section className="dashboard-interpretation-report">
+                      <p className="dashboard-interpretation-period">
+                        Reporting period: <strong>{severityPeriod}</strong>
+                      </p>
+                      <div className="dashboard-interpretation-summary">
+                        <span>Reported incidents with severity</span>
+                        <strong>{severityTotal}</strong>
+                      </div>
+                      {severityTotal === 0 ? (
+                        <>
+                          <h3>Report Interpretation</h3>
+                          <p className="dashboard-interpretation-empty">
+                            No incidents with an assigned severity level were recorded during this reporting period, so severity trends cannot be assessed.
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <h3>Report Interpretation</h3>
+                          <p className="dashboard-interpretation-insight">
+                            Of the {severityTotal} incidents with an assigned severity,{' '}
+                            {dominantSeverity.label.toLowerCase()} severity was reported most often, accounting for{' '}
+                            {dominantSeverity.count} incident{dominantSeverity.count === 1 ? '' : 's'} (
+                            {dominantSeverity.percentage}% of the total). The remaining reports are distributed across the other severity levels below.
+                          </p>
+                          <h3 className="dashboard-interpretation-breakdown-title">
+                            Severity Report Breakdown
+                          </h3>
+                          <ul className="dashboard-interpretation-list">
+                            <li><span>High</span><strong>{severity.high}</strong><span>{severity.highPct}%</span></li>
+                            <li><span>Medium</span><strong>{severity.medium}</strong><span>{severity.medPct}%</span></li>
+                            <li><span>Low</span><strong>{severity.low}</strong><span>{severity.lowPct}%</span></li>
+                          </ul>
+                        </>
+                      )}
+                    </section>
+                  )}
+
+                  <footer>
+                    <button
+                      className="dashboard-print-button"
+                      type="button"
+                      onClick={() => window.print()}
+                    >
+                      Print interpretation
+                    </button>
+                    <button
+                      className="dashboard-interpretation-done"
+                      type="button"
+                      onClick={() => setInterpretationType(null)}
+                    >
+                      Done
+                    </button>
+                  </footer>
+                </article>
+              </div>,
+              document.body,
+            )
+          )}
 
 
           {/* ============================================================

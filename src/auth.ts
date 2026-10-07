@@ -28,6 +28,8 @@ export type SignInResult =
   | { session: AuthSession; message?: never }
   | { session: null; message: string }
 
+let authValidationPromise: Promise<AuthSession | null> | null = null
+
 export function isUserRole(value: unknown): value is UserRole {
   return (
     value === 'Administrator' ||
@@ -35,6 +37,12 @@ export function isUserRole(value: unknown): value is UserRole {
     value === 'Secretary' ||
     value === 'IT Personnel'
   )
+}
+
+export function getRoleDisplayName(role: string): string {
+  if (role === 'Secretary') return 'Front Desk'
+  if (role === 'IT Personnel') return 'Technician'
+  return role
 }
 
 function isAuthUser(value: unknown): value is AuthUser {
@@ -171,6 +179,7 @@ export function getProfilePhotoUrl(
 export async function signIn(
   email: string,
   password: string,
+  rememberMe = false,
 ): Promise<SignInResult> {
   try {
     const response = await fetch(
@@ -180,9 +189,11 @@ export async function signIn(
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           email: email.trim().toLowerCase(),
           password,
+          rememberMe,
         }),
       },
     )
@@ -233,10 +244,8 @@ export async function signIn(
       isAuthenticated: true,
     }
 
-    localStorage.setItem(
-      AUTH_STORAGE_KEY,
-      JSON.stringify(session),
-    )
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
+    localStorage.removeItem(AUTH_STORAGE_KEY)
 
     return { session }
   } catch (error) {
@@ -250,11 +259,76 @@ export async function signIn(
 }
 
 /**
+ * Revalidates the browser's session with the API. An HttpOnly persistent
+ * cookie may restore the session after the browser has been restarted.
+ */
+export async function initializeAuthSession(): Promise<AuthSession | null> {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+    return await getValidatedAuthSession()
+  } catch (error) {
+    console.error('Session validation error:', error)
+    sessionStorage.removeItem(AUTH_STORAGE_KEY)
+    return null
+  }
+}
+
+export async function revalidateAuthSession(): Promise<AuthSession | null> {
+  return getValidatedAuthSession()
+}
+
+function getValidatedAuthSession(): Promise<AuthSession | null> {
+  if (!authValidationPromise) {
+    authValidationPromise = requestAuthSession().finally(() => {
+      authValidationPromise = null
+    })
+  }
+  return authValidationPromise
+}
+
+async function requestAuthSession(): Promise<AuthSession | null> {
+  const response = await fetch(`${API_BASE_URL}/auth_session.php`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
+  if (response.status === 401) {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY)
+    return null
+  }
+  if (!response.ok) {
+    throw new Error(`Session validation failed (HTTP ${response.status}).`)
+  }
+
+  const data: unknown = await response.json()
+  if (!data || typeof data !== 'object') {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY)
+    return null
+  }
+
+  const payload = data as { success?: unknown; user?: unknown }
+  if (payload.success !== true || !isAuthUser(payload.user)) {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY)
+    return null
+  }
+
+  const session: AuthSession = {
+    user: {
+      ...payload.user,
+      fullName: normalizeAccountDisplayName(payload.user.fullName),
+    },
+    isAuthenticated: true,
+  }
+  sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
+  window.dispatchEvent(new Event('batangai-auth-updated'))
+  return session
+}
+
+/**
  * Returns the currently logged-in user's session.
  */
 export function getAuthSession(): AuthSession | null {
-  const savedSession =
-    localStorage.getItem(AUTH_STORAGE_KEY)
+  const savedSession = sessionStorage.getItem(AUTH_STORAGE_KEY)
 
   if (!savedSession) {
     return null
@@ -281,7 +355,7 @@ export function getAuthSession(): AuthSession | null {
     }
 
     if (user.fullName !== parsed.user.fullName) {
-      localStorage.setItem(
+      sessionStorage.setItem(
         AUTH_STORAGE_KEY,
         JSON.stringify({ user, isAuthenticated: true }),
       )
@@ -365,6 +439,24 @@ export function getCurrentUserProfilePhoto(): string {
 /**
  * Logs out the current user.
  */
-export function signOut() {
+export function signOut(): void {
+  sessionStorage.removeItem(AUTH_STORAGE_KEY)
   localStorage.removeItem(AUTH_STORAGE_KEY)
+  void fetch(`${API_BASE_URL}/logout.php`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  }).then(async response => {
+    if (!response.ok) {
+      const data = await response.json().catch(() => null) as { message?: string } | null
+      throw new Error(data?.message || 'The server could not revoke the login token.')
+    }
+  }).catch(error => {
+    console.error('Logout request failed:', error)
+  })
+}
+
+export function saveAuthSession(session: AuthSession) {
+  sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session))
 }

@@ -7,6 +7,7 @@ import {
   getAuthSession,
   getCurrentUserName,
   getCurrentUserRole,
+  getRoleDisplayName,
   getProfilePhotoUrl,
   signOut,
 } from '../../auth'
@@ -391,7 +392,7 @@ function ProfileMenu({
 
         <div>
           <strong>{name}</strong>
-          <span>{role}</span>
+          <span>{getRoleDisplayName(role)}</span>
         </div>
 
         <span
@@ -845,16 +846,19 @@ function AddDeviceModal({
         'Enter a valid IP address (e.g. 10.10.0.5).'
     }
 
-    if (
-      mac.trim() &&
-      !macPattern.test(mac.trim())
-    ) {
+    if (!mac.trim()) {
+      next.mac = 'MAC address is required.'
+    } else if (!macPattern.test(mac.trim())) {
       next.mac =
         'Use MAC format like AC:DE:48:00:11:22.'
     }
 
     if (!location.trim()) {
       next.location = 'Location is required.'
+    }
+
+    if (!firmware.trim()) {
+      next.firmware = 'Firmware version is required.'
     }
 
     setErrors(next)
@@ -874,10 +878,10 @@ function AddDeviceModal({
         name: name.trim(),
         type,
         ip: ip.trim(),
-        mac: mac.trim() || '—',
+        mac: mac.trim(),
         location: location.trim(),
         department,
-        firmware: firmware.trim() || '—',
+        firmware: firmware.trim(),
         assignedUserId: assignedUserId || null,
       })
     } catch (error) {
@@ -947,6 +951,7 @@ function AddDeviceModal({
                 id="dev-name"
                 type="text"
                 placeholder="e.g. PROP-2024-001"
+                required
                 value={name}
                 onChange={e =>
                   setName(e.target.value)
@@ -971,6 +976,7 @@ function AddDeviceModal({
 
               <select
                 id="dev-type"
+                required
                 value={type}
                 onChange={e =>
                   setType(
@@ -996,6 +1002,7 @@ function AddDeviceModal({
                 id="dev-ip"
                 type="text"
                 placeholder="10.10.0.5"
+                required
                 value={ip}
                 onChange={e =>
                   setIp(e.target.value)
@@ -1015,13 +1022,14 @@ function AddDeviceModal({
                 className="dm-field-label"
                 htmlFor="dev-mac"
               >
-                MAC Address
+                MAC Address<em>*</em>
               </label>
 
               <input
                 id="dev-mac"
                 type="text"
                 placeholder="AC:DE:48:00:11:22"
+                required
                 value={mac}
                 onChange={e =>
                   setMac(e.target.value)
@@ -1048,6 +1056,7 @@ function AddDeviceModal({
                 id="dev-location"
                 type="text"
                 placeholder="e.g. City Hall, 2nd Floor"
+                required
                 value={location}
                 onChange={e =>
                   setLocation(e.target.value)
@@ -1072,6 +1081,7 @@ function AddDeviceModal({
 
               <select
                 id="dev-department"
+                required
                 value={department}
                 onChange={e =>
                   setDepartment(e.target.value)
@@ -1119,18 +1129,26 @@ function AddDeviceModal({
                 className="dm-field-label"
                 htmlFor="dev-firmware"
               >
-                Firmware Version
+                Firmware Version<em>*</em>
               </label>
 
               <input
                 id="dev-firmware"
                 type="text"
                 placeholder="e.g. v4.2.1"
+                required
                 value={firmware}
                 onChange={e =>
                   setFirmware(e.target.value)
                 }
+                aria-invalid={!!errors.firmware}
               />
+
+              {errors.firmware && (
+                <span className="dm-field-error">
+                  {errors.firmware}
+                </span>
+              )}
             </div>
           </div>
 

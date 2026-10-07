@@ -221,7 +221,7 @@ $stmt->close();
 $stmt = $conn->prepare("
     SELECT userID
     FROM users
-    WHERE employeeId = ?
+    WHERE LOWER(TRIM(employeeId)) = LOWER(?)
     LIMIT 1
 ");
 

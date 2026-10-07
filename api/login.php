@@ -11,11 +11,14 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 }
 
 require_once "config.php";
+require_once "auth_tokens.php";
+start_auth_session();
 
 $data = json_decode(file_get_contents("php://input"), true);
 
 $email = strtolower(trim((string)($data["email"] ?? "")));
 $password = $data["password"] ?? "";
+$rememberMe = ($data["rememberMe"] ?? false) === true;
 
 if ($email === "" || $password === "") {
     http_response_code(400);
@@ -117,6 +120,33 @@ $user["role"] = $roleMap[$normalizedRole];
 
 // Never send the password to the frontend
 unset($user["password"]);
+
+try {
+    session_regenerate_id(true);
+    $_SESSION["userID"] = (int)$user["userID"];
+    $_SESSION["authStartedAt"] = time();
+
+    if ($rememberMe) {
+        issue_remember_cookie($conn, (int)$user["userID"]);
+    } else {
+        if (!empty($_COOKIE[REMEMBER_COOKIE_NAME])) {
+            ensure_remember_tokens_table($conn);
+            revoke_remember_cookie($conn);
+        }
+    }
+} catch (Throwable $error) {
+    $_SESSION = [];
+    session_destroy();
+    clear_remember_cookie();
+    http_response_code(500);
+    echo json_encode([
+        "success" => false,
+        "message" => "Unable to establish a secure login session. Please try again."
+    ]);
+    $stmt->close();
+    $conn->close();
+    exit;
+}
 
 echo json_encode([
     "success" => true,

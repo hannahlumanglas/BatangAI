@@ -5,11 +5,13 @@ import { API_BASE_URL } from '../../apiConfig'
 
 type IncidentNotificationSource = {
   incidentID: string | number
+  assigned?: string | null
+  assignedAt?: string | null
+  assignedTo?: string | number | null
   affectedIssue?: string | null
   createdAt?: string | null
+  employeeName?: string | null
   issueCategory?: string | null
-  severity?: string | null
-  status?: string | null
 }
 
 type Notification = {
@@ -17,15 +19,16 @@ type Notification = {
   title: string
   detail: string
   time: string
+  incidentID: string
 }
 
 const INCIDENTS_URL = `${API_BASE_URL}/get_incidents.php`
-const REFRESH_INTERVAL_MS = 60_000
+const REFRESH_INTERVAL_MS = 15_000
 
 function relativeTime(value: string | null | undefined) {
   if (!value) return 'Recently'
 
-  const timestamp = new Date(value).getTime()
+  const timestamp = new Date(value.trim().replace(' ', 'T')).getTime()
   if (Number.isNaN(timestamp)) return 'Recently'
 
   const minutes = Math.max(0, Math.floor((Date.now() - timestamp) / 60_000))
@@ -39,21 +42,45 @@ function relativeTime(value: string | null | undefined) {
   return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
-function notificationForIncident(incident: IncidentNotificationSource): Notification {
-  const severity = incident.severity?.trim() || 'New'
+function timestamp(value: string | null | undefined) {
+  if (!value) return 0
+  const parsed = new Date(value.trim().replace(' ', 'T')).getTime()
+  return Number.isNaN(parsed) ? 0 : parsed
+}
+
+function notificationForReport(incident: IncidentNotificationSource): Notification {
   const issue = incident.affectedIssue?.trim() || incident.issueCategory?.trim() || 'Incident requires attention'
 
   return {
-    id: `incident-${incident.incidentID}`,
-    title: `${severity} priority incident`,
-    detail: issue,
+    id: `incident-${incident.incidentID}-reported`,
+    title: 'New incident report',
+    detail: `${issue} · ${incident.employeeName?.trim() || 'Employee'}`,
     time: relativeTime(incident.createdAt),
+    incidentID: String(incident.incidentID),
+  }
+}
+
+function notificationForAssignment(incident: IncidentNotificationSource): Notification {
+  const issue = incident.affectedIssue?.trim() || incident.issueCategory?.trim() || 'Incident requires attention'
+  const assignedAt = incident.assignedAt?.trim() || ''
+
+  return {
+    id: `incident-${incident.incidentID}-assigned-${assignedAt}`,
+    title: 'Incident assigned to you',
+    detail: `${issue} · ${incident.incidentID}`,
+    time: relativeTime(assignedAt || incident.createdAt),
+    incidentID: String(incident.incidentID),
   }
 }
 
 function readStorageKey() {
-  const email = getAuthSession()?.user.email ?? 'guest'
-  return `batangai-read-notifications-${email}`
+  const user = getAuthSession()?.user
+  return `batangai-read-notifications-${user?.role ?? 'guest'}-${user?.email ?? 'guest'}`
+}
+
+function initializedStorageKey() {
+  const user = getAuthSession()?.user
+  return `batangai-notifications-initialized-${user?.role ?? 'guest'}-${user?.email ?? 'guest'}`
 }
 
 function loadReadIds() {
@@ -85,35 +112,62 @@ export function AdminNotifications() {
     setError(false)
 
     try {
-      const userId = getAuthSession()?.user.userID
+      const user = getAuthSession()?.user
+      const userId = user?.userID
+      const role = user?.role
 
-      if (userId === undefined || userId === null) {
+      if (
+        userId === undefined ||
+        userId === null ||
+        !['Administrator', 'Secretary', 'IT Personnel'].includes(role ?? '')
+      ) {
         setNotifications([])
         return
       }
 
       const response = await fetch(
         `${INCIDENTS_URL}?userID=${encodeURIComponent(String(userId))}`,
-        { signal },
+        { signal, cache: 'no-store' },
       )
-      const data = await response.json() as { success?: boolean; incidents?: IncidentNotificationSource[] }
+      const data = await response.json() as {
+        success?: boolean
+        incidents?: IncidentNotificationSource[]
+      }
 
       if (!response.ok || !data.success || !Array.isArray(data.incidents)) {
         throw new Error('Unable to load notifications')
       }
 
-      const activeIncidents = data.incidents
-        .filter(incident => !['resolved', 'closed'].includes(incident.status?.toLowerCase() ?? ''))
-        .slice(0, 6)
-        .map(notificationForIncident)
+      const eventIncidents = role === 'IT Personnel'
+        ? data.incidents
+            .filter(incident =>
+              String(incident.assignedTo ?? '') === String(userId) &&
+              Boolean(incident.assignedAt) &&
+              incident.assigned?.toLowerCase() === 'yes',
+            )
+            .sort((a, b) => timestamp(b.assignedAt) - timestamp(a.assignedAt))
+        : data.incidents
+            .filter(incident => Boolean(incident.createdAt))
+            .sort((a, b) => timestamp(b.createdAt) - timestamp(a.createdAt))
+      const eventNotifications = role === 'IT Personnel'
+        ? eventIncidents.map(notificationForAssignment)
+        : eventIncidents.map(notificationForReport)
 
-      setNotifications(activeIncidents)
+      if (!localStorage.getItem(initializedStorageKey())) {
+        saveReadIds(new Set([
+          ...loadReadIds(),
+          ...eventNotifications.map(notification => notification.id),
+        ]))
+        localStorage.setItem(initializedStorageKey(), 'true')
+      }
+
+      setNotifications(eventNotifications.slice(0, 6))
     } catch (requestError) {
       if ((requestError as Error).name !== 'AbortError') setError(true)
     } finally {
       if (!signal?.aborted) setLoading(false)
     }
-  }, [])
+  }, [saveReadIds])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -159,67 +213,73 @@ export function AdminNotifications() {
     setOpen(false)
 
     const role = getAuthSession()?.user.role
-    const incidentPath = role === 'Employee'
-      ? '/employee/incidents'
-      : role === 'IT Personnel'
-        ? '/it/incidents'
-        : role === 'Secretary'
-          ? '/secretary/incidents'
-          : '/admin/incidents'
-    navigate(incidentPath)
+    const incidentPath = role === 'IT Personnel'
+      ? '/it/my-assignments'
+      : role === 'Secretary'
+        ? '/secretary/incidents'
+        : '/admin/incidents'
+    navigate(incidentPath, {
+      state: { openIncidentId: notification.incidentID },
+    })
+  }
+
+  if (!['Administrator', 'Secretary', 'IT Personnel'].includes(
+    getAuthSession()?.user.role ?? '',
+  )) {
+    return null
   }
 
   return (
     <div className="notification-menu-root" ref={rootRef}>
-      <button
-        className="notification-button"
-        type="button"
-        aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen(current => !current)}
-      >
-        <svg className="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 22h4" /></svg>
-        {unread > 0 && <b>{unread > 99 ? '99+' : unread}</b>}
-      </button>
+        <button
+          className="notification-button"
+          type="button"
+          aria-label={unread ? `Notifications, ${unread} unread` : 'Notifications'}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen(current => !current)}
+        >
+          <svg className="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 10a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 22h4" /></svg>
+          {unread > 0 && <b>{unread > 99 ? '99+' : unread}</b>}
+        </button>
 
-      {open && (
-        <section className="notification-dropdown" aria-label="Notifications" role="menu" aria-busy={loading}>
-          <div className="notification-dropdown-header">
-            <h2>Notifications</h2>
-            {unread > 0 ? (
-              <button type="button" onClick={markAllRead}>Mark all as read</button>
-            ) : (
-              <span className="notification-all-read">All caught up</span>
-            )}
-          </div>
+        {open && (
+          <section className="notification-dropdown" aria-label="Notifications" role="menu" aria-busy={loading}>
+            <div className="notification-dropdown-header">
+              <h2>Notifications</h2>
+              {unread > 0 ? (
+                <button type="button" onClick={markAllRead}>Mark all as read</button>
+              ) : (
+                <span className="notification-all-read">All caught up</span>
+              )}
+            </div>
 
-          <div className="notification-list">
-            {loading && <p className="notification-state">Loading notifications…</p>}
-            {!loading && error && <p className="notification-state">Notifications are unavailable. Please try again.</p>}
-            {!loading && !error && notifications.length === 0 && <p className="notification-state">No active incident notifications.</p>}
-            {!loading && !error && notifications.map(notification => {
-              const isRead = readIds.has(notification.id)
-              return (
-                <button
-                  className={`notification-item${isRead ? ' is-read' : ''}`}
-                  key={notification.id}
-                  role="menuitem"
-                  type="button"
-                  onClick={() => openNotification(notification)}
-                >
-                  <span className="notification-indicator" aria-hidden="true" />
-                  <span>
-                    <strong>{notification.title}</strong>
-                    <span>{notification.detail}</span>
-                    <time>{notification.time}</time>
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-        </section>
-      )}
+            <div className="notification-list">
+              {loading && <p className="notification-state">Loading notifications…</p>}
+              {!loading && error && <p className="notification-state">Notifications are unavailable. Please try again.</p>}
+              {!loading && !error && notifications.length === 0 && <p className="notification-state">No new incident notifications.</p>}
+              {!loading && !error && notifications.map(notification => {
+                const isRead = readIds.has(notification.id)
+                return (
+                  <button
+                    className={`notification-item${isRead ? ' is-read' : ''}`}
+                    key={notification.id}
+                    role="menuitem"
+                    type="button"
+                    onClick={() => openNotification(notification)}
+                  >
+                    <span className="notification-indicator" aria-hidden="true" />
+                    <span>
+                      <strong>{notification.title}</strong>
+                      <span>{notification.detail}</span>
+                      <time>{notification.time}</time>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+        )}
     </div>
   )
 }

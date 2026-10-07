@@ -7,6 +7,7 @@ import './Dashboard.css'
 import './UserManagement.css'
 import {
   getAuthSession,
+  getRoleDisplayName,
   getProfilePhotoUrl,
   signOut,
 } from '../../auth'
@@ -115,6 +116,11 @@ function getInitials(name: string) {
     .join('')
     .toUpperCase()
 }
+
+function normalizeEmployeeId(employeeId: string) {
+  return employeeId.trim().toLowerCase()
+}
+
 function formatJoinedDate(value: string | null | undefined) {
   if (!value) return 'â€”'
 
@@ -359,7 +365,7 @@ function UserDirectoryRow({
   )
 }
 function getRoleLabel(role: UserRole) {
-  return role === 'Secretary' ? 'Help Desk' : role
+  return getRoleDisplayName(role)
 }
 /* =========================================================
    CHANGE PASSWORD
@@ -603,6 +609,7 @@ function ChangePasswordCard({
 /* SELECTED USER DETAILS*/
 function UserDetails({
   user,
+  users,
   departments,
   onSaved,
   onClose,
@@ -610,6 +617,7 @@ function UserDetails({
   onDelete,
 }: {
   user: User
+  users: User[]
   departments: string[]
   onSaved: () => Promise<void>
   onClose: () => void
@@ -620,11 +628,21 @@ function UserDetails({
   const [values, setValues] = useState({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const duplicateEmployeeId = users.some(
+    existing =>
+      existing.id !== user.id &&
+      normalizeEmployeeId(existing.employeeId) ===
+        normalizeEmployeeId(values.employeeId),
+  )
   useEffect(() => {
     setValues({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
   }, [user.name, user.employeeId, user.email, user.department, user.role])
   const save = async () => {
     if (!values.name.trim() || !values.employeeId.trim() || !values.department.trim() || !values.email.trim()) { setError('Complete all account fields before saving.'); return }
+    if (duplicateEmployeeId) {
+      setError('This Employee ID is already assigned to another account.')
+      return
+    }
     try {
       setSaving(true); setError('')
       await updateUserOnServer({ action: 'update', userID: user.id, fullName: values.name.trim(), employeeId: values.employeeId.trim(), email: values.email.trim(), department: values.department.trim(), role: values.role })
@@ -670,7 +688,7 @@ function UserDetails({
           <h3 className="um-inline-section-title">Account Information</h3>
           <div className="um-inline-edit-grid">
             <label className="um-field"><span>Full Name</span><input value={values.name} onChange={e => setValues(current => ({ ...current, name: e.target.value }))} /></label>
-            <label className="um-field"><span>Employee ID</span><input value={values.employeeId} onChange={e => setValues(current => ({ ...current, employeeId: e.target.value }))} /></label>
+            <label className="um-field"><span>Employee ID</span><input value={values.employeeId} onChange={e => { setValues(current => ({ ...current, employeeId: e.target.value })); setError('') }} aria-invalid={duplicateEmployeeId} />{duplicateEmployeeId && <small className="um-form-error" role="alert">This Employee ID is already assigned to another account.</small>}</label>
             <label className="um-field"><span>Email Address</span><input type="email" value={values.email} onChange={e => setValues(current => ({ ...current, email: e.target.value }))} /></label>
             <div className="um-field"><span>Date Joined</span><div className="um-inline-readonly-value">{user.joined || 'Not available'}</div><small className="um-inline-readonly-note">Automatically set when the account is created</small></div>
           </div>
@@ -679,13 +697,13 @@ function UserDetails({
           <h3 className="um-inline-section-title">Access</h3>
           <div className="um-inline-edit-grid um-inline-role-grid">
             <label className="um-field"><span>Department</span><select value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))}><option value="" disabled>Select department</option>{departmentOptions.map(department => <option key={department} value={department}>{department}</option>)}</select></label>
-            <label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option value="Secretary">Help Desk</option><option>IT Personnel</option><option>Administrator</option></select></label>
+            <label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option value="Secretary">Front Desk</option><option value="IT Personnel">Technician</option><option>Administrator</option></select></label>
           </div>
         </section>
         {error && <p className="um-form-message um-form-error">{error}</p>}
       </article>
       <ChangePasswordCard user={user} onSaved={onSaved} resetMode />
-      <footer className="um-inline-save-actions"><button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => void onToggleStatus(user)}>{user.status === 'Active' ? 'Disable Account' : 'Enable Account'}</button><button type="button" className="um-btn-danger" onClick={() => void onDelete(user)}>Delete Account</button><span className="um-inline-save-spacer" /><button type="button" className="um-btn-secondary" onClick={onClose}>Cancel</button><button type="button" className="um-btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer>
+      <footer className="um-inline-save-actions"><button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => void onToggleStatus(user)}>{user.status === 'Active' ? 'Disable Account' : 'Enable Account'}</button><button type="button" className="um-btn-danger" onClick={() => void onDelete(user)}>Delete Account</button><span className="um-inline-save-spacer" /><button type="button" className="um-btn-secondary" onClick={onClose}>Cancel</button><button type="button" className="um-btn-primary" disabled={saving || duplicateEmployeeId} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer>
     </div>
   )
 }
@@ -694,9 +712,11 @@ function UserDetails({
 function CreateUserModal({
   onClose,
   onCreated,
+  users,
 }: {
   onClose: () => void
   onCreated: (user: User) => void
+  users: User[]
 }) {
   const session = getAuthSession()
   const [form, setForm] =
@@ -714,6 +734,11 @@ function CreateUserModal({
     useState('')
   const [submitting, setSubmitting] =
     useState(false)
+  const duplicateEmployeeId = users.some(
+    user =>
+      normalizeEmployeeId(user.employeeId) ===
+      normalizeEmployeeId(form.employeeId),
+  )
   const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false)
   const [departmentOpen, setDepartmentOpen] =
@@ -816,6 +841,10 @@ function CreateUserModal({
       setError(
         'Please complete all required fields.',
       )
+      return
+    }
+    if (duplicateEmployeeId) {
+      setError('This Employee ID is already registered. Use a unique Employee ID.')
       return
     }
     if (!CITY_HALL_DEPARTMENTS.includes(form.department.trim() as (typeof CITY_HALL_DEPARTMENTS)[number])) {
@@ -968,8 +997,8 @@ function CreateUserModal({
             </h2>
 
             <p>
-              Add a new Employee, Help Desk,
-              or IT Personnel account.
+              Add a new Employee, Front Desk,
+              or Technician account.
             </p>
           </div>
 
@@ -1025,8 +1054,14 @@ function CreateUserModal({
               placeholder="e.g. EMP-004"
               autoComplete="off"
               disabled={submitting}
+              aria-invalid={duplicateEmployeeId}
               required
             />
+            {duplicateEmployeeId && (
+              <small className="um-form-error" role="alert">
+                This Employee ID is already registered. Enter a unique ID.
+              </small>
+            )}
           </label>
           <div className="um-field" ref={departmentRef}>
             <span>
@@ -1200,11 +1235,11 @@ function CreateUserModal({
               </option>
 
               <option value="IT Personnel">
-                IT Personnel
+                Technician
               </option>
 
               <option value="Secretary">
-                Help Desk
+                Front Desk
               </option>
 
               <option value="Administrator">
@@ -1297,7 +1332,7 @@ function CreateUserModal({
             <button
               type="submit"
               className="um-btn-primary"
-              disabled={submitting}
+              disabled={submitting || duplicateEmployeeId}
             >
               {submitting
                 ? 'Creating Account...'
@@ -2086,9 +2121,9 @@ function UserManagement() {
             {([
               ['Total User', roleCounts.total, 'blue'],
               ['Administrator', roleCounts.administrator, 'purple'],
-              ['Helpdesk', roleCounts.helpdesk, 'orange'],
+              ['Front Desk', roleCounts.helpdesk, 'orange'],
               ['Employee', roleCounts.employee, 'green'],
-              ['IT Personnel', roleCounts.itPersonnel, 'red'],
+              ['Technician', roleCounts.itPersonnel, 'red'],
             ] as const).map(([label, count, tone]) => (
               <article className={`stat-card stat-card--${tone} um-role-stat`} key={label}>
                 <div className="stat-icon"><Icon name="users" /></div>
@@ -2124,8 +2159,8 @@ function UserManagement() {
               <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
                 <option value="">All Roles</option>
                 <option>Employee</option>
-                <option value="Secretary">Help Desk</option>
-                <option>IT Personnel</option>
+                <option value="Secretary">Front Desk</option>
+                <option value="IT Personnel">Technician</option>
                 <option>Administrator</option>
               </select>
             </label>
@@ -2168,7 +2203,7 @@ function UserManagement() {
           </>}
           {selectedUser && (
             <section className="um-inline-user-details" aria-label={`Profile and account security for ${selectedUser.name}`}>
-              <UserDetails user={selectedUser} departments={departments} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} onDelete={handleDeleteUser} />
+              <UserDetails user={selectedUser} users={users} departments={departments} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} onDelete={handleDeleteUser} />
             </section>
           )}
         </div>
@@ -2180,6 +2215,7 @@ function UserManagement() {
             setShowCreateUser(false)
           }
           onCreated={handleUserCreated}
+          users={users}
         />
       )}
     </div>

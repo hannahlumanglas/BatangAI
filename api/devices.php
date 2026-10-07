@@ -273,6 +273,7 @@ if (($data['action'] ?? '') !== 'add') {
 $name = trim((string)($data['name'] ?? ''));
 $type = trim((string)($data['type'] ?? ''));
 $status = 'offline';
+$monitoringStatus = 'unknown';
 $ip = trim((string)($data['ip'] ?? ''));
 $mac = trim((string)($data['mac'] ?? ''));
 $location = trim((string)($data['location'] ?? ''));
@@ -280,23 +281,17 @@ $department = trim((string)($data['department'] ?? ''));
 $firmware = trim((string)($data['firmware'] ?? ''));
 $assignedUserId = trim((string)($data['assignedUserId'] ?? ''));
 
-if ($name === '' || $location === '' || $department === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+if ($name === '' || $location === '' || $department === '' || $firmware === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
     $conn->close();
-    respond(['success' => false, 'message' => 'Please provide a device name, valid IP address, location, and department.'], 400);
+    respond(['success' => false, 'message' => 'Please provide a device name, valid IP address, location, department, and firmware version.'], 400);
 }
 if (!in_array($type, ['Router', 'Switch', 'Access Point'], true)) {
     $conn->close();
     respond(['success' => false, 'message' => 'Invalid device type.'], 400);
 }
-$probeResult = pingHost($ip);
-if (!$probeResult['available']) {
+if (!preg_match('/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/', $mac)) {
     $conn->close();
-    respond(['success' => false, 'message' => 'Ping is unavailable on this server; the device was not registered.'], 501);
-}
-$status = $probeResult['reachable'] ? 'online' : 'offline';
-if ($mac !== '' && $mac !== '—' && !preg_match('/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/', $mac)) {
-    $conn->close();
-    respond(['success' => false, 'message' => 'Invalid MAC address format.'], 400);
+    respond(['success' => false, 'message' => 'A valid MAC address is required (e.g. AC:DE:48:00:11:22).'], 400);
 }
 if ($assignedUserId !== '' && !ctype_digit($assignedUserId)) {
     $conn->close();
@@ -315,12 +310,8 @@ if ($assignedUserId !== '') {
 }
 
 $assignedUser = $assignedUserId === '' ? null : (int)$assignedUserId;
-$mac = $mac === '—' ? '' : $mac;
-$firmware = $firmware === '—' ? '' : $firmware;
-$responseTime = $probeResult['responseTimeMs'];
-$monitoringStatus = $status;
-$stmt = $conn->prepare("INSERT INTO devices (name, deviceType, status, ipAddress, macAddress, location, department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs, lastPingAt, lastSeen) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, NULLIF(?, ''), ?, ?, ?, CURRENT_TIMESTAMP, IF(? = 'online', CURRENT_TIMESTAMP, NULL))");
-$stmt->bind_param('ssssssssisss', $name, $type, $status, $ip, $mac, $location, $department, $firmware, $assignedUser, $monitoringStatus, $responseTime, $status);
+$stmt = $conn->prepare("INSERT INTO devices (name, deviceType, status, ipAddress, macAddress, location, department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs, lastPingAt, lastSeen) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, NULLIF(?, ''), ?, ?, NULL, NULL, NULL)");
+$stmt->bind_param('ssssssssis', $name, $type, $status, $ip, $mac, $location, $department, $firmware, $assignedUser, $monitoringStatus);
 if (!$stmt->execute()) {
     $databaseError = $stmt->errno;
     $message = $databaseError === 1062 ? 'A device already uses that IP address.' : 'Unable to add the device.';

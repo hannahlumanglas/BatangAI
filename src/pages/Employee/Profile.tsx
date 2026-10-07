@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 
 import {
   getAuthSession,
+  getRoleDisplayName,
   getProfilePhotoUrl,
 } from '../../auth'
 
@@ -84,7 +85,7 @@ export function ProfileMenu({
           </strong>
 
           <span>
-            {role}
+            {getRoleDisplayName(role)}
           </span>
 
         </div>

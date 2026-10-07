@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { signOut } from '../../auth'
 
 import logo from '../../assets/logo.png'
 
@@ -536,10 +537,7 @@ function Incidents() {
   const [deleteError, setDeleteError] = useState('')
 
   const handleLogout = () => {
-    localStorage.removeItem(
-      'batangai-admin-auth',
-    )
-
+    signOut()
     navigate('/')
   }
 
@@ -782,7 +780,7 @@ function Incidents() {
       'Pending'
     ) {
       alert(
-        'This incident is already being worked on, so it can no longer be edited. Please contact IT Personnel or the Administrator for changes.',
+        'This incident is already being worked on, so it can no longer be edited. Please contact a Technician or the Administrator for changes.',
       )
 
       return
@@ -1422,7 +1420,7 @@ function Incidents() {
                                     title={
                                       incident.status !==
                                       'Pending'
-                                        ? 'Already being worked on — contact IT Personnel or the Administrator to make changes.'
+                                        ? 'Already being worked on — contact a Technician or the Administrator to make changes.'
                                         : undefined
                                     }
                                     onClick={() =>
@@ -1450,7 +1448,7 @@ function Incidents() {
                                     title={
                                       incident.status !==
                                       'Pending'
-                                        ? 'Already being worked on — contact IT Personnel or the Administrator to delete it.'
+                                        ? 'Already being worked on — contact a Technician or the Administrator to delete it.'
                                         : undefined
                                     }
                                     onClick={() =>

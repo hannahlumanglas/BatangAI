@@ -15,6 +15,7 @@ import './styles/NoBold.css'
 import './styles/StandardSizing.css'
 import './styles/PremiumSystem.css'
 import './styles/UiAuditFixes.css'
+import './styles/SidebarBackground.css'
 
 function App() {
   useEffect(() => {

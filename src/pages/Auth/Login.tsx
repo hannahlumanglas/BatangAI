@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import logo from '../../assets/logo.png'
-import { signIn } from '../../auth'
+import { getAuthSession, signIn } from '../../auth'
 import type { UserRole } from '../../auth'
 import './Login.css'
 
@@ -11,9 +11,23 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const role = getAuthSession()?.user.role
+    if (!role) return
+
+    const destinations: Record<UserRole, string> = {
+      Administrator: '/admin',
+      Secretary: '/secretary/incidents',
+      'IT Personnel': '/it/incidents',
+      Employee: '/employee/report-incident',
+    }
+    navigate(destinations[role], { replace: true })
+  }, [navigate])
 
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -24,7 +38,7 @@ function Login() {
       return
     }
 
-    const result = await signIn(email.trim(), password)
+    const result = await signIn(email.trim(), password, rememberMe)
 
     if (!result.session) {
       setErrorMessage(result.message)
@@ -123,7 +137,12 @@ function Login() {
 
           <div className="login-options">
             <label className="remember-me">
-              <input type="checkbox" name="remember" />
+              <input
+                type="checkbox"
+                name="remember"
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
+              />
               <span>Remember me</span>
             </label>
 

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import type { FormEvent, JSX, MouseEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import {
   getAuthSession,
   getCurrentUserId,
+  getRoleDisplayName,
   getProfilePhotoUrl,
   signOut,
 } from '../../auth'
@@ -507,7 +508,7 @@ function ProfileMenu({
 
         <div>
           <strong>{name}</strong>
-          <span>{role}</span>
+          <span>{getRoleDisplayName(role)}</span>
         </div>
 
         <span
@@ -631,6 +632,7 @@ function Incidents({
   audience?: 'administrator' | 'secretary' | 'it'
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const isSecretary =
     audience === 'secretary'
@@ -691,7 +693,7 @@ function Incidents({
       }
     : isIT
       ? {
-          name: currentUser?.fullName || 'IT Personnel',
+          name: currentUser?.fullName || 'Technician',
           role: currentUser?.role || 'IT Personnel',
           initial: 'I',
           profilePath: '/it/profile',
@@ -943,6 +945,18 @@ function Incidents({
   const [viewingId, setViewingId] =
     useState<string | null>(null)
 
+  useEffect(() => {
+    const state = location.state as { openIncidentId?: unknown } | null
+    const requestedId = state?.openIncidentId
+    if (typeof requestedId !== 'string' || loading) return
+
+    if (incidents.some(incident => incident.incidentID === requestedId)) {
+      setViewingId(requestedId)
+    }
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [incidents, loading, location.pathname, location.state, navigate])
+
   const [actionMenuId, setActionMenuId] =
     useState<string | null>(null)
 
@@ -996,7 +1010,7 @@ function Incidents({
     setActionMenuId(null)
 
     if (incident.status !== 'Pending') {
-      alert('Only pending incidents can be deleted. Incidents already being worked on or resolved must be managed by IT Personnel or an Administrator.')
+      alert('Only pending incidents can be deleted. Incidents already being worked on or resolved must be managed by a Technician or an Administrator.')
       return
     }
 
@@ -1408,7 +1422,7 @@ function Incidents({
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>REPORTER</th>
+                  <th>CLIENT</th>
                   <th>SEVERITY</th>
                   <th>STATUS</th>
                   <th>ACTION</th>

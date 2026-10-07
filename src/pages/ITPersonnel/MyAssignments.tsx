@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { PersonName } from '../../components/PersonName'
@@ -303,7 +303,7 @@ function ITProfileMenu({
 
         <div>
           <strong>{currentUserName}</strong>
-          <span>IT Personnel</span>
+          <span>Technician</span>
         </div>
 
         <span
@@ -475,6 +475,7 @@ function normalizeTroubleshootingText(value: unknown): string {
 
 function MyAssignments() {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const ticketsRef = useRef<Ticket[]>([])
@@ -501,6 +502,17 @@ function MyAssignments() {
     loadAssignments()
   }, [])
 
+  useEffect(() => {
+    const state = location.state as { openIncidentId?: unknown } | null
+    const requestedId = state?.openIncidentId
+    if (typeof requestedId !== 'string' || loading) return
+
+    const requestedTicket = tickets.find(ticket => ticket.id === requestedId)
+    if (requestedTicket) setSelected(requestedTicket)
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [loading, location.pathname, location.state, navigate, tickets])
+
   // New assignments are made by the admin or secretary in a separate session.
   useEffect(() => {
     const refreshInterval = window.setInterval(loadAssignments, 15000)
@@ -514,7 +526,7 @@ function MyAssignments() {
 
       if (currentUserId === null) {
         setError(
-          'No logged-in IT Personnel account was found.',
+          'No logged-in Technician account was found.',
         )
         return
       }
@@ -954,7 +966,7 @@ function MyAssignments() {
 
         <nav
           className="sidebar-nav"
-          aria-label="IT Personnel navigation"
+          aria-label="Technician navigation"
         >
           {navigation.map(item => (
             <button
@@ -1461,7 +1473,7 @@ function ResolutionModal({
                 ✓ Ready to Resolve
               </strong>
               <span>
-                IT Personnel
+                Technician
               </span>
             </header>
 

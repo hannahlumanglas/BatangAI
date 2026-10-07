@@ -44,7 +44,7 @@ if (!$result) {
 
     echo json_encode([
         "success" => false,
-        "message" => "Failed to retrieve IT Personnel.",
+        "message" => "Failed to retrieve Technicians.",
         "error" => $conn->error
     ]);
 

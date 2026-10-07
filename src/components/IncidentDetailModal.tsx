@@ -158,7 +158,7 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
               <h3>Resolution Information</h3>
               <div className="incident-resolution-grid">
                 {incident.resolutionNotes && <ResolutionField label="Resolution Notes" value={incident.resolutionNotes} />}
-                {incident.resolvedBy && <ResolutionField label="Resolved By" value={incident.resolvedBy} detail={incident.resolvedBy === incident.employeeName ? 'Reporter' : 'IT Personnel'} />}
+                {incident.resolvedBy && <ResolutionField label="Resolved By" value={incident.resolvedBy} detail={incident.resolvedBy === incident.employeeName ? 'Reporter' : 'Technician'} />}
                 {incident.resolvedAt && <ResolutionField label="Resolution Date/Time" value={incident.resolvedAt} />}
                 {duration && <ResolutionField label="Troubleshooting Duration" value={duration} />}
               </div>
@@ -182,4 +182,3 @@ function AnalysisBlock({ label, value }: { label: string; value: string }) {
 function ResolutionField({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return <div className="incident-resolution-field"><span>{label}</span><strong>{value}</strong>{detail && <small>{detail}</small>}</div>
 }
-

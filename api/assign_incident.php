@@ -76,7 +76,7 @@ $personnelStmt->close();
 
 if (!$personnel) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'The selected account is not an active IT Personnel user.']);
+    echo json_encode(['success' => false, 'message' => 'The selected account is not an active Technician.']);
     $conn->close();
     exit;
 }
@@ -111,6 +111,7 @@ $sql = "
         startedAt = NULL
     WHERE incidentID = ?
       AND status NOT IN ('Resolved', 'Closed')
+      AND severity IN ('High', 'Medium', 'Low')
 ";
 
 $stmt = $conn->prepare($sql);
@@ -149,11 +150,25 @@ if (!$stmt->execute()) {
 }
 
 if ($stmt->affected_rows === 0) {
-    $statusStmt = $conn->prepare('SELECT status FROM incidents WHERE incidentID = ? LIMIT 1');
+    $statusStmt = $conn->prepare('SELECT status, severity FROM incidents WHERE incidentID = ? LIMIT 1');
     $statusStmt->bind_param('s', $incidentID);
     $statusStmt->execute();
     $existingIncident = $statusStmt->get_result()->fetch_assoc();
     $statusStmt->close();
+
+    if ($existingIncident && empty($existingIncident['severity'])) {
+        http_response_code(400);
+
+        echo json_encode([
+            "success" => false,
+            "message" => "Set a severity level before assigning a Technician."
+        ]);
+
+        $stmt->close();
+        $conn->close();
+
+        exit;
+    }
 
     $isAlreadyResolved = $existingIncident && in_array(
         (string)$existingIncident['status'],

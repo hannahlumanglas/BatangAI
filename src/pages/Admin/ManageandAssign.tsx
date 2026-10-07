@@ -12,6 +12,7 @@ import {
   getCurrentUserId,
   getCurrentUserName,
   getCurrentUserRole,
+  getRoleDisplayName,
   getAuthSession,
   getProfilePhotoUrl,
   signOut,
@@ -282,6 +283,10 @@ const severityTagClass: Record<Severity, string> = {
   Low: 'low-tag',
 }
 
+function getSeverityTagClass(severity: Severity | null): string {
+  return severity ? severityTagClass[severity] : ''
+}
+
 /* ---------- Theme ---------- */
 
 type Theme = 'light' | 'dark'
@@ -457,7 +462,7 @@ function ProfileMenu({
 
         <div>
           <strong>{name}</strong>
-          <span>{role}</span>
+          <span>{getRoleDisplayName(role)}</span>
         </div>
 
         <span
@@ -845,7 +850,7 @@ function ManageAndAssign({
     (isSecretary
       ? 'Secretary'
       : isIT
-        ? 'IT Personnel'
+        ? 'Technician'
         : 'Administrator')
 
   const profilePath = isSecretary
@@ -992,7 +997,7 @@ function ManageAndAssign({
 
       if (!personnelResponse.ok) {
         throw new Error(
-          'Unable to retrieve IT Personnel from the server.',
+          'Unable to retrieve technicians from the server.',
         )
       }
 
@@ -1012,7 +1017,7 @@ function ManageAndAssign({
       if (!personnelData.success) {
         throw new Error(
           personnelData.message ||
-            'Failed to load IT Personnel.',
+            'Failed to load technicians.',
         )
       }
 
@@ -1071,7 +1076,7 @@ function ManageAndAssign({
     navigate('/')
   }
 
-  /* ---------- IT Personnel View ---------- */
+  /* ---------- Technician View ---------- */
 
   const visibleIncidents = isIT
     ? incidents.filter(
@@ -1124,12 +1129,18 @@ function ManageAndAssign({
   /* ---------- Assignment ---------- */
 
   const openAssign = (id: string) => {
-    setViewingId(null)
-    setAssigningId(id)
-
     const incident = incidents.find(
       i => i.id === id,
     )
+
+    if (!incident || !incident.severity) {
+      setError('Set a severity level before assigning a technician.')
+      return
+    }
+
+    setError('')
+    setViewingId(null)
+    setAssigningId(id)
 
     const existingAssignedId =
       incident?.assignedToUserId
@@ -1173,7 +1184,7 @@ function ManageAndAssign({
 
     if (!selectedPersonnel) {
       setError(
-        'Please select an IT Personnel.',
+        'Please select a technician.',
       )
       return
     }
@@ -1560,7 +1571,7 @@ function ManageAndAssign({
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Reporter</th>
+                  <th>Client</th>
                   <th>Severity</th>
                   <th>Status</th>
                   <th>Assigned To</th>
@@ -1657,13 +1668,17 @@ function ManageAndAssign({
                               <Icon name="eye" />
                             </button>
 
-                            {!isIT && i.status !== 'Resolved' && i.status !== 'Closed' && (
+                            {!isIT && i.status !== 'Resolved' && (
                               <button
                                 type="button"
                                 className="maa-assign-btn"
                                 onClick={() =>
                                   openAssign(i.id)
                                 }
+                                disabled={!i.severity}
+                                title={!i.severity
+                                  ? 'Set a severity level before assigning a technician.'
+                                  : undefined}
                               >
                                 <Icon name="assign" />
 
@@ -1719,7 +1734,7 @@ function ManageAndAssign({
           >
             <div className="maa-modal-header">
               <h2>
-                Assign IT Personnel
+                Assign Technician
               </h2>
 
               <button
@@ -1757,7 +1772,7 @@ function ManageAndAssign({
               >
                 {itPersonnel.length === 0 ? (
                   <option value="">
-                    No IT Personnel available
+                    No technicians available
                   </option>
                 ) : (
                   itPersonnel.map(person => (
@@ -1819,9 +1834,10 @@ function ManageAndAssign({
             viewingIncident.status !== 'Resolved' ? (
               <>
                 <label className="maa-detail-action">
-                  Severity
+                  Severity (required)
                   <select
                     value={selectedSeverity}
+                    aria-required="true"
                     onChange={event =>
                       void updateSeverity(
                         viewingIncident.id,
@@ -1841,11 +1857,14 @@ function ManageAndAssign({
                   type="button"
                   className="btn-primary"
                   onClick={() => openAssign(viewingIncident.id)}
-                  disabled={savingSeverity}
+                  disabled={savingSeverity || !viewingIncident.severity}
+                  title={!viewingIncident.severity
+                    ? 'Set a severity level before assigning a technician.'
+                    : undefined}
                 >
                   {viewingIncident.assignedTo
-                    ? 'Reassign IT Personnel'
-                    : 'Assign IT Personnel'}
+                    ? 'Reassign Technician'
+                    : 'Assign Technician'}
                 </button>
               </>
             ) : null
@@ -1875,10 +1894,7 @@ function ManageAndAssign({
                 <div className="maa-view-header-meta">
                   <span
                     className={`tag ${
-                      severityTagClass[
-                        viewingIncident
-                          .severity
-                      ]
+                      getSeverityTagClass(viewingIncident.severity)
                     }`}
                   >
                     {
@@ -2196,7 +2212,7 @@ function ManageAndAssign({
 
             {/* Assignment */}
 
-            {!isIT && viewingIncident.status !== 'Resolved' && viewingIncident.status !== 'Closed' && (
+            {!isIT && viewingIncident.status !== 'Resolved' && (
               <button
                 type="button"
                 className="maa-assign-full"
@@ -2209,8 +2225,8 @@ function ManageAndAssign({
                 <Icon name="assign" />
 
                 {viewingIncident.assignedTo
-                  ? 'Reassign IT Personnel'
-                  : 'Assign IT Personnel'}
+                  ? 'Reassign Technician'
+                  : 'Assign Technician'}
               </button>
             )}
           </div>

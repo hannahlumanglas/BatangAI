@@ -1,0 +1,32 @@
+:root:not([data-theme='dark']) .admin-sidebar,
+:root:not([data-theme='dark']) .dm-sidebar,
+:root:not([data-theme='dark']) .um-sidebar,
+:root:not([data-theme='dark']) .simple-sidebar,
+:root:not([data-theme='dark']) .incidents-sidebar {
+  background-color: #e6f4f0;
+  background-image:
+    radial-gradient(ellipse 170% 72% at -75% 73%, transparent 54%, rgba(184, 220, 212, 0.38) 54.5% 71%, transparent 71.5%),
+    radial-gradient(ellipse 180% 78% at -75% 91%, transparent 49%, rgba(151, 204, 193, 0.38) 49.5% 66%, transparent 66.5%),
+    linear-gradient(180deg, #e9f6f3 0%, #dcefeb 100%);
+}
+
+:root:not([data-theme='dark']) .sidebar-brand,
+:root:not([data-theme='dark']) .dm-brand,
+:root:not([data-theme='dark']) .um-brand,
+:root:not([data-theme='dark']) .simple-brand,
+:root:not([data-theme='dark']) .incidents-brand {
+  background: transparent;
+}
+
+:root:not([data-theme='dark']) .sidebar-nav button,
+:root:not([data-theme='dark']) .logout-button,
+:root:not([data-theme='dark']) .dm-sidebar nav button,
+:root:not([data-theme='dark']) .um-sidebar nav button,
+:root:not([data-theme='dark']) .simple-sidebar nav button,
+:root:not([data-theme='dark']) .incidents-sidebar nav button,
+:root:not([data-theme='dark']) .dm-logout,
+:root:not([data-theme='dark']) .um-logout,
+:root:not([data-theme='dark']) .simple-logout,
+:root:not([data-theme='dark']) .incidents-logout {
+  color: #28574f;
+}

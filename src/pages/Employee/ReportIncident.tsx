@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { FormEvent, JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -8,6 +8,7 @@ import {
   getAuthSession,
   getCurrentUserId,
   getCurrentUserDepartment,
+  signOut,
 } from '../../auth'
 import '../Admin/Dashboard.css'
 import './ReportIncident.css'
@@ -115,12 +116,15 @@ export const ISSUE_CATEGORIES = [
 ]
 
 export const DEVICE_TYPES = [
+  'Access Point',
+  'Biometrics Scanner',
   'Desktop Computer',
   'Laptop',
   'Printer',
   'Router',
+  'Server',
   'Switch',
-  'Access Point',
+  'Tablet',
 ]
 
 export const CONNECTION_TYPES = ['LAN', 'Wi-Fi']
@@ -149,6 +153,74 @@ export type IncidentAnalysis = {
   possibleInterpretation: string
   basicSelfHelp: string
   itTroubleshooting: string
+}
+
+type IncidentReportDraft = {
+  version: 1
+  values: IncidentFormValues
+  phase: 'form' | 'result'
+  aiAnalysis: IncidentAnalysis | null
+  issueResolved: 'yes' | 'no' | ''
+  checkedSelfHelpSteps: number[]
+}
+
+function isIncidentAnalysis(value: unknown): value is IncidentAnalysis {
+  if (!value || typeof value !== 'object') return false
+  const analysis = value as Partial<IncidentAnalysis>
+  return (
+    typeof analysis.classification === 'string' &&
+    Array.isArray(analysis.keywords) &&
+    analysis.keywords.every(keyword => typeof keyword === 'string') &&
+    typeof analysis.summary === 'string' &&
+    typeof analysis.possibleInterpretation === 'string' &&
+    typeof analysis.basicSelfHelp === 'string' &&
+    typeof analysis.itTroubleshooting === 'string'
+  )
+}
+
+function readIncidentReportDraft(key: string): IncidentReportDraft | null {
+  try {
+    const serializedDraft = localStorage.getItem(key)
+    if (!serializedDraft) return null
+
+    const draft: unknown = JSON.parse(serializedDraft)
+    if (!draft || typeof draft !== 'object') return null
+
+    const candidate = draft as Partial<IncidentReportDraft>
+    const values = candidate.values
+    if (
+      candidate.version !== 1 ||
+      !values ||
+      typeof values !== 'object' ||
+      ![
+        'severity',
+        'department',
+        'location',
+        'issueCategory',
+        'deviceType',
+        'connectionType',
+        'affectedService',
+        'description',
+      ].every(field => typeof values[field as keyof IncidentFormValues] === 'string') ||
+      (candidate.phase !== 'form' && candidate.phase !== 'result') ||
+      (candidate.aiAnalysis !== null && !isIncidentAnalysis(candidate.aiAnalysis)) ||
+      (candidate.phase === 'result' && !isIncidentAnalysis(candidate.aiAnalysis)) ||
+      (candidate.issueResolved !== '' &&
+        candidate.issueResolved !== 'yes' &&
+        candidate.issueResolved !== 'no') ||
+      !Array.isArray(candidate.checkedSelfHelpSteps) ||
+      !candidate.checkedSelfHelpSteps.every(
+        step => Number.isInteger(step) && step >= 0,
+      )
+    ) {
+      return null
+    }
+
+    return candidate as IncidentReportDraft
+  } catch (error) {
+    console.error('Unable to restore the incident report draft:', error)
+    return null
+  }
 }
 
 /*
@@ -561,6 +633,11 @@ function ThemeToggle({
 
 function ReportIncident() {
   const navigate = useNavigate()
+  const draftStorageKey = `batangai-incident-report-draft-${getCurrentUserId()}`
+  const [restoredDraft] = useState(() =>
+    readIncidentReportDraft(draftStorageKey),
+  )
+  const discardDraftOnUnmount = useRef(false)
 
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(false)
@@ -579,32 +656,61 @@ function ReportIncident() {
   const [submitError, setSubmitError] =
     useState('')
 
+  const [draftSaveError, setDraftSaveError] =
+    useState('')
+
   const [analysisError, setAnalysisError] =
     useState('')
 
   const [values, setValues] =
     useState<IncidentFormValues>(
-      getInitialValues,
+      () => restoredDraft?.values ?? getInitialValues(),
     )
 
   const [phase, setPhase] =
-    useState<'form' | 'result'>('form')
+    useState<'form' | 'result'>(() => restoredDraft?.phase ?? 'form')
 
   const [issueResolved, setIssueResolved] =
-    useState<'yes' | 'no' | ''>('')
+    useState<'yes' | 'no' | ''>(() => restoredDraft?.issueResolved ?? '')
 
   const [checkedSelfHelpSteps, setCheckedSelfHelpSteps] =
-    useState<number[]>([])
+    useState<number[]>(() => restoredDraft?.checkedSelfHelpSteps ?? [])
 
 
   const [aiAnalysis, setAiAnalysis] =
-    useState<IncidentAnalysis | null>(null)
+    useState<IncidentAnalysis | null>(() => restoredDraft?.aiAnalysis ?? null)
+
+  useEffect(() => {
+    if (discardDraftOnUnmount.current) return
+
+    try {
+      localStorage.setItem(
+        draftStorageKey,
+        JSON.stringify({
+          version: 1,
+          values,
+          phase,
+          aiAnalysis,
+          issueResolved,
+          checkedSelfHelpSteps,
+        } satisfies IncidentReportDraft),
+      )
+      setDraftSaveError('')
+    } catch (error) {
+      console.error('Unable to save the incident report draft:', error)
+      setDraftSaveError('Your incident report draft could not be saved in this browser.')
+    }
+  }, [
+    aiAnalysis,
+    checkedSelfHelpSteps,
+    draftStorageKey,
+    issueResolved,
+    phase,
+    values,
+  ])
 
   const handleLogout = () => {
-    localStorage.removeItem(
-      'batangai-admin-auth',
-    )
-
+    signOut()
     navigate('/')
   }
 
@@ -631,6 +737,23 @@ function ReportIncident() {
 
       const analysis =
         await analyzeIncidentWithAI(values)
+
+      try {
+        localStorage.setItem(
+          draftStorageKey,
+          JSON.stringify({
+            version: 1,
+            values,
+            phase: 'result',
+            aiAnalysis: analysis,
+            issueResolved: '',
+            checkedSelfHelpSteps: [],
+          } satisfies IncidentReportDraft),
+        )
+      } catch (storageError) {
+        console.error('Unable to save the incident analysis draft:', storageError)
+        setDraftSaveError('Your AI analysis could not be saved in this browser.')
+      }
 
       setAiAnalysis(analysis)
       setPhase('result')
@@ -808,6 +931,8 @@ function ReportIncident() {
         data,
       )
 
+      discardDraftOnUnmount.current = true
+      localStorage.removeItem(draftStorageKey)
       setSubmitted(true)
 
       setValues(
@@ -837,6 +962,8 @@ function ReportIncident() {
   }
 
   const closeReport = () => {
+    discardDraftOnUnmount.current = true
+    localStorage.removeItem(draftStorageKey)
     setValues(
       getInitialValues(),
     )
@@ -1146,6 +1273,12 @@ function ReportIncident() {
                     </button>
                   </div>
                 </section>
+              )}
+
+              {draftSaveError && (
+                <p className="employee-report-error" role="alert">
+                  {draftSaveError}
+                </p>
               )}
             </div>
           </article>
