@@ -174,7 +174,7 @@ export function getProfilePhotoUrl(
 }
 
 /**
- * Logs in using the PHP/MySQL authentication API.
+ * Logs in using the server authentication API.
  */
 export async function signIn(
   email: string,

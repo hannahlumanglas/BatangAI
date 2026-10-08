@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
+import { upload } from '@vercel/blob/client'
 import { useNavigate } from 'react-router-dom'
 import {
   getAuthSession,
@@ -806,24 +807,8 @@ function Profile({
     )
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Upload profile photo.
-  |--------------------------------------------------------------------------
-  |
-  | Sends the selected image to:
-  |
-  | upload_profile_photo.php
-  |
-  | The PHP API saves the image to:
-  |
-  | uploads/profile_photos/
-  |
-  | and updates:
-  |
-  | users.profilePhoto
-  |--------------------------------------------------------------------------
-  */
+  // The PHP development server keeps its existing upload flow; Vercel uses
+  // direct Blob uploads to avoid serverless request-body limits.
   const uploadAvatar = async (file: File) => {
 
     const currentSession = getAuthSession()
@@ -883,41 +868,45 @@ function Profile({
     )
 
     try {
-      const formData =
-        new FormData()
-
-      formData.append(
-        'userID',
-        String(
-          currentSession.user.userID,
-        ),
-      )
-
-      formData.append(
-        'profilePhoto',
-        file,
-      )
-
-      const response =
-        await fetch(
+      let uploadedProfilePhoto: string
+      if (import.meta.env.DEV) {
+        const formData = new FormData()
+        formData.append('userID', String(currentSession.user.userID))
+        formData.append('profilePhoto', file)
+        const response = await fetch(
           `${API_BASE_URL}/upload_profile_photo.php`,
+          { method: 'POST', body: formData },
+        )
+        const payload: unknown = await response.json()
+        if (!payload || typeof payload !== 'object') {
+          throw new Error('The upload service returned an invalid response.')
+        }
+        const result = payload as Record<string, unknown>
+        if (!response.ok || result.success !== true) {
+          throw new Error(
+            typeof result.message === 'string'
+              ? result.message
+              : 'Failed to upload profile photo.',
+          )
+        }
+        if (typeof result.profilePhoto !== 'string') {
+          throw new Error('The upload service returned no profile photo.')
+        }
+        uploadedProfilePhoto = result.profilePhoto
+      } else {
+        const blob = await upload(
+          `profile_photos/${file.name}`,
+          file,
           {
-            method: 'POST',
-            body: formData,
+            access: 'public',
+            contentType: file.type,
+            handleUploadUrl: `${API_BASE_URL}/upload_profile_photo.php`,
+            clientPayload: JSON.stringify({
+              userID: currentSession.user.userID,
+            }),
           },
         )
-
-      const data =
-        await response.json()
-
-      if (
-        !response.ok ||
-        !data.success
-      ) {
-        throw new Error(
-          data.message ||
-            'Failed to upload profile photo.',
-        )
+        uploadedProfilePhoto = blob.url
       }
 
       /*
@@ -929,8 +918,7 @@ function Profile({
         ...currentSession,
         user: {
           ...currentSession.user,
-          profilePhoto:
-            data.profilePhoto,
+          profilePhoto: uploadedProfilePhoto,
         },
       }
 
@@ -948,7 +936,7 @@ function Profile({
       */
       const newAvatar =
         getProfilePhotoUrl(
-          data.profilePhoto,
+          uploadedProfilePhoto,
           currentSession.user.fullName,
           currentSession.user.role,
         )
