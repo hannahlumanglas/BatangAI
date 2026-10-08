@@ -302,14 +302,18 @@ function getAssignedPersonnel(incident: Incident): string {
 }
 
 function getDuration(incident: Incident): number {
-  const value = Number(incident.durationMinutes)
+  const duration = incident.durationMinutes
+  const value = duration === null || duration === undefined || String(duration).trim() === ''
+    ? Number.NaN
+    : Number(duration)
 
-  if (!Number.isNaN(value) && value >= 0) {
+  if (Number.isFinite(value) && value >= 0 && (value > 0 || !incident.resolvedAt)) {
     return value
   }
 
-  if (incident.startedAt && incident.resolvedAt) {
-    const started = new Date(incident.startedAt)
+  const startTime = incident.startedAt ?? incident.createdAt
+  if (startTime && incident.resolvedAt) {
+    const started = new Date(startTime)
     const resolved = new Date(incident.resolvedAt)
 
     if (!Number.isNaN(started.getTime()) && !Number.isNaN(resolved.getTime())) {
@@ -323,6 +327,29 @@ function getDuration(incident: Incident): number {
   }
 
   return 0
+}
+
+function downloadCsv(report: BuiltReport): void {
+  const rows = [report.headers, ...report.rows]
+  const csv = rows
+    .map(row => row
+      .map(value => {
+        const text = String(value ?? '')
+        const safeText = typeof value === 'string' && /^\s*[=+\-@]/.test(text)
+          ? `'${text}`
+          : text
+        return `"${safeText.replaceAll('"', '""')}"`
+      })
+      .join(','),
+    )
+    .join('\r\n')
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = report.filename
+  link.click()
+  window.setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 function buildReport(
@@ -1453,6 +1480,16 @@ function GenerateReports() {
                   </tbody>
                 </table>
               </div>
+
+              <button
+                className="incident-new gr-generate"
+                type="button"
+                onClick={() => downloadCsv(generatedReport)}
+                style={{ marginTop: '16px', marginRight: '12px' }}
+              >
+                <Icon name="download" />
+                Download CSV
+              </button>
 
               <button
                 className="incident-new gr-generate"
