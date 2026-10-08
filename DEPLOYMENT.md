@@ -25,8 +25,13 @@ The legacy PHP files remain available for the current InfinityFree deployment.
 
 1. Export the production database from InfinityFree using phpMyAdmin. Keep the
    export private; it contains account and incident information.
-2. Import that dump into the managed MySQL database. Then run
-   `database/vercel_migration.sql` on the destination database.
+2. Keep the SQL dump under the git-ignored `local-secrets` directory. Add the
+   TiDB connection details to the git-ignored `local-secrets/tidb-credentials.json`
+   file and download the TiDB-recommended CA certificate to
+   `local-secrets/isrgrootx1.pem`. Run `node scripts/import-tidb-dump.mjs` to
+   import the dump over a TLS-verified MySQL connection and apply
+   `database/vercel_migration.sql`. The importer stops if the target database
+   is not empty and never prints SQL data or credentials.
 3. Download the current `uploads/profile_photos` directory from InfinityFree
    into this repository's `uploads/profile_photos` directory. Do not commit the
    downloaded files.
