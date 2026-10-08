@@ -27,7 +27,7 @@
 
 .gr-grid{
   display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
+  grid-template-columns:minmax(250px,280px) repeat(2,minmax(180px,220px)) minmax(130px,160px);
   gap:18px;
   margin-top:16px;
   margin-bottom:24px;
@@ -35,7 +35,7 @@
 
 .gr-grid label{
   display:grid;
-  gap:12px;
+  gap:8px;
   color:var(--text-heading);
   font-size:var(--font-secondary);
   font-weight:700;
@@ -44,8 +44,10 @@
 }
 
 .gr-grid select{
+  width:100%;
+  box-sizing:border-box;
   height:46px;
-  padding:0 14px;
+  padding:0 10px;
   color:var(--text-primary);
   font:inherit;
   font-size:var(--font-input);
@@ -105,7 +107,7 @@
 
 @media (max-width:900px){
   .gr-grid{
-    grid-template-columns:1fr;
+    grid-template-columns:repeat(2,minmax(0,280px));
   }
 
   .gr-card{
@@ -114,6 +116,7 @@
 }
 
 @media (max-width:560px){
+  .gr-grid{ grid-template-columns:1fr; }
   .gr-card{ padding:18px; }
   .gr-card h2{ font-size:16px; }
   .gr-generate{ width:100%; justify-content:center; }

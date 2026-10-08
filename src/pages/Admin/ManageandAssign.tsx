@@ -1124,7 +1124,11 @@ function ManageAndAssign({
       i.department.toLowerCase().includes(q)
 
     return matchesStatus && matchesSeverity && matchesSearch
-  })
+  }).sort(
+    (a, b) =>
+      Number(b.severity === 'High') -
+      Number(a.severity === 'High'),
+  )
 
   /* ---------- Assignment ---------- */
 
@@ -1708,11 +1712,6 @@ function ManageAndAssign({
               </tbody>
             </table>
 
-            <p className="maa-showing">
-              Showing {filtered.length} of{' '}
-              {visibleIncidents.length}{' '}
-              incidents
-            </p>
           </article>
         </div>
       </main>

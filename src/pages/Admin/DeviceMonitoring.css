@@ -52,30 +52,14 @@
 .dm-delete:hover:not(:disabled) { color:#fff; background:var(--danger); }
 .dm-delete:disabled { opacity:.65; cursor:wait; }
 
-/* Expanded details — two columns: full field list on the left, Throughput bar
-   plus Devices Connected / Uptime metric cards on the right (see reference mockup). */
+/* Expanded details show the registered device information and last known status. */
 .dm-card-details-inner { padding:22px 20px 24px; background:var(--hover-bg); border-top:1px solid var(--border-color); }
-.dm-details-grid { display:grid; grid-template-columns:1.5fr 1fr; gap:28px; }
+.dm-details-grid { display:grid; grid-template-columns:1fr; }
 
-.dm-details-list { display:grid; gap:11px; margin:0; padding-right:28px; border-right:1px solid var(--border-color); }
-.dm-details-list div { display:grid; grid-template-columns:150px 1fr; gap:12px; }
+.dm-details-list { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px 12px; margin:0; }
+.dm-details-list div { display:grid; grid-template-columns:minmax(82px, auto) minmax(0, 1fr); align-items:baseline; gap:8px; min-width:0; }
 .dm-details-list dt { color:var(--text-secondary); font-size:var(--font-secondary); }
-.dm-details-list dd { margin:0; color:var(--text-heading); font-weight:700; font-size:var(--font-table); }
-
-.dm-details-side { display:grid; align-content:start; gap:12px; }
-.dm-throughput-card,
-.dm-metric-card { padding:14px 16px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:10px; }
-.dm-throughput-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; color:var(--text-secondary); font-size:var(--font-secondary); }
-.dm-throughput-head b { color:var(--text-heading); font-size:var(--font-metric); }
-.dm-traffic-values { display:grid; gap:8px; color:var(--text-secondary); font-size:var(--font-secondary); }
-.dm-traffic-values span { display:flex; justify-content:space-between; gap:12px; }
-.dm-traffic-values b { color:var(--text-heading); font-weight:600; text-align:right; }
-.dm-metric-card { display:flex; align-items:center; gap:10px; }
-.dm-metric-icon { display:grid; place-items:center; color:var(--primary); }
-.dm-metric-icon .admin-icon { width:18px; height:18px; }
-.dm-metric-label { margin-right:auto; color:var(--text-heading); font-size:var(--font-secondary); font-weight:600; }
-.dm-metric-value { color:var(--text-heading); font-size:var(--font-metric); }
-.dm-source-note { margin:0; color:var(--text-secondary); font-size:var(--font-secondary); line-height:1.45; }
+.dm-details-list dd { min-width:0; margin:0; color:var(--text-heading); font-weight:700; font-size:var(--font-table); overflow-wrap:anywhere; }
 
 .dm-meter { height:6px; background:var(--border-color); border-radius:6px; overflow:hidden; }
 .dm-meter i { display:block; width:43%; height:100%; background:var(--success); border-radius:inherit; }
@@ -86,7 +70,7 @@
 .dm-card-details { max-height:0; overflow:hidden; transition:max-height .28s ease; }
 .dm-card.expanded .dm-card-details { max-height:500px; }
 
-@media(max-width:900px){ .dm-details-grid{grid-template-columns:1fr} .dm-details-list{padding-right:0; border-right:0; padding-bottom:16px; border-bottom:1px solid var(--border-color)} .dm-card.expanded .dm-card-details{max-height:700px} }
+@media(max-width:900px){ .dm-details-list{grid-template-columns:repeat(2,minmax(0,1fr))}.dm-card.expanded .dm-card-details{max-height:700px} }
 
 @media(max-width:900px){ .dm-stats{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media(max-width:650px){ .dm-stats{grid-template-columns:1fr} }
@@ -94,16 +78,10 @@
 :root[data-theme="dark"] .dm-filter-select { background:var(--card-bg); border-color:var(--card-border); color:var(--text-secondary); }
 :root[data-theme="dark"] .dm-filter-select select { background:var(--card-bg); color:var(--text-primary); }
 :root[data-theme="dark"] .dm-card-details-inner { background:var(--hover-bg); border-top-color:var(--card-border); }
-:root[data-theme="dark"] .dm-details-list { border-right-color:var(--card-border); }
 :root[data-theme="dark"] .dm-details-list dt { color:var(--text-secondary); }
 :root[data-theme="dark"] .dm-details-list dd { color:var(--text-primary); }
-:root[data-theme="dark"] .dm-throughput-card,:root[data-theme="dark"] .dm-metric-card { background:var(--card-bg); border-color:var(--card-border); }
-:root[data-theme="dark"] .dm-throughput-head { color:var(--text-secondary); }
-:root[data-theme="dark"] .dm-throughput-head b { color:var(--text-primary); }
-:root[data-theme="dark"] .dm-metric-label,:root[data-theme="dark"] .dm-metric-value { color:var(--text-primary); }
 :root[data-theme="dark"] .dm-meter { background:var(--card-border); }
 :root[data-theme="dark"] .dm-empty { color:var(--text-muted); }
-@media(max-width:900px){ :root[data-theme="dark"] .dm-details-list { border-bottom-color:var(--card-border); } }
 
 /* ===========================================================
    Add Device modal
@@ -144,6 +122,7 @@
 
 @media(max-width:640px){
   .dm-form-grid { grid-template-columns:1fr; }
+  .dm-details-list { grid-template-columns:1fr; }
   .add-device-header, .add-device-body { padding-left:18px; padding-right:18px; }
 }
 

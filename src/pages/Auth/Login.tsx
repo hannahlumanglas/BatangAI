@@ -188,7 +188,7 @@ function Login() {
               <path d="m8.7 12 2.05 2.05 4.55-4.65" />
             </svg>
 
-            Authorized personnel only
+            Authorized personnel
           </p>
 
           <span />

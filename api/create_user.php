@@ -11,6 +11,7 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 }
 
 require_once "config.php";
+require_once "auth_tokens.php";
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     http_response_code(405);
@@ -21,72 +22,19 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     exit;
 }
 
+if (!require_admin_session($conn)) {
+    $conn->close();
+    exit;
+}
+
 $data = json_decode(file_get_contents("php://input"), true);
 
-$adminUserID = $data["adminUserID"] ?? "";
 $fullName = trim($data["fullName"] ?? "");
 $employeeId = trim($data["employeeId"] ?? "");
 $department = trim($data["department"] ?? "");
 $email = strtolower(trim((string)($data["email"] ?? "")));
 $password = $data["password"] ?? "";
 $role = trim($data["role"] ?? "");
-
-/*
- * ---------------------------------------------------------
- * 1. Validate Administrator
- * ---------------------------------------------------------
- */
-
-if ($adminUserID === "") {
-    http_response_code(403);
-    echo json_encode([
-        "success" => false,
-        "message" => "Administrator verification is required."
-    ]);
-    exit;
-}
-
-$stmt = $conn->prepare("
-    SELECT userID, role, status
-    FROM users
-    WHERE userID = ?
-    LIMIT 1
-");
-
-$stmt->bind_param("i", $adminUserID);
-$stmt->execute();
-
-$result = $stmt->get_result();
-
-if ($result->num_rows === 0) {
-    http_response_code(403);
-    echo json_encode([
-        "success" => false,
-        "message" => "Administrator account not found."
-    ]);
-    $stmt->close();
-    $conn->close();
-    exit;
-}
-
-$admin = $result->fetch_assoc();
-$stmt->close();
-
-$isAdmin =
-    strtolower($admin["role"]) === "admin" ||
-    strtolower($admin["role"]) === "administrator";
-
-$isActive = strtolower($admin["status"]) === "active";
-
-if (!$isAdmin || !$isActive) {
-    http_response_code(403);
-    echo json_encode([
-        "success" => false,
-        "message" => "Only an active Administrator can create accounts."
-    ]);
-    $conn->close();
-    exit;
-}
 
 /*
  * ---------------------------------------------------------

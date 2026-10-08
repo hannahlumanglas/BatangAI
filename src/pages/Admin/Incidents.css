@@ -142,60 +142,12 @@
 }
 
 /* ===========================
-   Footer
-   =========================== */
-
-.incidents-footer{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  padding:16px 21px;
-  border-top:1px solid var(--border-color);
-  font-size:var(--font-secondary);
-  color:var(--text-secondary);
-}
-
-.incidents-pagination{
-  display:flex;
-  gap:8px;
-}
-
-.incidents-pagination button{
-  width:33px;
-  height:33px;
-  color:var(--text-primary);
-  font:inherit;
-  font-size:var(--font-button);
-  font-weight:700;
-  background:var(--card-bg);
-  border:1px solid var(--border-color);
-  border-radius:7px;
-  cursor:pointer;
-  transition:.2s;
-}
-
-.incidents-pagination button:hover{
-  background:var(--hover);
-}
-
-.incidents-pagination button.current{
-  color:#fff;
-  background:linear-gradient(115deg,var(--primary),var(--primary-strong));
-  border-color:transparent;
-  box-shadow:0 6px 12px rgba(19,89,224,.25);
-}
-
-/* ===========================
    Responsive (existing table)
    =========================== */
 
 @media(max-width:900px){
   .incidents-table-card{ overflow:auto; }
   .incidents-table-card table{ min-width:850px; }
-}
-
-@media(max-width:650px){
-  .incidents-footer{ min-width:850px; }
 }
 
 /* ===========================================================

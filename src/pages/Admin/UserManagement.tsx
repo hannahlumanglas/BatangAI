@@ -482,6 +482,7 @@ function ChangePasswordCard({
         `${API_BASE_URL}/change_password.php`,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',
@@ -882,13 +883,12 @@ function CreateUserModal({
         CREATE_USER_API_URL,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type':
               'application/json',
           },
           body: JSON.stringify({
-            adminUserID:
-              session.user.userID,
             fullName:
               form.fullName.trim(),
             employeeId:
@@ -1755,6 +1755,7 @@ function UserManagement() {
           USERS_API_URL,
           {
             method: 'GET',
+            credentials: 'include',
             headers: {
               Accept:
                 'application/json',

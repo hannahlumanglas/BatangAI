@@ -16,6 +16,33 @@
   min-width: 0;
 }
 
+.dm-device-tools .incident-search {
+  flex: 0 1 300px;
+  width: 300px;
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.dashboard-content > .dm-device-tools {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.dm-device-tools .incident-new {
+  margin-left: auto;
+}
+
+@media (max-width: 760px) {
+  .dm-device-tools .incident-search {
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
 .incident-search input {
   min-width: 0;
   color: var(--text-heading);

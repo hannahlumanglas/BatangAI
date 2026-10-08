@@ -8,7 +8,8 @@
     "api:dev": "C:\\xampp\\php\\php.exe -S 127.0.0.1:8000 -t .",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "device-monitor": "node scripts/device-monitor-agent.mjs"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.1",

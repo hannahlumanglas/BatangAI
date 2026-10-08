@@ -14,7 +14,9 @@ The legacy PHP files remain available for the current InfinityFree deployment.
    copy its connection URL into the Vercel environment variable `MYSQL_URL`.
    Do not add this value to `VITE_*` variables or commit it.
 3. Set `SESSION_SECRET` to a random value with at least 32 characters.
-   Optionally set `GEMINI_API_KEY` to enable incident analysis.
+   Set `DEVICE_MONITOR_TOKEN` to a separate random value with at least 32
+   characters for the device monitoring agent. Optionally set `GEMINI_API_KEY`
+   to enable incident analysis.
 4. Create a Vercel Blob store and add its `BLOB_READ_WRITE_TOKEN` to the
    project environment variables.
 5. Deploy a preview first and verify login, incident reporting, assignment,
@@ -45,9 +47,36 @@ The legacy PHP files remain available for the current InfinityFree deployment.
 
 Existing password hashes remain usable; accounts may need to sign in again
 because the new Vercel host cannot reuse cookies issued for the InfinityFree
-domain. The Vercel device-monitoring function cannot ping private/LAN devices,
-because serverless functions do not run inside the city network; it reports
-ping as unavailable rather than claiming a device is offline.
+domain. Vercel serverless functions cannot ping private/LAN devices because
+they do not run inside the city network. For remote monitoring, run the
+BatangAI device agent on a computer that stays on inside the device network:
+
+1. Install Node.js on an always-on computer inside the client's local network.
+   It must have VLAN routes to the registered device IP addresses and
+   permission to send ICMP ping requests; firewalls must allow those requests
+   and replies.
+2. Add the same `DEVICE_MONITOR_TOKEN` value to the agent computer's environment.
+   Keep it private and do not commit it. The API accepts agent requests only
+   with this bearer token.
+3. Set `DEVICE_MONITOR_API_URL` on that computer to
+   `https://<your-domain>/api/device_agent` and run `npm run device-monitor`
+   from this repository. In PowerShell, set the values for the current session
+   with `$env:DEVICE_MONITOR_API_URL = 'https://<your-domain>/api/device_agent'`
+   and `$env:DEVICE_MONITOR_TOKEN = '<same secret as Vercel>'` before running
+   the command. The agent checks only devices registered in BatangAI, reports
+   their results to the API, and repeats every 15 seconds by default.
+   `DEVICE_MONITOR_INTERVAL_MS` can change that interval (minimum 5 seconds).
+4. Keep the agent running. The Device Monitoring page refreshes status every 15
+   seconds, and its Ping button waits for the agent's next result. If the
+   agent is stopped, a device's status becomes unknown after two minutes; if
+   the agent cannot reach a device, it records the device as offline.
+5. The Device Online/Offline History Report records the agent's first observed
+   status for each device and each later status change. It cannot recreate
+   status history from before monitoring was enabled.
+
+The agent sends results to BatangAI over outbound HTTPS. The client's public IP
+is not used to ping private device addresses, and the devices do not need to be
+exposed to the internet. Vercel cannot ping those private addresses directly.
 
 Never send account passwords, database credentials, or API keys in chat. Add
 them only in the Vercel project environment settings.

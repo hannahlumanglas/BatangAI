@@ -134,6 +134,28 @@ function load_auth_user(mysqli $conn, int $userID): ?array
     return $user;
 }
 
+function require_admin_session(mysqli $conn): bool
+{
+    start_auth_session();
+    $userID = (int)($_SESSION['userID'] ?? 0);
+    if ($userID <= 0) {
+        json_auth_failure('Please log in with an Administrator account.', 401);
+        return false;
+    }
+
+    $user = load_auth_user($conn, $userID);
+    if (!$user) {
+        json_auth_failure('This account is inactive or unavailable. Please log in again.', 401);
+        return false;
+    }
+    if ($user['role'] !== 'Administrator') {
+        json_auth_failure('Only an Administrator can manage accounts.', 403);
+        return false;
+    }
+
+    return true;
+}
+
 function json_auth_failure(string $message, int $status): void
 {
     http_response_code($status);

@@ -1608,40 +1608,6 @@ function Incidents({
               </tbody>
             </table>
 
-            <footer className="incidents-footer">
-              <strong>
-                Showing{' '}
-                {
-                  filteredIncidents.length
-                }{' '}
-                of{' '}
-                {incidents.length}{' '}
-                results
-              </strong>
-
-              <div className="incidents-pagination">
-                <button
-                  type="button"
-                  disabled
-                >
-                  ‹
-                </button>
-
-                <button
-                  className="current"
-                  type="button"
-                >
-                  1
-                </button>
-
-                <button
-                  type="button"
-                  disabled
-                >
-                  ›
-                </button>
-              </div>
-            </footer>
           </article>
         </div>
       </main>

@@ -690,17 +690,24 @@ function MyAssignments() {
     }
   }
 
-  const available = tickets.filter(
+  const prioritizeHighSeverity = (items: Ticket[]) =>
+    [...items].sort(
+      (a, b) =>
+        Number(b.severity === 'High') -
+        Number(a.severity === 'High'),
+    )
+
+  const available = prioritizeHighSeverity(tickets.filter(
     ticket => ticket.status === 'available',
-  )
+  ))
 
-  const inProgress = tickets.filter(
+  const inProgress = prioritizeHighSeverity(tickets.filter(
     ticket => ticket.status === 'in-progress',
-  )
+  ))
 
-  const solved = tickets.filter(
+  const solved = prioritizeHighSeverity(tickets.filter(
     ticket => ticket.status === 'solved',
-  )
+  ))
 
   const takeAction = async (id: string) => {
     if (actionLoading || resolutionLoading) {

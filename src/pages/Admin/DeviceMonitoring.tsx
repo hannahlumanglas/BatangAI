@@ -537,12 +537,6 @@ interface Device {
   firmware: string
   registeredAt: string
   lastSeen: string
-  throughput: number | null
-  devicesConnected: number | null
-  uptime: string | null
-  downloadMbps: number | null
-  uploadMbps: number | null
-  pingResponseTimeMs: string | null
   lastPingAt: string | null
   assignedUserId?: string | null
   assignedUserName?: string | null
@@ -550,7 +544,7 @@ interface Device {
 
 type DeviceDraft = Omit<
   Device,
-  'id' | 'status' | 'registeredAt' | 'lastSeen' | 'uptime' | 'throughput' | 'devicesConnected' | 'downloadMbps' | 'uploadMbps' | 'pingResponseTimeMs' | 'lastPingAt' | 'assignedUserName'
+  'id' | 'status' | 'registeredAt' | 'lastSeen' | 'lastPingAt' | 'assignedUserName'
 >
 
 type UserOption = {
@@ -587,10 +581,6 @@ const departments = [
 
 function statusIcon(status: DeviceStatus): IconName {
   return status === 'unknown' ? 'warning' : status
-}
-
-function formatMbps(value: number | null) {
-  return value === null ? 'Unavailable' : `${value.toFixed(2)} Mbps`
 }
 
 function deviceIcon(type: DeviceType): IconName {
@@ -730,61 +720,7 @@ function DeviceCard({
                 <dd>{device.lastSeen || 'Never'}</dd>
               </div>
 
-              <div>
-                <dt>Ping Response</dt>
-                <dd>{!device.lastPingAt
-                  ? 'Not checked'
-                  : device.status === 'offline'
-                    ? 'Timeout (2 attempts)'
-                    : device.pingResponseTimeMs
-                      ? `${device.pingResponseTimeMs} ms`
-                      : 'Reachable (response time unavailable)'}</dd>
-              </div>
             </dl>
-
-            <div className="dm-details-side">
-              <div className="dm-throughput-card">
-                <div className="dm-throughput-head">
-                  <span>Network Traffic</span>
-                </div>
-                <div className="dm-traffic-values">
-                  <span>Download <b>{formatMbps(device.downloadMbps)}</b></span>
-                  <span>Upload <b>{formatMbps(device.uploadMbps)}</b></span>
-                </div>
-              </div>
-
-              <div className="dm-metric-card">
-                <div className="dm-metric-icon">
-                  <Icon name="link" />
-                </div>
-
-                <span className="dm-metric-label">
-                  Devices Connected
-                </span>
-
-                <span className="dm-metric-value">
-                  {device.devicesConnected ?? 'Unavailable'}
-                </span>
-              </div>
-
-              <div className="dm-metric-card">
-                <div className="dm-metric-icon">
-                  <Icon name="clock" />
-                </div>
-
-                <span className="dm-metric-label">
-                  Uptime
-                </span>
-
-                <span className="dm-metric-value">
-                  {device.uptime ?? 'Unavailable'}
-                </span>
-              </div>
-
-              <p className="dm-source-note">
-                Router metrics require an enabled read-only SNMP agent or a documented authenticated router API. Connected-client counts also need the router’s WLAN client table. No router data source is currently available to this API.
-              </p>
-            </div>
           </div>
           <div className="dm-card-actions">
             <button
@@ -1399,8 +1335,14 @@ function DeviceMonitoring({
         .catch(() => setUsers([]))
     }, 0)
 
-    return () =>
+    const refreshInterval = window.setInterval(() => {
+      void loadDevices()
+    }, 15_000)
+
+    return () => {
       window.clearTimeout(initialLoad)
+      window.clearInterval(refreshInterval)
+    }
   }, [loadDevices])
 
   const filtered = useMemo(() => {
@@ -1506,24 +1448,51 @@ function DeviceMonitoring({
       const data = await response.json() as {
         success?: boolean
         status?: DeviceStatus
+        pending?: boolean
+        requestID?: number
         message?: string
-        responseTimeMs?: string | null
         lastSeen?: string | null
         lastPingAt?: string | null
       }
-      if (!response.ok || !data.success || !data.status) {
+      if (!response.ok || !data.success) {
         throw new Error(data.message || 'Unable to ping device.')
       }
+
+      let result = data
+      if (data.pending && data.requestID) {
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          await new Promise(resolve => window.setTimeout(resolve, 1500))
+          const statusResponse = await fetch(DEVICES_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'ping_status',
+              deviceID: device.id,
+              requestID: data.requestID,
+            }),
+          })
+          const statusData = await statusResponse.json() as typeof data
+          if (!statusResponse.ok || !statusData.success) {
+            throw new Error(statusData.message || 'Unable to retrieve ping result.')
+          }
+          result = statusData
+          if (!statusData.pending) break
+        }
+      }
+
+      if (result.pending || !result.status || result.status === 'unknown') {
+        throw new Error('No response from the network monitoring agent. Check that it is running inside the device network.')
+      }
+
       setDeviceList(list => list.map(item => item.id === device.id
         ? {
             ...item,
-            status: data.status!,
-            lastSeen: data.lastSeen ?? item.lastSeen,
-            pingResponseTimeMs: data.responseTimeMs ?? null,
-            lastPingAt: data.lastPingAt ?? null,
+            status: result.status!,
+            lastSeen: result.lastSeen ?? item.lastSeen,
+            lastPingAt: result.lastPingAt ?? null,
           }
         : item))
-      window.alert(`${device.name}: ${data.message}${data.responseTimeMs ? ` (${data.responseTimeMs} ms)` : ''}`)
+      window.alert(`${device.name}: ${result.status === 'online' ? 'Online' : 'Offline'}`)
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Unable to ping device.')
     } finally {
@@ -1662,7 +1631,7 @@ function DeviceMonitoring({
             />
           </section>
 
-          <div className="incident-tools">
+          <div className="incident-tools dm-device-tools">
             <label className="incident-search">
               <Icon name="search" />
 

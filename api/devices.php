@@ -83,6 +83,20 @@ function ensureDevicesTable($conn) {
             $conn->query("UPDATE devices SET {$legacyMetric} = NULL WHERE {$legacyMetric} = 0");
         }
     }
+
+    $historySql = "CREATE TABLE IF NOT EXISTS device_status_history (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        deviceID VARCHAR(40) NOT NULL,
+        deviceName VARCHAR(150) NOT NULL,
+        ipAddress VARCHAR(45) NOT NULL,
+        status ENUM('online', 'offline') NOT NULL,
+        checkedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_device_status_history_time (checkedAt, id),
+        INDEX idx_device_status_history_device (deviceID, checkedAt)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    if (!$conn->query($historySql)) {
+        respond(['success' => false, 'message' => 'Unable to initialize device status history.'], 500);
+    }
 }
 
 function formatUptime($uptimeSeconds) {
@@ -201,7 +215,7 @@ if (($data['action'] ?? '') === 'ping') {
         respond(['success' => false, 'message' => 'Device ID is required.'], 400);
     }
 
-    $lookup = $conn->prepare('SELECT ipAddress FROM devices WHERE deviceID = ? LIMIT 1');
+    $lookup = $conn->prepare('SELECT ipAddress, name, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1');
     $lookup->bind_param('s', $deviceId);
     $lookup->execute();
     $deviceRow = $lookup->get_result()->fetch_assoc();
@@ -219,10 +233,28 @@ if (($data['action'] ?? '') === 'ping') {
     $reachable = $probeResult['reachable'];
     $status = $reachable ? 'online' : 'offline';
     $responseTime = $probeResult['responseTimeMs'];
+    $statusChanged = strtolower((string)$deviceRow['monitoringStatus']) !== $status;
+    $previousEvent = $conn->prepare('SELECT status FROM device_status_history WHERE deviceID = ? ORDER BY checkedAt DESC, id DESC LIMIT 1');
+    $previousEvent->bind_param('s', $deviceId);
+    $previousEvent->execute();
+    $previousStatus = $previousEvent->get_result()->fetch_assoc();
+    $previousEvent->close();
+    $shouldRecordStatus = $statusChanged || !$previousStatus || $previousStatus['status'] !== $status;
     $update = $conn->prepare("UPDATE devices SET status = ?, monitoringStatus = ?, pingResponseTimeMs = ?, lastPingAt = CURRENT_TIMESTAMP, lastSeen = IF(? = 'online', CURRENT_TIMESTAMP, lastSeen) WHERE deviceID = ?");
     $update->bind_param('sssss', $status, $status, $responseTime, $status, $deviceId);
     $update->execute();
     $update->close();
+
+    if ($shouldRecordStatus) {
+        $history = $conn->prepare(
+            'INSERT INTO device_status_history (deviceID, deviceName, ipAddress, status, checkedAt) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)',
+        );
+        if ($history) {
+            $history->bind_param('ssss', $deviceId, $deviceRow['name'], $deviceRow['ipAddress'], $status);
+            $history->execute();
+            $history->close();
+        }
+    }
 
     $saved = $conn->prepare('SELECT lastSeen, lastPingAt FROM devices WHERE deviceID = ? LIMIT 1');
     $saved->bind_param('s', $deviceId);

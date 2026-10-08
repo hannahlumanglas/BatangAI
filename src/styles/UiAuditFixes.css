@@ -374,11 +374,6 @@ body:not(.keyboard-navigation) [role="menuitem"]:focus {
     width: min(320px, calc(100vw - 76px));
   }
 
-  .incidents-footer {
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
   /* Keep the last row's contextual controls within a scrolling table's
      visible area instead of opening beneath its lower edge. */
   .incidents-table-card tbody tr:nth-last-child(-n + 2) .incident-row-menu,

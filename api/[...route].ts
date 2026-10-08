@@ -170,6 +170,25 @@ async function activeUser(userID: number): Promise<UserRow | undefined> {
   )
 }
 
+async function requireAdminSession(req: VercelRequest, res: VercelResponse): Promise<boolean> {
+  const userID = readSessionUserID(req)
+  if (!userID) {
+    errorResponse(res, 'Please log in with an Administrator account.', 401)
+    return false
+  }
+
+  const user = await activeUser(userID)
+  if (!user || user.status.trim().toLowerCase() !== 'active') {
+    errorResponse(res, 'This account is inactive or unavailable. Please log in again.', 401)
+    return false
+  }
+  if (!adminRole(user.role)) {
+    errorResponse(res, 'Only an Administrator can manage accounts.', 403)
+    return false
+  }
+  return true
+}
+
 async function ensureRememberTable(): Promise<void> {
   await execute(`CREATE TABLE IF NOT EXISTS remember_tokens (
     tokenHash CHAR(64) NOT NULL PRIMARY KEY,
@@ -259,6 +278,8 @@ const handler: VercelApiHandler = async (req, res) => {
   try {
     if (route === 'login') {
       await login(req, res)
+    } else if (route === 'device_agent') {
+      await deviceAgent(req, res)
     } else if (route === 'auth_session') {
       await authSession(req, res)
     } else if (route === 'logout') {
@@ -291,6 +312,8 @@ const handler: VercelApiHandler = async (req, res) => {
       await changePassword(req, res)
     } else if (route === 'devices' || route === 'add_device') {
       await devices(req, res)
+    } else if (route === 'device_status_history') {
+      await deviceStatusHistory(req, res)
     } else if (route === 'analyze_incident') {
       await analyzeIncident(req, res)
     } else if (route === 'upload_profile_photo') {
@@ -860,6 +883,7 @@ async function users(req: VercelRequest, res: VercelResponse): Promise<void> {
     errorResponse(res, 'Method not allowed.', 405)
     return
   }
+  if (!(await requireAdminSession(req, res))) return
   const rows = await getRows<UserRow>(
     `SELECT userID, dateCreated, department, email, employeeId, fullName,
             profilePhoto, role, status FROM users ORDER BY userID ASC`,
@@ -894,9 +918,10 @@ async function createUser(req: VercelRequest, res: VercelResponse): Promise<void
     errorResponse(res, 'Only POST requests are allowed.', 405)
     return
   }
+  if (!(await requireAdminSession(req, res))) return
   const data = json(req)
-  if (!data || !(await verifyAdmin(data.adminUserID))) {
-    errorResponse(res, 'Only an active Administrator can create accounts.', 403)
+  if (!data) {
+    errorResponse(res, 'Invalid account details.')
     return
   }
   const fullName = text(data.fullName)
@@ -1179,11 +1204,14 @@ async function changePassword(req: VercelRequest, res: VercelResponse): Promise<
 }
 
 function formatDevice(row: RowDataPacket): JsonRecord {
+  const lastPingTimestamp = row.lastPingAt ? new Date(row.lastPingAt).getTime() : Number.NaN
+  const pingIsStale = !Number.isFinite(lastPingTimestamp)
+    || Date.now() - lastPingTimestamp > 120_000
   return {
     id: row.deviceID,
     name: row.name,
     type: row.deviceType,
-    status: row.monitoringStatus ?? 'unknown',
+    status: pingIsStale ? 'unknown' : row.monitoringStatus ?? 'unknown',
     ip: row.ipAddress,
     mac: row.macAddress || '—',
     location: row.location,
@@ -1237,7 +1265,52 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
       errorResponse(res, 'Device not found.', 404)
       return
     }
-    errorResponse(res, 'Ping is unavailable on this server.', 501)
+    await ensureDevicePingTable()
+    const result = await execute(
+      `INSERT INTO device_ping_requests (deviceID, status, requestedAt)
+       VALUES (?, 'pending', CURRENT_TIMESTAMP)`,
+      [deviceID],
+    )
+    send(res, 202, {
+      success: true,
+      pending: true,
+      requestID: result.insertId,
+      message: 'Ping request sent to the network monitoring agent.',
+    })
+    return
+  }
+  if (action === 'ping_status') {
+    const requestID = text(data.requestID)
+    if (!requestID || !/^\d+$/.test(requestID) || !deviceID) {
+      errorResponse(res, 'A valid ping request and device ID are required.')
+      return
+    }
+    await ensureDevicePingTable()
+    const pingRequest = await getRow<RowDataPacket>(
+      `SELECT requests.status, requests.reachable, requests.responseTimeMs,
+              requests.completedAt, devices.lastSeen
+       FROM device_ping_requests requests
+       LEFT JOIN devices ON devices.deviceID = requests.deviceID
+       WHERE requests.id = ? AND requests.deviceID = ? LIMIT 1`,
+      [requestID, deviceID],
+    )
+    if (!pingRequest) {
+      errorResponse(res, 'Ping request not found.', 404)
+      return
+    }
+    send(res, 200, {
+      success: true,
+      pending: pingRequest.status === 'pending',
+      status: pingRequest.status === 'pending'
+        ? 'unknown'
+        : pingRequest.reachable ? 'online' : 'offline',
+      responseTimeMs: pingRequest.responseTimeMs,
+      lastSeen: pingRequest.lastSeen,
+      lastPingAt: pingRequest.completedAt,
+      message: pingRequest.status === 'pending'
+        ? 'Waiting for the network monitoring agent.'
+        : pingRequest.reachable ? 'Reachable from the device network.' : 'No ping response from the device.',
+    })
     return
   }
   if (action === 'delete') {
@@ -1315,6 +1388,161 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
     }
     throw error
   }
+}
+
+async function ensureDevicePingTable(): Promise<void> {
+  await execute(`CREATE TABLE IF NOT EXISTS device_ping_requests (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    deviceID VARCHAR(40) NOT NULL,
+    status ENUM('pending', 'complete') NOT NULL DEFAULT 'pending',
+    reachable TINYINT(1) DEFAULT NULL,
+    responseTimeMs VARCHAR(20) DEFAULT NULL,
+    requestedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completedAt DATETIME DEFAULT NULL,
+    INDEX idx_device_ping_pending (status, requestedAt),
+    INDEX idx_device_ping_device (deviceID, id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+}
+
+async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const expectedToken = process.env.DEVICE_MONITOR_TOKEN
+  const authorization = req.headers.authorization ?? ''
+  const suppliedToken = authorization.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length)
+    : ''
+  if (!expectedToken || expectedToken.length < 32) {
+    errorResponse(res, 'Device monitoring agent is not configured.', 503)
+    return
+  }
+  const expected = Buffer.from(expectedToken)
+  const supplied = Buffer.from(suppliedToken)
+  if (expected.length !== supplied.length || !timingSafeEqual(expected, supplied)) {
+    errorResponse(res, 'Unauthorized device monitoring agent.', 401)
+    return
+  }
+
+  if (req.method === 'GET') {
+    await ensureDevicePingTable()
+    const rows = await getRows<RowDataPacket>(
+      'SELECT deviceID, ipAddress FROM devices ORDER BY createdAt ASC, id ASC',
+    )
+    const requestedRows = await getRows<RowDataPacket>(
+      `SELECT DISTINCT deviceID FROM device_ping_requests
+       WHERE status = 'pending' ORDER BY deviceID`,
+    )
+    send(res, 200, {
+      success: true,
+      devices: rows.map((row) => ({ deviceID: row.deviceID, ipAddress: row.ipAddress })),
+      requestedDeviceIDs: requestedRows.map((row) => row.deviceID),
+    })
+    return
+  }
+  if (req.method !== 'POST') {
+    errorResponse(res, 'Method not allowed.', 405)
+    return
+  }
+
+  const data = json(req)
+  const deviceID = text(data?.deviceID)
+  if (!deviceID || typeof data?.reachable !== 'boolean') {
+    errorResponse(res, 'A device ID and reachability result are required.')
+    return
+  }
+  const responseTime = data.reachable && typeof data.responseTimeMs === 'number'
+    && Number.isFinite(data.responseTimeMs) && data.responseTimeMs >= 0
+    ? String(Math.round(data.responseTimeMs * 100) / 100)
+    : null
+  const status = data.reachable ? 'online' : 'offline'
+  await ensureDevicePingTable()
+  await ensureDeviceStatusHistoryTable()
+  const currentDevice = await getRow<RowDataPacket>(
+    'SELECT deviceID, name, ipAddress, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1',
+    [deviceID],
+  )
+  if (!currentDevice) {
+    errorResponse(res, 'Device not found.', 404)
+    return
+  }
+  const previousEvent = await getRow<RowDataPacket>(
+    `SELECT status FROM device_status_history
+     WHERE deviceID = ? ORDER BY checkedAt DESC, id DESC LIMIT 1`,
+    [deviceID],
+  )
+  const shouldRecordStatus = currentDevice.monitoringStatus !== status
+    || !previousEvent
+    || previousEvent.status !== status
+  const result = await execute(
+    `UPDATE devices
+     SET status = ?, monitoringStatus = ?, pingResponseTimeMs = ?,
+         lastPingAt = CURRENT_TIMESTAMP,
+         lastSeen = IF(? = 'online', CURRENT_TIMESTAMP, lastSeen)
+     WHERE deviceID = ?`,
+    [status, status, responseTime, status, deviceID],
+  )
+  if (!result.affectedRows) {
+    errorResponse(res, 'Device not found.', 404)
+    return
+  }
+  if (shouldRecordStatus) {
+    await execute(
+      `INSERT INTO device_status_history (deviceID, deviceName, ipAddress, status, checkedAt)
+       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [deviceID, currentDevice.name, currentDevice.ipAddress, status],
+    )
+  }
+  await execute(
+    `UPDATE device_ping_requests
+     SET status = 'complete', reachable = ?, responseTimeMs = ?, completedAt = CURRENT_TIMESTAMP
+     WHERE deviceID = ? AND status = 'pending'`,
+    [data.reachable ? 1 : 0, responseTime, deviceID],
+  )
+  send(res, 200, { success: true, status, responseTimeMs: responseTime })
+}
+
+async function ensureDeviceStatusHistoryTable(): Promise<void> {
+  await execute(`CREATE TABLE IF NOT EXISTS device_status_history (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    deviceID VARCHAR(40) NOT NULL,
+    deviceName VARCHAR(150) NOT NULL,
+    ipAddress VARCHAR(45) NOT NULL,
+    status ENUM('online', 'offline') NOT NULL,
+    checkedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_device_status_history_time (checkedAt, id),
+    INDEX idx_device_status_history_device (deviceID, checkedAt)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+}
+
+async function deviceStatusHistory(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== 'GET') {
+    errorResponse(res, 'Method not allowed.', 405)
+    return
+  }
+  const userID = queryValue(req, 'userID')
+  if (!(await verifyAdmin(userID))) {
+    errorResponse(res, 'Only an active Administrator can view device status reports.', 403)
+    return
+  }
+  const startDate = queryValue(req, 'startDate')
+  const endDate = queryValue(req, 'endDate')
+  const validDate = (value: string) => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+    const parsed = new Date(`${value}T00:00:00.000Z`)
+    return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
+  }
+  if (!validDate(startDate) || !validDate(endDate) || startDate > endDate) {
+    errorResponse(res, 'A valid start and end date are required.')
+    return
+  }
+  await ensureDeviceStatusHistoryTable()
+  const events = await getRows<RowDataPacket>(
+    `SELECT deviceID, deviceName, ipAddress, status, checkedAt
+     FROM device_status_history
+     WHERE checkedAt >= CONCAT(?, ' 00:00:00')
+       AND checkedAt < DATE_ADD(CONCAT(?, ' 00:00:00'), INTERVAL 1 DAY)
+     ORDER BY checkedAt DESC, id DESC`,
+    [startDate, endDate],
+  )
+  send(res, 200, { success: true, events })
 }
 
 function isIP(value: string): boolean {

@@ -110,7 +110,6 @@ export const ISSUE_CATEGORIES = [
   'Hardware Malfunction',
   'Software / Application Error',
   'Email / Communication',
-  'Printer / Peripheral',
   'Server / System Downtime',
   'Security / Access Issue',
 ]
@@ -664,7 +663,15 @@ function ReportIncident() {
 
   const [values, setValues] =
     useState<IncidentFormValues>(
-      () => restoredDraft?.values ?? getInitialValues(),
+      () => {
+        const initialValues = getInitialValues()
+        return {
+          ...(restoredDraft?.values ?? initialValues),
+          // A saved draft can contain an outdated or empty department. Always
+          // show the department registered on the current user's account.
+          department: initialValues.department,
+        }
+      },
     )
 
   const [phase, setPhase] =
@@ -1091,14 +1098,6 @@ function ReportIncident() {
                 <h2 id="employee-report-title">
                   Report a Network Incident
                 </h2>
-
-                <p>
-                  Fill out the form below.
-                  BatangAI uses Gemini AI to
-                  analyze the reported incident
-                  and provide AI-assisted
-                  troubleshooting guidance.
-                </p>
               </div>
             </header>
 

@@ -144,7 +144,10 @@ const reportTypes = [
   'Pending Incidents Report',
   'Personnel Performance Report',
   'Department Incident History Report',
+  'Device Online/Offline History Report',
 ]
+
+const DEVICE_STATUS_HISTORY_URL = `${API_BASE_URL}/device_status_history.php`
 
 const months = [
   'January',
@@ -199,6 +202,14 @@ type Incident = {
 
   resolutionNotes?: string | null
   startedAt?: string | null
+}
+
+type DeviceStatusEvent = {
+  deviceID: string
+  deviceName: string
+  ipAddress: string
+  status: 'online' | 'offline'
+  checkedAt: string
 }
 
 type BuiltReport = {
@@ -615,6 +626,20 @@ function buildReport(
       getDuration(incident),
     ]),
     filename: `${slug}-${periodLabel}.csv`,
+  }
+}
+
+function buildDeviceStatusReport(events: DeviceStatusEvent[], periodLabel: string): BuiltReport {
+  return {
+    headers: ['Device ID', 'Device Name', 'IP Address', 'Status', 'Recorded At'],
+    rows: events.map(event => [
+      event.deviceID,
+      event.deviceName,
+      event.ipAddress,
+      event.status === 'online' ? 'Online' : 'Offline',
+      formatDate(event.checkedAt),
+    ]),
+    filename: `device-online-offline-history-${periodLabel}.csv`,
   }
 }
 
@@ -1132,7 +1157,7 @@ function GenerateReports() {
     }
   }, [currentUserId])
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (loading) {
       return
     }
@@ -1142,13 +1167,43 @@ function GenerateReports() {
     setGeneratedReport(null)
 
     try {
-      const report = buildReport(
-        reportType,
-        incidents,
-        startMonth,
-        endMonth,
-        year,
-      )
+      let report: BuiltReport
+      if (reportType === 'Device Online/Offline History Report') {
+        if (currentUserId === undefined || currentUserId === null || String(currentUserId).trim() === '') {
+          throw new Error('Your session is missing an account ID. Please log in again.')
+        }
+        const startMonthNumber = MONTH_TO_INDEX.get(startMonth) ?? 1
+        const endMonthNumber = MONTH_TO_INDEX.get(endMonth) ?? 12
+        const endDay = new Date(Date.UTC(Number(year), endMonthNumber, 0)).getUTCDate()
+        const padded = (value: number) => String(value).padStart(2, '0')
+        const startDate = `${year}-${padded(startMonthNumber)}-01`
+        const endDate = `${year}-${padded(endMonthNumber)}-${padded(endDay)}`
+        const historyUrl = new URL(DEVICE_STATUS_HISTORY_URL, window.location.origin)
+        historyUrl.searchParams.set('userID', String(currentUserId))
+        historyUrl.searchParams.set('startDate', startDate)
+        historyUrl.searchParams.set('endDate', endDate)
+        const response = await fetch(historyUrl)
+        const data = await response.json() as {
+          success?: boolean
+          message?: string
+          events?: DeviceStatusEvent[]
+        }
+        if (!response.ok || !data.success || !Array.isArray(data.events)) {
+          throw new Error(data.message || 'Unable to load device status history.')
+        }
+        const periodLabel = `${startMonth}-to-${endMonth}-${year}`
+          .replace(/\s+/g, '-')
+          .toLowerCase()
+        report = buildDeviceStatusReport(data.events, periodLabel)
+      } else {
+        report = buildReport(
+          reportType,
+          incidents,
+          startMonth,
+          endMonth,
+          year,
+        )
+      }
 
       if (report.rows.length === 0) {
         setMessageTone('error')

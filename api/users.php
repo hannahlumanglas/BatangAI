@@ -11,6 +11,12 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 }
 
 require_once "config.php";
+require_once "auth_tokens.php";
+
+if (!require_admin_session($conn)) {
+    $conn->close();
+    exit;
+}
 
 if ($_SERVER["REQUEST_METHOD"] !== "GET") {
     http_response_code(405);
@@ -31,7 +37,6 @@ $sql = "
         email,
         employeeId,
         fullName,
-        password,
         profilePhoto,
         role,
         status
