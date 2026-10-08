@@ -1054,6 +1054,7 @@ function GenerateReports() {
 
         const incidentsUrl = new URL(
           `${API_BASE_URL}/get_incidents.php`,
+          window.location.origin,
         )
         incidentsUrl.searchParams.set(
           'userID',
