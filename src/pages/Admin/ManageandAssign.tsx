@@ -1305,6 +1305,7 @@ function ManageAndAssign({
           body: JSON.stringify({
             incidentID: id,
             severity,
+            actorUserId: getCurrentUserId(),
           }),
         },
       )
@@ -1828,6 +1829,7 @@ function ManageAndAssign({
         <IncidentDetailModal
           incident={viewingIncident}
           onClose={closeView}
+          showSelfHelpChecklist
           footer={
             !isIT &&
             viewingIncident.status !== 'Resolved' ? (

@@ -536,7 +536,7 @@ interface Device {
   department: string
   firmware: string
   registeredAt: string
-  lastSeen: string
+  lastSeen: string | null
   lastPingAt: string | null
   assignedUserId?: string | null
   assignedUserName?: string | null
@@ -585,6 +585,32 @@ function statusIcon(status: DeviceStatus): IconName {
 
 function deviceIcon(type: DeviceType): IconName {
   return type === 'Switch' ? 'switch' : 'devices'
+}
+
+function formatDeviceDateTime(value: string | null | undefined): string {
+  if (!value) return 'Never'
+
+  // MySQL DATETIME values have no timezone suffix. Parse them as local time
+  // so browsers don't interpret the SQL space-separated form inconsistently.
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (!match) return value
+
+  const [, year, month, day, hour, minute, second = '0'] = match
+  const date = new Date(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+  )
+
+  if (Number.isNaN(date.getTime())) return value
+
+  return new Intl.DateTimeFormat('en-PH', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
 }
 
 function DeviceCard({
@@ -636,9 +662,6 @@ function DeviceCard({
 
           <span>
             <strong>{device.name}</strong>
-            <small>
-              {device.id} &middot; {device.ip}
-            </small>
           </span>
         </div>
 
@@ -712,12 +735,17 @@ function DeviceCard({
 
               <div>
                 <dt>Date Registered</dt>
-                <dd>{device.registeredAt}</dd>
+                <dd>{formatDeviceDateTime(device.registeredAt)}</dd>
+              </div>
+
+              <div>
+                <dt>Last Pinged</dt>
+                <dd>{formatDeviceDateTime(device.lastPingAt)}</dd>
               </div>
 
               <div>
                 <dt>Last Seen</dt>
-                <dd>{device.lastSeen || 'Never'}</dd>
+                <dd>{formatDeviceDateTime(device.lastSeen)}</dd>
               </div>
 
             </dl>
@@ -765,8 +793,13 @@ function AddDeviceModal({
   const ipPattern =
     /^(\d{1,3}\.){3}\d{1,3}$/
 
-  const macPattern =
-    /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/
+  const normalizeMacAddress = (value: string) => {
+    // Router labels may append a radio identifier, e.g. C416C877919B-A4(10).
+    const withoutRadioSuffix = value.trim().replace(/-[0-9A-Fa-f]{2}\(\d+\)$/, '')
+    const hex = withoutRadioSuffix.replace(/[:-]/g, '')
+    if (!/^[0-9A-Fa-f]{12}$/.test(hex)) return null
+    return hex.match(/.{2}/g)!.join(':').toUpperCase()
+  }
 
   const validate = () => {
     const next: Record<string, string> = {}
@@ -784,9 +817,9 @@ function AddDeviceModal({
 
     if (!mac.trim()) {
       next.mac = 'MAC address is required.'
-    } else if (!macPattern.test(mac.trim())) {
+    } else if (!normalizeMacAddress(mac)) {
       next.mac =
-        'Use MAC format like AC:DE:48:00:11:22.'
+        'Enter 12 hexadecimal MAC characters, with or without separators. Router labels like C416C877919B-A4(10) are supported.'
     }
 
     if (!location.trim()) {
@@ -814,7 +847,7 @@ function AddDeviceModal({
         name: name.trim(),
         type,
         ip: ip.trim(),
-        mac: mac.trim(),
+        mac: normalizeMacAddress(mac)!,
         location: location.trim(),
         department,
         firmware: firmware.trim(),
@@ -964,7 +997,7 @@ function AddDeviceModal({
               <input
                 id="dev-mac"
                 type="text"
-                placeholder="AC:DE:48:00:11:22"
+                placeholder="C416C877919B-A4(10) or AC:DE:48:00:11:22"
                 required
                 value={mac}
                 onChange={e =>
@@ -972,6 +1005,8 @@ function AddDeviceModal({
                 }
                 aria-invalid={!!errors.mac}
               />
+
+              <small className="dm-field-hint">Router label format is accepted; the MAC is saved in standard format.</small>
 
               {errors.mac && (
                 <span className="dm-field-error">

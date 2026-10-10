@@ -1,0 +1,96 @@
+/* Shared dark surfaces and readable text overrides for every role. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --admin-navy: #edf7f3;
+  --admin-blue: #69a0ff;
+  --admin-green: #31c89a;
+  --admin-line: #2b443b;
+  --admin-page: #0d1815;
+  --success: #42d6a6;
+  --success-bg: #14382d;
+  --warning: #ffc45e;
+  --warning-bg: #3b2d17;
+  --danger: #ff7b80;
+  --danger-bg: #3d2023;
+  --info-purple: #a6b7ff;
+  --info-purple-bg: #242c49;
+}
+
+:root[data-theme="dark"] body,
+:root[data-theme="dark"] #root,
+:root[data-theme="dark"] .admin-shell,
+:root[data-theme="dark"] .dm-shell,
+:root[data-theme="dark"] .um-shell,
+:root[data-theme="dark"] .simple-shell,
+:root[data-theme="dark"] .incidents-shell {
+  color: var(--text-primary) !important;
+  background: var(--app-bg) !important;
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] :is(.admin-sidebar, .dm-sidebar, .um-sidebar, .simple-sidebar, .incidents-sidebar, .sidebar-brand, .dm-brand, .um-brand, .simple-brand, .incidents-brand, .logout-button, .admin-topbar, .dm-header, .um-header, .simple-header, .incidents-header) {
+  color: var(--text-primary) !important;
+  background: var(--sidebar-bg) !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme="dark"] :is(.admin-main, .dashboard-content, .dm-content, .um-content, .incidents-content, .assignment-content, .employee-report-page) {
+  color: var(--text-primary) !important;
+  background: var(--app-bg) !important;
+}
+
+:root[data-theme="dark"] :is(.dashboard-card, .stat-card, .dm-stat, .um-stat, .maa-stat, .assignment-stat, .employee-report-card, .employee-incidents-card, .profile-card, .settings-card, .profile-identity-card, .ticket-card, .dm-card, .um-table, .simple-card, .incidents-table-card, .maa-toolbar-card, .maa-table-card, .profile-menu-dropdown, .notification-dropdown, .period-filter-dropdown, .user-menu, .incident-row-menu, .employee-action-menu, .incident-detail-modal, .employee-incident-modal, .maa-modal, .maa-modal--view, .assignment-report, .add-device-modal, .um-modal, .new-incident-modal, .ai-analysis-modal, .dashboard-interpretation-modal) {
+  color: var(--text-primary) !important;
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+}
+
+:root[data-theme="dark"] :is(.incident-detail-field, .incident-detail-section, .incident-ai-analysis, .incident-ai-block, .incident-checklist-card, .incident-checklist-card--it, .incident-resolution-field, .report-details p, .ai-solution, .employee-ai-block, .employee-resolution-choice, .maa-disclosure-section, .maa-disclosure-content, .gr-preview, .gr-summary-card) {
+  color: var(--text-primary) !important;
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+:root[data-theme="dark"] :is(input, select, textarea, .search-box, .incident-search, .incident-filter-select, .um-filter-select, .dm-filter-select, .dm-field input, .dm-field select, .account-form input, .password-form input, .employee-edit-grid input, .employee-edit-grid select, .employee-edit-grid textarea, .gr-grid select) {
+  color: var(--text-primary) !important;
+  background-color: var(--input-bg) !important;
+  border-color: var(--border-color) !important;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] :is(input, textarea)::placeholder { color: var(--text-muted) !important; opacity: 1; }
+
+:root[data-theme="dark"] :is(h1, h2, h3, h4, .topbar-title h1, .incident-detail-header h2, .dashboard-card h2, .profile-card h2, .settings-card h2, .ticket-card h4) {
+  color: var(--text-heading) !important;
+}
+:root[data-theme="dark"] :is(p, li, label, td, th, dt, dd, small, .topbar-title p, .incident-detail-field > span, .incident-detail-section h3, .incident-ai-block > span, .incident-resolution-field > span, .report-problem > span, .report-details p, .dm-details-list dt, .dm-details-list dd, .profile-card, .settings-card) {
+  color: var(--text-primary) !important;
+}
+:root[data-theme="dark"] :is(.text-secondary, .ticket-date, .incident-detail-group-title, .incident-resolution-meta, .profile-identity-card small, .account-form label, .password-form label, .security-row span, .dm-empty) {
+  color: var(--text-secondary) !important;
+}
+
+:root[data-theme="dark"] :is(.incidents-table-card th, .employee-incidents-card th, .employee-table-wrap th, .recent-card th, .maa-table-card th, .um-table th, .gr-preview-table th) {
+  color: var(--text-heading) !important;
+  background: #182a24 !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme="dark"] :is(.incidents-table-card td, .employee-incidents-card td, .employee-table-wrap td, .recent-card td, .maa-table-card td, .um-table td, .gr-preview-table td) {
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+:root[data-theme="dark"] :is(.incidents-table-card tbody tr:hover td, .employee-incidents-card tbody tr:hover td, .employee-table-wrap tbody tr:hover td, .recent-card tbody tr:hover td, .maa-table-card tbody tr:hover td) {
+  background: var(--hover-bg) !important;
+}
+
+:root[data-theme="dark"] .sidebar-brand strong,
+:root[data-theme="dark"] .dm-brand strong,
+:root[data-theme="dark"] .um-brand strong,
+:root[data-theme="dark"] .simple-brand strong,
+:root[data-theme="dark"] .incidents-brand strong { color: var(--text-heading) !important; }
+:root[data-theme="dark"] .incident-detail-footer,
+:root[data-theme="dark"] .add-device-footer { background: var(--card-bg) !important; border-color: var(--card-border) !important; }
+:root[data-theme="dark"] .incident-detail-section--service h3,
+:root[data-theme="dark"] .incident-detail-section--description h3,
+:root[data-theme="dark"] .incident-ai-analysis-title { color: var(--primary) !important; }
+
+:root[data-theme="dark"] .dashboard-interpretation-modal > header,
+:root[data-theme="dark"] .dashboard-interpretation-summary { background: var(--card-bg) !important; color: var(--text-primary) !important; }

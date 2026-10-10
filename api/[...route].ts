@@ -491,12 +491,13 @@ async function getIncidents(req: VercelRequest, res: VercelResponse): Promise<vo
   }
 
   const role = canonicalRole(user.role)
+  const requestedScope = text(queryValue(req, 'scope')).toLowerCase()
   let where = ''
   let values: (string | number)[] = []
   if (role === 'Employee') {
     where = 'WHERE incidents.userId = ?'
     values = [userID]
-  } else if (role === 'IT Personnel') {
+  } else if (role === 'IT Personnel' && requestedScope !== 'all') {
     where = 'WHERE incidents.assignedTo = ?'
     values = [userID]
   }

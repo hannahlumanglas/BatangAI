@@ -102,6 +102,7 @@ $roleMap = [
     "admin" => "Administrator",
     "administrator" => "Administrator",
     "secretary" => "Secretary",
+    "it support" => "IT Personnel",
     "it personnel" => "IT Personnel",
     "employee" => "Employee"
 ];
@@ -117,6 +118,9 @@ if (!isset($roleMap[$normalizedRole])) {
 }
 
 $user["role"] = $roleMap[$normalizedRole];
+if (!empty($user["profilePhoto"]) && str_contains((string)$user["profilePhoto"], "/")) {
+    $user["profilePhoto"] = basename((string)$user["profilePhoto"]);
+}
 
 // Never send the password to the frontend
 unset($user["password"]);

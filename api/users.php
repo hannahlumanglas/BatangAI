@@ -62,6 +62,13 @@ if (!$result) {
 $users = [];
 
 while ($row = $result->fetch_assoc()) {
+    $role = strtolower(trim((string)$row["role"])) === "it support"
+        ? "IT Personnel"
+        : $row["role"];
+    $profilePhoto = $row["profilePhoto"];
+    if (is_string($profilePhoto) && str_contains($profilePhoto, "/")) {
+        $profilePhoto = basename($profilePhoto);
+    }
     $users[] = [
         "userID" => $row["userID"],
         "dateCreated" => $row["dateCreated"],
@@ -69,8 +76,8 @@ while ($row = $result->fetch_assoc()) {
         "email" => $row["email"],
         "employeeId" => $row["employeeId"],
         "fullName" => $row["fullName"],
-        "profilePhoto" => $row["profilePhoto"],
-        "role" => $row["role"],
+        "profilePhoto" => $profilePhoto,
+        "role" => $role,
         "status" => $row["status"]
     ];
 }

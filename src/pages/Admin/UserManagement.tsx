@@ -149,6 +149,7 @@ function normalizeRole(value: string): UserRole {
 
   if (
     normalized === 'it personnel' ||
+    normalized === 'it support' ||
     normalized === 'it_personnel' ||
     normalized === 'it-personnel'
   ) {

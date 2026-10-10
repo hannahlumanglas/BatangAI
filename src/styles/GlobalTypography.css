@@ -1,0 +1,63 @@
+/* Shared readable type scale for every role and page. */
+:root {
+  --font-page-title: 22px;
+  --font-heading: 18px;
+  --font-card-title: 15px;
+  --font-body: 14px;
+  --font-nav: 14px;
+  --font-button: 13px;
+  --font-input: 14px;
+  --font-table: 13px;
+  --font-secondary: 12px;
+  --font-badge: 12px;
+  --font-metric: 18px;
+  --font-stat: 26px;
+  --font-brand: 21px;
+}
+
+#root { font-size: 14px; line-height: 1.5; }
+#root :is(h1, .topbar-title h1, .incidents-header h1, .dm-header h1, .um-header h1, .simple-header h1) {
+  font-size: 22px !important;
+  line-height: 1.3 !important;
+}
+#root :is(h2, .dashboard-card h2, .profile-card h2, .settings-card h2, .incident-detail-header h2) {
+  font-size: 18px !important;
+  line-height: 1.35 !important;
+}
+#root :is(h3, .ticket-group h3, .incident-form-section h3) {
+  font-size: 15px !important;
+  line-height: 1.4 !important;
+}
+#root :is(h4, .ticket-card h4) {
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+#root :is(p, li, label, td, th, dt, dd) {
+  font-size: 13px !important;
+  line-height: 1.5;
+}
+#root :is(button, input, select, textarea) {
+  font-size: 13px !important;
+  line-height: 1.4;
+}
+#root :is(small, .ticket-card-title small, .ticket-date, .incident-detail-group-title, .incident-detail-field > span, .incident-resolution-field > span) {
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+#root :is(.severity, .tag, .incident-tag, .ticket-status, .role, .status, .pending-tag, .progress-tag, .resolved-tag) {
+  font-size: 12px !important;
+  line-height: 1.35;
+}
+#root :is(.stat-card strong, .assignment-stat strong, .dm-stat strong, .um-stat strong) {
+  font-size: 26px !important;
+  line-height: 1.2;
+}
+
+@media (max-width: 650px) {
+  #root :is(h1, .topbar-title h1, .incidents-header h1, .dm-header h1, .um-header h1, .simple-header h1) {
+    font-size: 20px !important;
+  }
+  #root :is(h2, .dashboard-card h2, .profile-card h2, .settings-card h2, .incident-detail-header h2) {
+    font-size: 16px !important;
+  }
+}

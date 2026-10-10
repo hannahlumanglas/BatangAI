@@ -16,6 +16,8 @@ import './styles/StandardSizing.css'
 import './styles/PremiumSystem.css'
 import './styles/UiAuditFixes.css'
 import './styles/SidebarBackground.css'
+import './styles/GlobalTypography.css'
+import './styles/GlobalDarkMode.css'
 
 function App() {
   useEffect(() => {

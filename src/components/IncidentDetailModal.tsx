@@ -148,7 +148,6 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
                     </li>
                   })}
                 </ul> : <p>No technician troubleshooting steps were generated.</p>}
-                {technicianSteps.length > 0 && <p>{Math.max(checkedTechnicianSteps.length, savedTechnicianSteps.size)} of {technicianSteps.length} steps completed</p>}
               </div>}
             </section>
           )}
@@ -159,7 +158,7 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
               <div className="incident-resolution-grid">
                 {incident.resolutionNotes && <ResolutionField label="Resolution Notes" value={incident.resolutionNotes} />}
                 {incident.resolvedBy && <ResolutionField label="Resolved By" value={incident.resolvedBy} detail={incident.resolvedBy === incident.employeeName ? 'Reporter' : 'Technician'} />}
-                {incident.resolvedAt && <ResolutionField label="Resolution Date/Time" value={incident.resolvedAt} />}
+                {incident.resolvedAt && <ResolutionField label="Resolution Date/Time" value={formatIncidentDateTime(incident.resolvedAt)} />}
                 {duration && <ResolutionField label="Troubleshooting Duration" value={duration} />}
               </div>
             </section>

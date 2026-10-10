@@ -784,7 +784,7 @@ function Incidents({
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
+        `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}${isIT ? '&scope=all' : ''}`,
         {
           method: 'GET',
           headers: {
@@ -1235,13 +1235,13 @@ function Incidents({
 
           <div className="topbar-title">
             <h1>
-              All Incident Reports
+              {isIT ? 'All Incidents' : 'All Incident Reports'}
             </h1>
 
             <p>
-              Monitor all network
-              incident reports across
-              all departments.
+              {isIT
+                ? 'View reported incidents across departments. Manage your assigned work in My Assignments.'
+                : 'Monitor all network incident reports across all departments.'}
             </p>
           </div>
 
@@ -1285,15 +1285,13 @@ function Incidents({
               />
             </label>
 
-            <button
+            {!isIT && <button
               className="incident-new"
               type="button"
-              onClick={
-                openNewIncident
-              }
+              onClick={openNewIncident}
             >
               + New Incident
-            </button>
+            </button>}
           </section>
 
           {/* =================================================
@@ -1517,7 +1515,7 @@ function Incidents({
                               View
                             </button>
 
-                            <div className="incident-more-menu">
+                            {!isIT && <div className="incident-more-menu">
                               <button
                                 className="more-button"
                                 type="button"
@@ -1570,7 +1568,7 @@ function Incidents({
                                   </button>
                                 </div>
                               )}
-                            </div>
+                            </div>}
                           </td>
 
                           <td

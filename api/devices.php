@@ -49,6 +49,11 @@ function ensureDevicesTable($conn) {
     }
 
     $columns = [
+        'lastSeen' => 'DATETIME DEFAULT NULL',
+        'department' => 'VARCHAR(150) DEFAULT NULL',
+        'macAddress' => 'VARCHAR(17) DEFAULT NULL',
+        'firmware' => 'VARCHAR(100) DEFAULT NULL',
+        'assignedUserId' => 'INT UNSIGNED DEFAULT NULL',
         'monitoringStatus' => "ENUM('unknown', 'online', 'offline') NOT NULL DEFAULT 'unknown'",
         'pingResponseTimeMs' => 'VARCHAR(20) DEFAULT NULL',
         'lastPingAt' => 'DATETIME DEFAULT NULL',
@@ -148,8 +153,8 @@ function deviceFromRow($row) {
     return [
         'id' => $row['deviceID'],
         'name' => $row['name'],
-        'type' => $row['deviceType'],
-        'status' => $row['monitoringStatus'] ?? 'unknown',
+        'type' => $row['deviceType'] ?? $row['type'] ?? 'Device',
+        'status' => strtolower((string)($row['monitoringStatus'] ?? $row['status'] ?? 'unknown')),
         'ip' => $row['ipAddress'],
         'mac' => $row['macAddress'] ?: '—',
         'location' => $row['location'],
@@ -186,7 +191,7 @@ ensureDevicesTable($conn);
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $result = $conn->query("SELECT d.*, u.fullName AS assignedUserName
         FROM devices d LEFT JOIN users u ON u.userID = d.assignedUserId
-        ORDER BY d.createdAt DESC, d.id DESC");
+        ORDER BY d.createdAt DESC, d.deviceID DESC");
     if (!$result) respond(['success' => false, 'message' => 'Unable to load devices.'], 500);
 
     $devices = [];
@@ -232,6 +237,7 @@ if (($data['action'] ?? '') === 'ping') {
     }
     $reachable = $probeResult['reachable'];
     $status = $reachable ? 'online' : 'offline';
+    $databaseStatus = $reachable ? 'Online' : 'Offline';
     $responseTime = $probeResult['responseTimeMs'];
     $statusChanged = strtolower((string)$deviceRow['monitoringStatus']) !== $status;
     $previousEvent = $conn->prepare('SELECT status FROM device_status_history WHERE deviceID = ? ORDER BY checkedAt DESC, id DESC LIMIT 1');
@@ -241,7 +247,7 @@ if (($data['action'] ?? '') === 'ping') {
     $previousEvent->close();
     $shouldRecordStatus = $statusChanged || !$previousStatus || $previousStatus['status'] !== $status;
     $update = $conn->prepare("UPDATE devices SET status = ?, monitoringStatus = ?, pingResponseTimeMs = ?, lastPingAt = CURRENT_TIMESTAMP, lastSeen = IF(? = 'online', CURRENT_TIMESTAMP, lastSeen) WHERE deviceID = ?");
-    $update->bind_param('sssss', $status, $status, $responseTime, $status, $deviceId);
+    $update->bind_param('sssss', $databaseStatus, $status, $responseTime, $status, $deviceId);
     $update->execute();
     $update->close();
 
@@ -304,7 +310,7 @@ if (($data['action'] ?? '') !== 'add') {
 
 $name = trim((string)($data['name'] ?? ''));
 $type = trim((string)($data['type'] ?? ''));
-$status = 'offline';
+$status = 'Offline';
 $monitoringStatus = 'unknown';
 $ip = trim((string)($data['ip'] ?? ''));
 $mac = trim((string)($data['mac'] ?? ''));
@@ -321,10 +327,15 @@ if (!in_array($type, ['Router', 'Switch', 'Access Point'], true)) {
     $conn->close();
     respond(['success' => false, 'message' => 'Invalid device type.'], 400);
 }
-if (!preg_match('/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/', $mac)) {
+// Accept the MAC printed on some router labels, which may append a radio
+// identifier such as C416C877919B-A4(10). Store only the normalized MAC.
+$macCore = preg_replace('/-[0-9A-Fa-f]{2}\(\d+\)$/', '', $mac);
+$macHex = preg_replace('/[:-]/', '', (string)$macCore);
+if (!preg_match('/^[0-9A-Fa-f]{12}$/', $macHex)) {
     $conn->close();
-    respond(['success' => false, 'message' => 'A valid MAC address is required (e.g. AC:DE:48:00:11:22).'], 400);
+    respond(['success' => false, 'message' => 'Enter 12 hexadecimal MAC characters. Router label formats such as C416C877919B-A4(10) are accepted.'], 400);
 }
+$mac = strtoupper(implode(':', str_split($macHex, 2)));
 if ($assignedUserId !== '' && !ctype_digit($assignedUserId)) {
     $conn->close();
     respond(['success' => false, 'message' => 'Invalid assigned user.'], 400);
@@ -342,7 +353,7 @@ if ($assignedUserId !== '') {
 }
 
 $assignedUser = $assignedUserId === '' ? null : (int)$assignedUserId;
-$stmt = $conn->prepare("INSERT INTO devices (name, deviceType, status, ipAddress, macAddress, location, department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs, lastPingAt, lastSeen) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, NULLIF(?, ''), ?, ?, NULL, NULL, NULL)");
+$stmt = $conn->prepare("INSERT INTO devices (name, type, status, ipAddress, macAddress, location, department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs, lastPingAt, lastSeen) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, NULLIF(?, ''), ?, ?, NULL, NULL, NULL)");
 $stmt->bind_param('ssssssssis', $name, $type, $status, $ip, $mac, $location, $department, $firmware, $assignedUser, $monitoringStatus);
 if (!$stmt->execute()) {
     $databaseError = $stmt->errno;
@@ -352,12 +363,7 @@ if (!$stmt->execute()) {
     respond(['success' => false, 'message' => $message], $databaseError === 1062 ? 409 : 500);
 }
 
-$numericId = $conn->insert_id;
-$deviceId = 'DEV-' . str_pad((string)$numericId, 3, '0', STR_PAD_LEFT);
-$update = $conn->prepare('UPDATE devices SET deviceID = ? WHERE id = ?');
-$update->bind_param('si', $deviceId, $numericId);
-$update->execute();
-$update->close();
+$deviceId = (string)$conn->insert_id;
 $stmt->close();
 
 $device = fetchDevice($conn, $deviceId);

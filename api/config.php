@@ -1,7 +1,7 @@
 <?php
 
 $host = getenv("DB_HOST") ?: "localhost";
-$dbname = getenv("DB_NAME") ?: "ai_nirts";
+$dbname = getenv("DB_NAME") ?: "ainirts_db";
 $username = getenv("DB_USER") ?: "root";
 $password = getenv("DB_PASSWORD") ?: "";
 $port = (int) (getenv("DB_PORT") ?: 3306);

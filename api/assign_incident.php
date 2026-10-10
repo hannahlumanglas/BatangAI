@@ -68,7 +68,7 @@ if (!$actor || strtolower(trim((string)$actor['status'])) !== 'active' || !in_ar
     exit;
 }
 
-$personnelStmt = $conn->prepare("SELECT userID, fullName FROM users WHERE userID = ? AND role = 'IT Personnel' AND LOWER(status) = 'active' LIMIT 1");
+$personnelStmt = $conn->prepare("SELECT userID, fullName FROM users WHERE userID = ? AND role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active' LIMIT 1");
 $personnelStmt->bind_param('s', $assignedTo);
 $personnelStmt->execute();
 $personnel = $personnelStmt->get_result()->fetch_assoc();
@@ -103,7 +103,7 @@ $assignedToName = (string)$personnel['fullName'];
 $sql = "
     UPDATE incidents
     SET
-        assigned = 'Yes',
+        assigned = 1,
         assignedAt = NOW(),
         assignedTo = ?,
         assignedToName = ?,
@@ -111,7 +111,7 @@ $sql = "
         startedAt = NULL
     WHERE incidentID = ?
       AND status NOT IN ('Resolved', 'Closed')
-      AND severity IN ('High', 'Medium', 'Low')
+      AND severity IN ('High', 'Medium', 'Low', 'Critical')
 ";
 
 $stmt = $conn->prepare($sql);

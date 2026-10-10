@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -28,7 +28,7 @@ type Ticket = {
   reporterProfilePhoto?: string | null
   date: string
   office: string
-  severity: 'High' | 'Medium' | 'Low'
+  severity: 'High' | 'Medium' | 'Low' | 'Critical' | 'Not set'
   status: Status
   actionTime?: string
   duration?: string
@@ -311,7 +311,7 @@ function ITProfileMenu({
             open ? ' open' : ''
           }`}
         >
-          ⌄
+          âŒ„
         </span>
       </button>
 
@@ -441,12 +441,12 @@ function formatDuration(
 
 function repairTextEncoding(value: string): string {
   return value
-    .replace(/â€“/g, '–')
-    .replace(/â€”/g, '—')
-    .replace(/â€¦/g, '…')
-    .replace(/â€¹/g, '‹')
-    .replace(/â€º/g, '›')
-    .replace(/Ã—/g, '×')
+    .replace(/Ã¢â‚¬â€œ/g, 'â€“')
+    .replace(/Ã¢â‚¬â€/g, 'â€”')
+    .replace(/Ã¢â‚¬Â¦/g, 'â€¦')
+    .replace(/Ã¢â‚¬Â¹/g, 'â€¹')
+    .replace(/Ã¢â‚¬Âº/g, 'â€º')
+    .replace(/Ãƒâ€”/g, 'Ã—')
 }
 
 function normalizeTroubleshootingText(value: unknown): string {
@@ -604,12 +604,9 @@ function MyAssignments() {
               incident.location ||
               'Unknown Department',
 
-            severity:
-              incident.severity === 'High'
-                ? 'High'
-                : incident.severity === 'Medium'
-                  ? 'Medium'
-                  : 'Low',
+            severity: ['High', 'Medium', 'Low', 'Critical'].includes(incident.severity)
+              ? incident.severity as Ticket['severity']
+              : 'Not set',
 
             status,
 
@@ -1050,7 +1047,7 @@ function MyAssignments() {
               >
                 <article className="assignment-stat assignment-stat--pending">
                   <div className="assignment-stat-icon">
-                    ◷
+                    &#x25F7;
                   </div>
 
                   <div>
@@ -1063,7 +1060,7 @@ function MyAssignments() {
 
                 <article className="assignment-stat assignment-stat--progress">
                   <div className="assignment-stat-icon">
-                    ⟳
+                    &#x27F3;
                   </div>
 
                   <div>
@@ -1076,7 +1073,7 @@ function MyAssignments() {
 
                 <article className="assignment-stat assignment-stat--resolved">
                   <div className="assignment-stat-icon">
-                    ✓
+                    &#x2713;
                   </div>
 
                   <div>
@@ -1198,48 +1195,20 @@ function TicketGroup({
     <section
       className={`ticket-group ticket-group--${tone}`}
     >
-      <h3>
-        <span>
-          {tone === 'available'
-            ? '◷'
-            : tone === 'solved'
-              ? '✓'
-              : '◌'}
-        </span>
+      <h3>{title}</h3>
 
-        {title}
-      </h3>
-
-      {tickets.map(ticket => (
+      <div className="ticket-grid">
+        {tickets.map(ticket => (
         <article
           className="ticket-card"
           key={ticket.id}
         >
-          <div className="ticket-card-title">
-            <div>
-              <small>{ticket.id}</small>
-
-              <h4>{ticket.title}</h4>
-            </div>
-
+          <div className="ticket-severity-row">
             <b
-              className={`severity severity--${ticket.severity.toLowerCase()}`}
+              className={`severity severity--${ticket.severity.toLowerCase().replace(/\s+/g, '-')}`}
             >
               {ticket.severity}
             </b>
-          </div>
-
-          {/* STATUS */}
-          <div className="ticket-status-row">
-            <span
-              className={`ticket-status ticket-status--${ticket.status}`}
-            >
-              {ticket.status === 'available'
-                ? 'Pending'
-                : ticket.status === 'in-progress'
-                  ? 'In Progress'
-                  : 'Resolved'}
-            </span>
           </div>
 
           <div className="ticket-meta">
@@ -1249,20 +1218,17 @@ function TicketGroup({
               compact
             />
 
-            <span>
-              ◷ {ticket.date}
-            </span>
           </div>
 
           <p>{ticket.office}</p>
 
           {ticket.actionTime && (
             <div className="ticket-action-time">
-              ◉ Action taken at{' '}
+              Action taken at{' '}
               {ticket.actionTime}
 
               {ticket.duration &&
-                ` · Duration: ${ticket.duration}`}
+                ` | Duration: ${ticket.duration}`}
             </div>
           )}
 
@@ -1273,7 +1239,7 @@ function TicketGroup({
                 onView(ticket)
               }
             >
-              ✧ View Report &amp; AI
+              View Report &amp; AI
             </button>
 
             {ticket.status === 'available' && (
@@ -1289,7 +1255,7 @@ function TicketGroup({
               >
                 {actionLoading === ticket.id
                   ? 'Updating...'
-                  : '▷ Take Action'}
+                  : 'Take Action'}
               </button>
             )}
 
@@ -1303,7 +1269,7 @@ function TicketGroup({
                     onResolve(ticket)
                   }
                 >
-                  ✓ Resolve Incident
+                  Resolve Incident
                 </button>
               </>
             )}
@@ -1313,12 +1279,13 @@ function TicketGroup({
                 type="button"
                 disabled
               >
-                ✓ Resolved
+                Resolved
               </button>
             )}
           </div>
         </article>
       ))}
+      </div>
     </section>
   )
 }
@@ -1414,7 +1381,7 @@ function ResolutionModal({
               Resolve Incident
             </h2>
             <p className="person-line-label">
-              {ticket.id} — {ticket.title}
+              {ticket.id} â€” {ticket.title}
             </p>
           </div>
 
@@ -1424,7 +1391,7 @@ function ResolutionModal({
             disabled={loading}
             onClick={onClose}
           >
-            ×
+            Ã—
           </button>
         </header>
 
@@ -1477,7 +1444,7 @@ function ResolutionModal({
           <section className="ai-solution">
             <header>
               <strong>
-                ✓ Ready to Resolve
+                &#x2713; Ready to Resolve
               </strong>
               <span>
                 Technician
@@ -1511,7 +1478,7 @@ function ResolutionModal({
           >
             {loading
               ? 'Resolving...'
-              : '✓ Submit Resolution'}
+              : '&#x2713; Submit Resolution'}
           </button>
         </footer>
       </section>
@@ -1520,3 +1487,6 @@ function ResolutionModal({
 }
 
 export default MyAssignments
+
+
+

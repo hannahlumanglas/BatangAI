@@ -47,7 +47,7 @@ if ($incidentID === "" || $status === "" || $actorUserId === "") {
 */
 
 $actorStmt = $conn->prepare(
-    "SELECT fullName, role, status
+    "SELECT userID, fullName, role, status
      FROM users
      WHERE userID = ?
      LIMIT 1"
@@ -62,7 +62,7 @@ $actorStmt->close();
 
 if (
     !$actor ||
-    strtolower(trim((string)$actor["role"])) !== "it personnel" ||
+    !in_array(strtolower(trim((string)$actor["role"])), ["it personnel", "it support"], true) ||
     strtolower(trim((string)$actor["status"])) !== "active"
 ) {
     http_response_code(403);
@@ -216,7 +216,7 @@ if ($status === "In Progress") {
 
 if ($status === "Resolved") {
 
-    $resolvedBy = (string)$actor["fullName"];
+    $resolvedBy = (int)$actor["userID"];
 
     $resolutionNotes = trim(
         $data["resolutionNotes"] ?? ""
@@ -249,7 +249,7 @@ if ($status === "Resolved") {
     */
 
     $selectSql = "
-        SELECT startedAt, troubleshooting
+        SELECT startedAt, basicTroubleshootingChecklist, technicalTroubleshootingSuggestions
         FROM incidents
         WHERE incidentID = ?
         LIMIT 1
@@ -308,7 +308,12 @@ if ($status === "Resolved") {
         exit;
     }
 
-    $troubleshooting = (string)($incident["troubleshooting"] ?? "");
+    $basicTroubleshooting = (string)($incident["basicTroubleshootingChecklist"] ?? "");
+    $technicalTroubleshooting = (string)($incident["technicalTroubleshootingSuggestions"] ?? "");
+    $troubleshooting = $basicTroubleshooting;
+    if ($technicalTroubleshooting !== "") {
+        $troubleshooting .= "\n\nIT Troubleshooting Suggestions:\n" . $technicalTroubleshooting;
+    }
     $sections = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
     $technicianText = trim($sections[1] ?? "");
     $technicianText = preg_replace('/\[Employee checked self-help steps: [^\]]*\]/i', '', $technicianText);
@@ -328,6 +333,8 @@ if ($status === "Resolved") {
     }
     $troubleshooting = preg_replace('/\s*\[IT checked troubleshooting steps: [^\]]*\]/i', '', $troubleshooting);
     $troubleshooting = rtrim($troubleshooting) . "\n[IT checked troubleshooting steps: " . implode(',', $checkedTechnicianSteps) . "]";
+    $savedSections = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
+    $technicalTroubleshooting = trim((string)($savedSections[1] ?? ''));
 
     /*
     |--------------------------------------------------------------------------
@@ -349,7 +356,7 @@ if ($status === "Resolved") {
             resolvedAt = NOW(),
             resolvedBy = ?,
             resolutionNotes = ?,
-            troubleshooting = ?,
+            technicalTroubleshootingSuggestions = ?,
             durationMinutes =
                 CASE
                     WHEN startedAt IS NULL THEN 0
@@ -381,10 +388,10 @@ if ($status === "Resolved") {
     }
 
     $updateStmt->bind_param(
-        "ssss",
+        "isss",
         $resolvedBy,
         $resolutionNotes,
-        $troubleshooting,
+        $technicalTroubleshooting,
         $incidentID
     );
 
@@ -449,7 +456,7 @@ if ($status === "Resolved") {
         "message" => "Incident resolved successfully.",
         "incidentID" => $incidentID,
         "status" => "Resolved",
-        "resolvedBy" => $resolvedBy,
+        "resolvedBy" => $actor["fullName"],
         "resolvedAt" => $savedResult["resolvedAt"] ?? null,
         "durationMinutes" => (int)($savedResult["durationMinutes"] ?? 0)
     ]);

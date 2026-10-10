@@ -119,9 +119,13 @@ if (strcasecmp((string)$dbStatus, "Active") !== 0) {
 */
 
 $role = trim((string)$dbRole);
+$requestedScope = strtolower(trim((string)($_GET['scope'] ?? '')));
 
 if (strcasecmp($role, "Admin") === 0) {
     $role = "Administrator";
+}
+if (strcasecmp($role, "IT Support") === 0) {
+    $role = "IT Personnel";
 }
 
 /*
@@ -135,7 +139,7 @@ $sql = "
         incidents.incidentID,
         incidents.affectedIssue,
         incidents.classification,
-        incidents.keywords,
+        COALESCE(incidents.keywords, '[]') AS keywords,
         incidents.connectionType,
         incidents.createdAt,
         incidents.department,
@@ -145,13 +149,17 @@ $sql = "
         incidents.issueCategory,
         incidents.location,
         incidents.resolvedAt,
-        incidents.resolvedBy,
+        COALESCE(resolvedUser.fullName, CAST(incidents.resolvedBy AS CHAR)) AS resolvedBy,
         incidents.severity,
         incidents.status,
         incidents.summary,
-        incidents.troubleshooting,
+        CONCAT_WS('\n\n',
+            NULLIF(incidents.basicTroubleshootingChecklist, ''),
+            IF(NULLIF(incidents.technicalTroubleshootingSuggestions, '') IS NULL, NULL,
+                CONCAT('IT Troubleshooting Suggestions:\n', incidents.technicalTroubleshootingSuggestions))
+        ) AS troubleshooting,
         incidents.userId,
-        incidents.assigned,
+        IF(incidents.assigned = 1, 'Yes', 'No') AS assigned,
         incidents.assignedAt,
         incidents.assignedTo,
         COALESCE(NULLIF(assignee.fullName, ''), NULLIF(incidents.assignedToName, '')) AS assignedToName,
@@ -165,6 +173,8 @@ $sql = "
         ON reporter.userID = incidents.userId
     LEFT JOIN users AS assignee
         ON assignee.userID = incidents.assignedTo
+    LEFT JOIN users AS resolvedUser
+        ON resolvedUser.userID = incidents.resolvedBy
 ";
 
 if (strcasecmp($role, "Employee") === 0) {
@@ -174,7 +184,7 @@ if (strcasecmp($role, "Employee") === 0) {
         ORDER BY incidents.createdAt DESC
     ";
 
-} elseif (strcasecmp($role, "IT Personnel") === 0) {
+} elseif (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all') {
 
     $sql .= "
         WHERE incidents.assignedTo = ?
@@ -183,7 +193,8 @@ if (strcasecmp($role, "Employee") === 0) {
 
 } else {
 
-    // Administrator and Secretary can view all incidents.
+    // Administrator and Secretary can view all incidents. IT can request the
+    // all-incidents view explicitly; My Assignments remains assigned-only.
 
     $sql .= "
         ORDER BY incidents.createdAt DESC
@@ -211,13 +222,13 @@ if (!$stmt) {
 
 /*
 |--------------------------------------------------------------------------
-| Bind user ID only for Employee / IT Personnel
+| Bind user ID for employee reports and technician assignments
 |--------------------------------------------------------------------------
 */
 
 if (
     strcasecmp($role, "Employee") === 0 ||
-    strcasecmp($role, "IT Personnel") === 0
+    (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all')
 ) {
     $stmt->bind_param("s", $userID);
 }
@@ -315,8 +326,8 @@ while ($stmt->fetch()) {
         "durationMinutes" => $durationMinutes,
         "resolutionNotes" => $resolutionNotes,
         "startedAt" => $startedAt,
-        "reporterProfilePhoto" => $reporterProfilePhoto,
-        "assignedToProfilePhoto" => $assignedToProfilePhoto
+        "reporterProfilePhoto" => is_string($reporterProfilePhoto) ? basename($reporterProfilePhoto) : $reporterProfilePhoto,
+        "assignedToProfilePhoto" => is_string($assignedToProfilePhoto) ? basename($assignedToProfilePhoto) : $assignedToProfilePhoto
     ];
 }
 

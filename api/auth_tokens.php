@@ -123,6 +123,7 @@ function load_auth_user(mysqli $conn, int $userID): ?array
         'admin' => 'Administrator',
         'administrator' => 'Administrator',
         'secretary' => 'Secretary',
+        'it support' => 'IT Personnel',
         'it personnel' => 'IT Personnel',
         'employee' => 'Employee',
     ];
@@ -131,6 +132,9 @@ function load_auth_user(mysqli $conn, int $userID): ?array
         return null;
     }
     $user['role'] = $roleMap[$role];
+    if (!empty($user['profilePhoto']) && str_contains((string)$user['profilePhoto'], '/')) {
+        $user['profilePhoto'] = basename((string)$user['profilePhoto']);
+    }
     return $user;
 }
 

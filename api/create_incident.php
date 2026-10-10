@@ -152,7 +152,7 @@ if ($severity !== null && !in_array($severity, $allowedSeverity, true)) {
 |
 */
 
-$incidentID = "INC-" . date("Ymd") . "-" . strtoupper(substr(uniqid(), -5));
+$incidentID = "INC-" . date("Ymd") . "-" . strtoupper(bin2hex(random_bytes(3)));
 
 /*
 |--------------------------------------------------------------------------
@@ -161,13 +161,16 @@ $incidentID = "INC-" . date("Ymd") . "-" . strtoupper(substr(uniqid(), -5));
 */
 
 $status = $resolvedByUser ? "Resolved" : "Pending";
-$assigned = "No";
+$assigned = 0;
 $assignedAt = null;
 $assignedTo = null;
 $assignedToName = null;
 $startedAt = null;
 $resolvedAt = $resolvedByUser ? date('Y-m-d H:i:s') : null;
-$resolvedBy = $resolvedByUser ? $employeeName : null;
+$resolvedBy = $resolvedByUser ? (int)$userId : null;
+$troubleshootingParts = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
+$basicTroubleshooting = trim((string)($troubleshootingParts[0] ?? ''));
+$technicalTroubleshooting = trim((string)($troubleshootingParts[1] ?? ''));
 
 /*
 |--------------------------------------------------------------------------
@@ -178,59 +181,12 @@ $resolvedBy = $resolvedByUser ? $employeeName : null;
 |
 */
 
-$sql = "
-    INSERT INTO incidents (
-        incidentID,
-        affectedIssue,
-        classification,
-        keywords,
-        connectionType,
-        department,
-        description,
-        deviceType,
-        employeeName,
-        issueCategory,
-        location,
-        severity,
-        status,
-        summary,
-        troubleshooting,
-        userId,
-        assigned,
-        assignedAt,
-        assignedTo,
-        assignedToName,
-        startedAt,
-        resolvedAt,
-        resolvedBy
-    )
-    VALUES (
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?,
-        ?
-    )
-";
-
+$sql = "INSERT INTO incidents (
+  incidentID, affectedIssue, classification, keywords, connectionType, department, description,
+  deviceType, employeeName, issueCategory, location, severity, status,
+  summary, basicTroubleshootingChecklist, technicalTroubleshootingSuggestions,
+  userId, assigned, assignedAt, assignedTo, assignedToName, startedAt, resolvedAt, resolvedBy
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 $stmt = $conn->prepare($sql);
 
 if (!$stmt) {
@@ -256,30 +212,11 @@ if (!$stmt) {
 */
 
 $stmt->bind_param(
-    "sssssssssssssssssssssss",
-    $incidentID,
-    $affectedIssue,
-    $classification,
-    $keywordsJson,
-    $connectionType,
-    $department,
-    $description,
-    $deviceType,
-    $employeeName,
-    $issueCategory,
-    $location,
-    $severity,
-    $status,
-    $summary,
-    $troubleshooting,
-    $userId,
-    $assigned,
-    $assignedAt,
-    $assignedTo,
-    $assignedToName,
-    $startedAt,
-    $resolvedAt,
-    $resolvedBy
+    "ssssssssssssssss" . "iisisssi",
+    $incidentID, $affectedIssue, $classification, $keywordsJson, $connectionType, $department, $description,
+    $deviceType, $employeeName, $issueCategory, $location, $severity, $status,
+    $summary, $basicTroubleshooting, $technicalTroubleshooting, $userId,
+    $assigned, $assignedAt, $assignedTo, $assignedToName, $startedAt, $resolvedAt, $resolvedBy
 );
 
 /*
@@ -313,8 +250,8 @@ echo json_encode([
     "message" => "Incident created successfully.",
     "incidentID" => $incidentID,
     "status" => $status,
-    "assigned" => $assigned,
-    "resolvedBy" => $resolvedBy
+    "assigned" => "No",
+    "resolvedBy" => $resolvedByUser ? $employeeName : null
 ]);
 
 $stmt->close();

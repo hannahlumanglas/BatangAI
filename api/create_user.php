@@ -206,7 +206,7 @@ $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
  */
 
 $status = "Active";
-$databaseRole = $role === "Administrator" ? "Admin" : $role;
+$databaseRole = $role === "IT Personnel" ? "IT Support" : $role;
 
 $stmt = $conn->prepare("
     INSERT INTO users (

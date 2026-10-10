@@ -33,7 +33,7 @@ $sql = "
         role,
         status
     FROM users
-    WHERE role = 'IT Personnel'
+    WHERE role IN ('IT Personnel', 'IT Support')
     ORDER BY fullName ASC
 ";
 

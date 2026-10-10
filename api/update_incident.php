@@ -49,6 +49,30 @@ if ($incidentID === '') {
     exit;
 }
 
+if (array_key_exists('severity', $data)) {
+    $actorUserId = trim((string)($data['actorUserId'] ?? ''));
+    if (!ctype_digit($actorUserId)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Only an Administrator or Secretary may set incident severity.']);
+        $conn->close();
+        exit;
+    }
+
+    $actorStmt = $conn->prepare('SELECT role, status FROM users WHERE userID = ? LIMIT 1');
+    $actorStmt->bind_param('s', $actorUserId);
+    $actorStmt->execute();
+    $actor = $actorStmt->get_result()->fetch_assoc();
+    $actorStmt->close();
+    $actorRole = strtolower(trim((string)($actor['role'] ?? '')));
+    if (!$actor || strtolower(trim((string)$actor['status'])) !== 'active'
+        || !in_array($actorRole, ['admin', 'administrator', 'secretary'], true)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'Only an active Administrator or Secretary may set incident severity.']);
+        $conn->close();
+        exit;
+    }
+}
+
 /*
  * Every column this endpoint is allowed to touch, and how to bind it.
  * Only keys actually present in the request body get updated — this is
@@ -67,10 +91,9 @@ $updatableFields = [
     'severity'        => 's',
     'classification'  => 's',
     'summary'         => 's',
-    'troubleshooting' => 's',
 ];
 
-$allowedSeverity = ['High', 'Medium', 'Low'];
+$allowedSeverity = ['High', 'Medium', 'Low', 'Critical'];
 
 $setParts = [];
 $bindTypes = '';
@@ -88,7 +111,7 @@ foreach ($updatableFields as $field => $bindType) {
 
         echo json_encode([
             "success" => false,
-            "message" => "Severity must be High, Medium, or Low."
+            "message" => "Severity must be High, Medium, Low, or Critical."
         ]);
 
         exit;
@@ -97,6 +120,27 @@ foreach ($updatableFields as $field => $bindType) {
     $setParts[] = "`$field` = ?";
     $bindTypes .= $bindType;
     $bindValues[] = $value;
+}
+
+if (array_key_exists('troubleshooting', $data)) {
+    $troubleshooting = trim((string)$data['troubleshooting']);
+    $parts = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
+    $setParts[] = 'basicTroubleshootingChecklist = ?';
+    $bindTypes .= 's';
+    $bindValues[] = trim((string)($parts[0] ?? ''));
+    $setParts[] = 'technicalTroubleshootingSuggestions = ?';
+    $bindTypes .= 's';
+    $bindValues[] = trim((string)($parts[1] ?? ''));
+}
+
+if (array_key_exists('keywords', $data)) {
+    $keywords = is_array($data['keywords'])
+        ? array_values(array_filter($data['keywords'], 'is_string'))
+        : [];
+    $keywordsJson = json_encode($keywords, JSON_UNESCAPED_UNICODE);
+    $setParts[] = 'keywords = ?';
+    $bindTypes .= 's';
+    $bindValues[] = $keywordsJson === false ? '[]' : $keywordsJson;
 }
 
 if (empty($setParts)) {

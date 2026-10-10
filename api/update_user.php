@@ -43,7 +43,7 @@ if ($action === 'update') {
   $duplicateEmail = $emailCheck->num_rows > 0;
   $emailCheck->close();
   if ($duplicateEmail) fail($conn, 'This email address is already used by another account.', 409);
-  $databaseRole = $role === 'Administrator' ? 'Admin' : $role;
+  $databaseRole = $role === 'IT Personnel' ? 'IT Support' : $role;
   $stmt = $conn->prepare('UPDATE users SET fullName = ?, employeeId = ?, email = ?, department = ?, role = ? WHERE userID = ?');
   if (!$stmt) fail($conn, 'Unable to prepare the account update.', 500);
   $stmt->bind_param('sssssi', $fullName, $employeeId, $email, $department, $databaseRole, $userID);
