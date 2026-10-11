@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "config.php";
+require_once "auth_tokens.php";
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     http_response_code(405);
@@ -23,17 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
     exit;
 }
 
+$sessionUser = require_role_session($conn, ['Administrator', 'Secretary', 'IT Personnel'], 'Only signed-in Administrators, Secretaries, or Technicians may view Technician options.');
+if ($sessionUser === null) { $conn->close(); exit; }
+
 $sql = "
     SELECT
         userID,
-        employeeId,
         fullName,
-        email,
         department,
         role,
         status
     FROM users
-    WHERE role IN ('IT Personnel', 'IT Support')
+    WHERE role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active'
     ORDER BY fullName ASC
 ";
 

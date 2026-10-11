@@ -11,6 +11,7 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 }
 
 require_once "config.php";
+require_once "auth_tokens.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -25,15 +26,23 @@ if (!$data) {
 
 $incidentID = trim($data["incidentID"] ?? "");
 $status = trim($data["status"] ?? "");
-$actorUserId = trim((string)($data["actorUserId"] ?? ""));
+$actor = require_role_session($conn, ['IT Personnel'], 'Only the assigned Technician may update incident status.');
+if ($actor === null) { $conn->close(); exit; }
+$actorUserId = (string)$actor['userID'];
+$requestedActor = trim((string)($data['actorUserId'] ?? ''));
 
-if ($incidentID === "" || $status === "" || $actorUserId === "") {
+if ($incidentID === "" || $status === "") {
     http_response_code(400);
     echo json_encode([
         "success" => false,
         "message" => "Incident ID, status, and the current user are required."
     ]);
     exit;
+}
+if ($requestedActor !== '' && $requestedActor !== $actorUserId) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'The requested account does not match the authenticated session.']);
+    $conn->close(); exit;
 }
 
 /*
@@ -46,36 +55,6 @@ if ($incidentID === "" || $status === "" || $actorUserId === "") {
 |
 */
 
-$actorStmt = $conn->prepare(
-    "SELECT userID, fullName, role, status
-     FROM users
-     WHERE userID = ?
-     LIMIT 1"
-);
-
-$actorStmt->bind_param("s", $actorUserId);
-$actorStmt->execute();
-
-$actor = $actorStmt->get_result()->fetch_assoc();
-
-$actorStmt->close();
-
-if (
-    !$actor ||
-    !in_array(strtolower(trim((string)$actor["role"])), ["it personnel", "it support"], true) ||
-    strtolower(trim((string)$actor["status"])) !== "active"
-) {
-    http_response_code(403);
-
-    echo json_encode([
-        "success" => false,
-        "message" => "Only the assigned active Technician may update this incident."
-    ]);
-
-    $conn->close();
-    exit;
-}
-
 /*
 |--------------------------------------------------------------------------
 | VERIFY INCIDENT ASSIGNMENT
@@ -86,13 +65,17 @@ $assignmentStmt = $conn->prepare(
     "SELECT incidentID, status
      FROM incidents
      WHERE incidentID = ?
-       AND assignedTo = ?
+       AND (assignedTo = ? OR EXISTS (
+           SELECT 1 FROM incident_sub_assignments isa
+           WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
+       ))
      LIMIT 1"
 );
 
 $assignmentStmt->bind_param(
-    "ss",
+    "sss",
     $incidentID,
+    $actorUserId,
     $actorUserId
 );
 

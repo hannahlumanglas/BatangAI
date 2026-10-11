@@ -1,0 +1,42 @@
+CREATE TABLE IF NOT EXISTS system_catalogs (
+  catalogID INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  catalogGroup VARCHAR(60) NOT NULL,
+  catalogValue VARCHAR(160) NOT NULL,
+  sortOrder SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_system_catalog_group_value (catalogGroup, catalogValue),
+  INDEX idx_system_catalog_active (catalogGroup, active, sortOrder)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO system_catalogs (catalogGroup, catalogValue, sortOrder) VALUES
+  ('issue_category', 'Network Connectivity', 1),
+  ('issue_category', 'Hardware Malfunction', 2),
+  ('issue_category', 'Software / Application Error', 3),
+  ('issue_category', 'Email / Communication', 4),
+  ('issue_category', 'Server / System Downtime', 5),
+  ('issue_category', 'Security / Access Issue', 6),
+  ('device_type', 'Access Point', 1),
+  ('device_type', 'Biometrics Scanner', 2),
+  ('device_type', 'Desktop Computer', 3),
+  ('device_type', 'Laptop', 4),
+  ('device_type', 'Printer', 5),
+  ('device_type', 'Router', 6),
+  ('device_type', 'Server', 7),
+  ('device_type', 'Switch', 8),
+  ('device_type', 'Tablet', 9),
+  ('connection_type', 'LAN', 1),
+  ('connection_type', 'Wi-Fi', 2),
+  ('severity', 'High', 1),
+  ('severity', 'Medium', 2),
+  ('severity', 'Low', 3),
+  ('severity', 'Critical', 4),
+  ('incident_status', 'Pending', 1),
+  ('incident_status', 'In Progress', 2),
+  ('incident_status', 'Resolved', 3),
+  ('incident_status', 'Closed', 4),
+  ('user_role', 'Employee', 1),
+  ('user_role', 'Secretary', 2),
+  ('user_role', 'IT Personnel', 3),
+  ('user_role', 'Administrator', 4)
+ON DUPLICATE KEY UPDATE sortOrder = VALUES(sortOrder), active = 1;

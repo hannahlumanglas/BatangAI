@@ -1,7 +1,8 @@
 # Enable Gemini incident analysis locally
 
-1. In this folder, copy `.env.example` to `.env.local`.
-2. Replace `your_gemini_api_key_here` with the key from Google AI Studio.
+1. Copy `api/.env.local.example` to `api/.env.local` if the local file does not
+   already exist. If it does, preserve its database settings.
+2. Set `GEMINI_API_KEY` in `api/.env.local` using the key from Google AI Studio.
 3. Reload the incident report page and try Analyze again.
 
 The endpoint uses Gemini's `gemini-3.8-flash` model through `generateContent`,

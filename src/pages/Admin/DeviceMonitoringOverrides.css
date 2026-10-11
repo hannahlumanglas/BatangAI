@@ -70,3 +70,9 @@
   height: auto !important;
   min-height: 0 !important;
 }
+
+.dm-grid .dm-card-header {
+  min-height: 40px;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}

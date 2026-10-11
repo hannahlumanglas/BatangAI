@@ -32,8 +32,14 @@ The legacy PHP files remain available for the current InfinityFree deployment.
    file and download the TiDB-recommended CA certificate to
    `local-secrets/isrgrootx1.pem`. Run `node scripts/import-tidb-dump.mjs` to
    import the dump over a TLS-verified MySQL connection and apply
-   `database/vercel_migration.sql`. The importer stops if the target database
+   `database/migrations/vercel_migration.sql`. The importer stops if the target database
    is not empty and never prints SQL data or credentials.
+   Then apply `database/migrations/add_sub_assignments.sql` to create department coverage
+   and incident SUB assignment tables, followed by `database/migrations/add_offices.sql`
+   to seed the Office catalog used by account, device, and incident workflows.
+   Apply `database/migrations/add_system_catalogs.sql` to configure the issue categories,
+   device types, connection types, severities, statuses, and account roles used
+   by the application forms.
 3. Download the current `uploads/profile_photos` directory from InfinityFree
    into this repository's `uploads/profile_photos` directory. Do not commit the
    downloaded files.

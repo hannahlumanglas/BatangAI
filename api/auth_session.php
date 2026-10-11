@@ -18,7 +18,7 @@ try {
     $userID = (int)($_SESSION["userID"] ?? 0);
     $usedRememberToken = false;
 
-    if ($userID > 0 && time() - (int)($_SESSION['authStartedAt'] ?? 0) >= 8 * 60 * 60) {
+    if ($userID > 0 && time() - (int)($_SESSION['authStartedAt'] ?? 0) >= session_lifetime_seconds()) {
         unset($_SESSION['userID'], $_SESSION['authStartedAt']);
         $userID = 0;
     }

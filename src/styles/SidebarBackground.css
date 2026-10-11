@@ -30,3 +30,16 @@
 :root:not([data-theme='dark']) .incidents-logout {
   color: #28574f;
 }
+
+/* Keep navigation links tightly grouped across all account sidebars. */
+.admin-sidebar .sidebar-nav,
+.dm-sidebar nav,
+.um-sidebar nav,
+.simple-sidebar nav,
+.incidents-sidebar nav {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-content: flex-start;
+  gap: 2px !important;
+}

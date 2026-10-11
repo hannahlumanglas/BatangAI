@@ -11,6 +11,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once 'config.php';
+require_once 'catalog.php';
+require_once 'auth_tokens.php';
 
 function respond($payload, $status = 200) {
     http_response_code($status);
@@ -186,9 +188,10 @@ function fetchDevice($conn, $deviceId) {
     return $row ? deviceFromRow($row) : null;
 }
 
-ensureDevicesTable($conn);
-
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    $sessionUser = require_role_session($conn, ['Administrator', 'IT Personnel'], 'Only signed-in Administrators or Technicians may view devices.');
+    if ($sessionUser === null) { $conn->close(); exit; }
+    ensureDevicesTable($conn);
     $result = $conn->query("SELECT d.*, u.fullName AS assignedUserName
         FROM devices d LEFT JOIN users u ON u.userID = d.assignedUserId
         ORDER BY d.createdAt DESC, d.deviceID DESC");
@@ -213,7 +216,16 @@ if (!is_array($data)) {
     respond(['success' => false, 'message' => 'Invalid device request.'], 400);
 }
 
-if (($data['action'] ?? '') === 'ping') {
+$sessionUser = require_role_session($conn, ['Administrator', 'IT Personnel'], 'Only signed-in Administrators or Technicians may manage device monitoring.');
+if ($sessionUser === null) { $conn->close(); exit; }
+$action = (string)($data['action'] ?? '');
+if (in_array($action, ['add', 'delete'], true) && $sessionUser['role'] !== 'Administrator') {
+    $conn->close();
+    respond(['success' => false, 'message' => 'Only an Administrator may add or delete devices.'], 403);
+}
+ensureDevicesTable($conn);
+
+if ($action === 'ping') {
     $deviceId = trim((string)($data['deviceID'] ?? ''));
     if ($deviceId === '') {
         $conn->close();
@@ -280,7 +292,7 @@ if (($data['action'] ?? '') === 'ping') {
     ]);
 }
 
-if (($data['action'] ?? '') === 'delete') {
+if ($action === 'delete') {
     $deviceId = trim((string)($data['deviceID'] ?? ''));
     if ($deviceId === '') {
         $conn->close();
@@ -303,7 +315,7 @@ if (($data['action'] ?? '') === 'delete') {
     respond(['success' => true, 'message' => 'Device deleted.']);
 }
 
-if (($data['action'] ?? '') !== 'add') {
+if ($action !== 'add') {
     $conn->close();
     respond(['success' => false, 'message' => 'Invalid device request.'], 400);
 }
@@ -323,10 +335,15 @@ if ($name === '' || $location === '' || $department === '' || $firmware === '' |
     $conn->close();
     respond(['success' => false, 'message' => 'Please provide a device name, valid IP address, location, department, and firmware version.'], 400);
 }
-if (!in_array($type, ['Router', 'Switch', 'Access Point'], true)) {
+if (!is_active_catalog_value($conn, 'device_type', $type)) {
     $conn->close();
-    respond(['success' => false, 'message' => 'Invalid device type.'], 400);
+    respond(['success' => false, 'message' => 'Select an active device type from the system options.'], 400);
 }
+$officeCheck = $conn->prepare('SELECT officeID FROM offices WHERE officeName = ? AND active = 1 LIMIT 1');
+if (!$officeCheck) { $conn->close(); respond(['success' => false, 'message' => 'Unable to validate the selected Office.'], 500); }
+$officeCheck->bind_param('s', $department); $officeCheck->execute(); $officeCheck->store_result();
+$validOffice = $officeCheck->num_rows === 1; $officeCheck->close();
+if (!$validOffice) { $conn->close(); respond(['success' => false, 'message' => 'Select an active Office from the list.'], 400); }
 // Accept the MAC printed on some router labels, which may append a radio
 // identifier such as C416C877919B-A4(10). Store only the normalized MAC.
 $macCore = preg_replace('/-[0-9A-Fa-f]{2}\(\d+\)$/', '', $mac);

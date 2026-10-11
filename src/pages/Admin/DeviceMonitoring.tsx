@@ -18,6 +18,8 @@ import './Dashboard.css'
 import './DeviceMonitoring.css'
 import './DeviceMonitoringOverrides.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { useOffices } from '../../hooks/useOffices'
+import { useSystemOptions } from '../../hooks/useSystemOptions'
 
 type IconName =
   | 'dashboard'
@@ -523,7 +525,7 @@ function ProfileMenu({
 
 type DeviceStatus = 'unknown' | 'online' | 'offline'
 
-type DeviceType = 'Router' | 'Switch' | 'Access Point'
+type DeviceType = string
 
 interface Device {
   id: string
@@ -560,24 +562,6 @@ const DEVICES_URL =
 
 const USERS_URL =
   `${API_BASE_URL}/users.php`
-
-const deviceTypes: DeviceType[] = [
-  'Router',
-  'Switch',
-  'Access Point',
-]
-
-const departments = [
-  'Information Technology Office',
-  'Health Office',
-  'Engineering Office',
-  'Treasury Office',
-  'Civil Registrar',
-  'Human Resources',
-  'Library Services',
-  'Accounting Office',
-  'Office of the Mayor',
-]
 
 function statusIcon(status: DeviceStatus): IconName {
   return status === 'unknown' ? 'warning' : status
@@ -717,7 +701,7 @@ function DeviceCard({
               </div>
 
               <div>
-                <dt>Department</dt>
+                <dt>Office</dt>
                 <dd>{device.department}</dd>
               </div>
 
@@ -775,14 +759,16 @@ function AddDeviceModal({
   onAdd: (device: DeviceDraft) => Promise<void>
   users: UserOption[]
 }) {
+  const { offices, loading: officesLoading } = useOffices()
+  const { options: systemOptions, loading: optionsLoading } = useSystemOptions()
   const [name, setName] = useState('')
-  const [type, setType] =
-    useState<DeviceType>('Router')
+  const [type, setType] = useState<DeviceType>('')
+  const selectedType = type || systemOptions.device_type?.[0] || ''
   const [ip, setIp] = useState('')
   const [mac, setMac] = useState('')
   const [location, setLocation] = useState('')
-  const [department, setDepartment] =
-    useState(departments[0])
+  const [department, setDepartment] = useState('')
+  const selectedDepartment = department || offices[0] || ''
   const [assignedUserId, setAssignedUserId] =
     useState('')
   const [firmware, setFirmware] = useState('')
@@ -845,11 +831,11 @@ function AddDeviceModal({
     try {
       await onAdd({
         name: name.trim(),
-        type,
+        type: selectedType,
         ip: ip.trim(),
         mac: normalizeMacAddress(mac)!,
         location: location.trim(),
-        department,
+        department: selectedDepartment,
         firmware: firmware.trim(),
         assignedUserId: assignedUserId || null,
       })
@@ -946,14 +932,15 @@ function AddDeviceModal({
               <select
                 id="dev-type"
                 required
-                value={type}
+                disabled={optionsLoading || !(systemOptions.device_type?.length)}
+                value={selectedType}
                 onChange={e =>
                   setType(
                     e.target.value as DeviceType,
                   )
                 }
               >
-                {deviceTypes.map(t => (
+                {(systemOptions.device_type ?? []).map(t => (
                   <option key={t}>{t}</option>
                 ))}
               </select>
@@ -1006,7 +993,6 @@ function AddDeviceModal({
                 aria-invalid={!!errors.mac}
               />
 
-              <small className="dm-field-hint">Router label format is accepted; the MAC is saved in standard format.</small>
 
               {errors.mac && (
                 <span className="dm-field-error">
@@ -1047,18 +1033,19 @@ function AddDeviceModal({
                 className="dm-field-label"
                 htmlFor="dev-department"
               >
-                Department<em>*</em>
+                Office<em>*</em>
               </label>
 
               <select
                 id="dev-department"
                 required
-                value={department}
+                disabled={officesLoading || offices.length === 0}
+                value={selectedDepartment}
                 onChange={e =>
                   setDepartment(e.target.value)
                 }
               >
-                {departments.map(d => (
+                {offices.map(d => (
                   <option key={d}>{d}</option>
                 ))}
               </select>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { FormEvent, JSX, MouseEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -15,11 +15,12 @@ import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Incidents.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { useSystemOptions } from '../../hooks/useSystemOptions'
 import {
-  analyzeIncidentWithAI,
   IncidentDescriptionFields,
   IncidentDetailsFields,
 } from '../Employee/ReportIncident'
+import { analyzeIncidentWithAI } from '../../utils/incidentAi'
 import type {
   IncidentAnalysis,
   IncidentFormValues,
@@ -236,7 +237,7 @@ type Incident = {
   location: string
   resolvedAt: string | null
   resolvedBy: string | null
-  severity: 'High' | 'Medium' | 'Low' | null
+  severity: string | null
   status: 'Pending' | 'In Progress' | 'Resolved' | 'Closed'
   summary: string | null
   troubleshooting: string | null
@@ -265,20 +266,6 @@ type IncidentsResponse = {
 /* ===========================================================
    FILTERS
    =========================================================== */
-
-const STATUS_OPTIONS = [
-  'All Status',
-  'Pending',
-  'In Progress',
-  'Resolved',
-]
-
-const SEVERITY_OPTIONS = [
-  'All Severity',
-  'High',
-  'Medium',
-  'Low',
-]
 
 /* ===========================================================
    NEW INCIDENT FORM
@@ -631,6 +618,7 @@ function Incidents({
 }: {
   audience?: 'administrator' | 'secretary' | 'it'
 }) {
+  const { options } = useSystemOptions()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -772,7 +760,7 @@ function Incidents({
   const [deletingId, setDeletingId] =
     useState<string | null>(null)
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = useCallback(async () => {
     try {
       setLoading(true)
       setApiError('')
@@ -841,11 +829,12 @@ function Incidents({
     } finally {
       setLoading(false)
     }
-  }
+  }, [isIT])
 
   useEffect(() => {
-    fetchIncidents()
-  }, [])
+    const timer = window.setTimeout(() => void fetchIncidents(), 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchIncidents])
 
   /* =========================================================
      FILTERS
@@ -861,7 +850,7 @@ function Incidents({
     useState('All Severity')
 
   const [departmentFilter, setDepartmentFilter] =
-    useState('All Departments')
+    useState('All Offices')
 
   const departmentOptions = useMemo(() => {
     const departments = Array.from(
@@ -876,7 +865,7 @@ function Incidents({
     )
 
     return [
-      'All Departments',
+      'All Offices',
       ...departments,
     ]
   }, [incidents])
@@ -918,7 +907,7 @@ function Incidents({
 
           const matchesDepartment =
             departmentFilter ===
-              'All Departments' ||
+              'All Offices' ||
             incident.department ===
               departmentFilter
 
@@ -945,17 +934,14 @@ function Incidents({
   const [viewingId, setViewingId] =
     useState<string | null>(null)
 
-  useEffect(() => {
-    const state = location.state as { openIncidentId?: unknown } | null
-    const requestedId = state?.openIncidentId
-    if (typeof requestedId !== 'string' || loading) return
+  const routeState = location.state as { openIncidentId?: unknown } | null
+  const requestedIncidentId = routeState?.openIncidentId
 
-    if (incidents.some(incident => incident.incidentID === requestedId)) {
-      setViewingId(requestedId)
-    }
+  useEffect(() => {
+    if (typeof requestedIncidentId !== 'string' || loading) return
 
     navigate(location.pathname, { replace: true, state: null })
-  }, [incidents, loading, location.pathname, location.state, navigate])
+  }, [loading, location.pathname, navigate, requestedIncidentId])
 
   const [actionMenuId, setActionMenuId] =
     useState<string | null>(null)
@@ -997,8 +983,7 @@ function Incidents({
   const viewingIncident =
     incidents.find(
       incident =>
-        incident.incidentID ===
-        viewingId,
+        incident.incidentID === viewingId || incident.incidentID === requestedIncidentId,
     ) ?? null
 
   const closeViewing = () => {
@@ -1240,8 +1225,8 @@ function Incidents({
 
             <p>
               {isIT
-                ? 'View reported incidents across departments. Manage your assigned work in My Assignments.'
-                : 'Monitor all network incident reports across all departments.'}
+                ? 'View reported incidents across offices. Manage your assigned work in My Assignments.'
+                : 'Monitor all network incident reports across all offices.'}
             </p>
           </div>
 
@@ -1308,7 +1293,7 @@ function Incidents({
                   )
                 }
               >
-                {STATUS_OPTIONS.map(
+                {['All Status', ...(options.incident_status ?? [])].map(
                   option => (
                     <option
                       key={option}
@@ -1332,7 +1317,7 @@ function Incidents({
                   )
                 }
               >
-                {SEVERITY_OPTIONS.map(
+                {['All Severity', ...(options.severity ?? [])].map(
                   option => (
                     <option
                       key={option}
@@ -1634,12 +1619,6 @@ function Incidents({
                     Report a Network
                     Incident
                   </h2>
-
-                  <p>
-                    Fill out the form below to
-                    prepare a network incident
-                    record.
-                  </p>
                 </div>
 
                 <button

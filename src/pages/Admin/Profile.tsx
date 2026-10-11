@@ -15,6 +15,7 @@ import { AdminNotifications } from './AdminNotifications'
 import './Dashboard.css'
 import './Profile.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { useOffices } from '../../hooks/useOffices'
 
 type Audience =
   | 'administrator'
@@ -453,6 +454,7 @@ function Profile({
   view?: View
 }) {
   const navigate = useNavigate()
+  const { offices } = useOffices()
 
   /*
   |--------------------------------------------------------------------------
@@ -513,22 +515,12 @@ function Profile({
   | Account state.
   |--------------------------------------------------------------------------
   */
-  const [account, setAccount] =
-    useState<Account>(defaultAccount)
-
-  /*
-  |--------------------------------------------------------------------------
-  | Keep account synchronized with authenticated user.
-  |--------------------------------------------------------------------------
-  */
-  useEffect(() => {
-    const currentAccount =
-      getAccountFromSession(actualAudience)
-
-    if (currentAccount) {
-      setAccount(currentAccount)
-    }
-  }, [actualAudience])
+  const [accountOverride, setAccountOverride] =
+    useState<Account | null>(null)
+  const account = accountOverride ?? defaultAccount
+  const setAccount = (update: (current: Account) => Account) => {
+    setAccountOverride(current => update(current ?? defaultAccount))
+  }
 
   /*
   |--------------------------------------------------------------------------
@@ -673,7 +665,7 @@ function Profile({
         account.id,
       ],
       [
-        'Department',
+        'Office',
         account.department,
       ],
       [
@@ -1382,48 +1374,32 @@ function Profile({
                           {label}
                         </span>
 
-                        <input
-                          value={value}
-                          disabled={
-                            !editing ||
-                            label ===
-                              'Employee ID' ||
-                            label ===
-                              'Role'
-                          }
-                          onChange={event => {
-
-                            const newValue =
-                              event.target
-                                .value
-
-                            setAccount(
-                              current => ({
+                        {label === 'Office' ? (
+                          <select
+                            value={value}
+                            disabled={!editing}
+                            onChange={event => setAccount(current => ({ ...current, department: event.target.value }))}
+                          >
+                            {!offices.includes(value) && value && <option value={value}>{value}</option>}
+                            {offices.map(office => <option key={office} value={office}>{office}</option>)}
+                          </select>
+                        ) : (
+                          <input
+                            value={value}
+                            disabled={!editing || label === 'Employee ID' || label === 'Role'}
+                            onChange={event => {
+                              const newValue = event.target.value
+                              setAccount(current => ({
                                 ...current,
-
-                                ...(label ===
-                                'Full name'
-                                  ? {
-                                      name: newValue,
-                                    }
-                                  : label ===
-                                    'Email address'
-                                    ? {
-                                        email:
-                                          newValue,
-                                      }
-                                    : label ===
-                                      'Department'
-                                      ? {
-                                          department:
-                                            newValue,
-                                        }
-                                      : {}),
-                              }),
-                            )
-
-                          }}
-                        />
+                                ...(label === 'Full name'
+                                  ? { name: newValue }
+                                  : label === 'Email address'
+                                    ? { email: newValue }
+                                    : {}),
+                              }))
+                            }}
+                          />
+                        )}
 
                       </label>
                     ),

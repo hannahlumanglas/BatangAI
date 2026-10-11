@@ -17,6 +17,8 @@ set_exception_handler(function ($error) {
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Method not allowed.']); exit; }
 require_once 'config.php';
+require_once 'catalog.php';
+require_once 'security_policy.php';
 $data = json_decode(file_get_contents('php://input'), true);
 $action = trim((string)($data['action'] ?? ''));
 $userID = trim((string)($data['userID'] ?? ''));
@@ -24,8 +26,12 @@ function fail($conn, $message, $status = 400) { http_response_code($status); ech
 if ($userID === '' || !ctype_digit($userID)) fail($conn, 'A valid user is required.');
 if ($action === 'update') {
   $fullName = trim((string)($data['fullName'] ?? '')); $employeeId = trim((string)($data['employeeId'] ?? '')); $email = strtolower(trim((string)($data['email'] ?? ''))); $department = trim((string)($data['department'] ?? '')); $role = trim((string)($data['role'] ?? ''));
-  $allowedRoles = ['Employee', 'Secretary', 'IT Personnel', 'Administrator'];
-  if ($fullName === '' || $employeeId === '' || $department === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !in_array($role, $allowedRoles, true)) fail($conn, 'Please provide valid account details.');
+  if ($fullName === '' || $employeeId === '' || $department === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !is_active_catalog_value($conn, 'user_role', $role)) fail($conn, 'Please provide valid account details.');
+  $officeCheck = $conn->prepare('SELECT officeID FROM offices WHERE officeName = ? AND active = 1 LIMIT 1');
+  if (!$officeCheck) fail($conn, 'Unable to validate the selected Office.', 500);
+  $officeCheck->bind_param('s', $department); $officeCheck->execute(); $officeCheck->store_result();
+  $validOffice = $officeCheck->num_rows === 1; $officeCheck->close();
+  if (!$validOffice) fail($conn, 'Please select an active Office from the list.');
   $employeeIdCheck = $conn->prepare('SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) AND userID <> ? LIMIT 1');
   if (!$employeeIdCheck) fail($conn, 'Unable to verify the Employee ID.', 500);
   $employeeIdCheck->bind_param('si', $employeeId, $userID);
@@ -51,14 +57,14 @@ if ($action === 'update') {
   $currentPassword = (string)($data['currentPassword'] ?? '');
   $password = (string)($data['password'] ?? '');
   if ($currentPassword === '') fail($conn, 'Enter your current password.');
-  if (strlen($password) < 8 || !preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password) || !preg_match('/[^A-Za-z0-9]/', $password)) fail($conn, 'Password must have 8+ characters with uppercase, lowercase, number, and special character.');
+  $passwordError = password_policy_error($password); if ($passwordError !== null) fail($conn, $passwordError);
   $current = $conn->prepare('SELECT password FROM users WHERE userID = ? LIMIT 1');
   if (!$current) fail($conn, 'Unable to verify the account password.', 500);
   $current->bind_param('i', $userID); $current->execute(); $current->bind_result($storedPassword); $hasAccount = $current->fetch(); $current->close();
   if (!$hasAccount || !password_verify($currentPassword, $storedPassword)) fail($conn, 'Current password is incorrect.', 401);
   $passwordHash = password_hash($password, PASSWORD_DEFAULT); $stmt = $conn->prepare('UPDATE users SET password = ? WHERE userID = ?'); $stmt->bind_param('si', $passwordHash, $userID);
 } elseif ($action === 'password') {
-  $password = (string)($data['password'] ?? ''); if (strlen($password) < 8 || !preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password) || !preg_match('/[^A-Za-z0-9]/', $password)) fail($conn, 'Password must have 8+ characters with uppercase, lowercase, number, and special character.');
+  $password = (string)($data['password'] ?? ''); $passwordError = password_policy_error($password); if ($passwordError !== null) fail($conn, $passwordError);
   $passwordHash = password_hash($password, PASSWORD_DEFAULT); $stmt = $conn->prepare('UPDATE users SET password = ? WHERE userID = ?'); $stmt->bind_param('si', $passwordHash, $userID);
 } elseif ($action === 'status') {
   $status = trim((string)($data['status'] ?? '')); if (!in_array($status, ['Active', 'Inactive'], true)) fail($conn, 'Invalid account status.'); $stmt = $conn->prepare('UPDATE users SET status = ? WHERE userID = ?'); $stmt->bind_param('si', $status, $userID);

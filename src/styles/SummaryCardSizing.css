@@ -1,0 +1,113 @@
+/* One compact size for status and summary cards across every role. */
+:root {
+  --summary-card-height: 76px;
+}
+
+.stat-card,
+.maa-stat,
+.assignment-stats .assignment-stat {
+  height: var(--summary-card-height);
+  min-height: var(--summary-card-height);
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.stat-card .stat-icon,
+.maa-stat > i,
+.assignment-stat-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 9px;
+  line-height: 1;
+}
+
+.stat-card .stat-icon .admin-icon {
+  width: 21px !important;
+  height: 21px !important;
+}
+
+.maa-stat > i,
+.assignment-stat-icon {
+  font-size: 22px !important;
+  font-style: normal !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+}
+
+#root .stat-card h3,
+.maa-stat span,
+.assignment-stat span {
+  margin: 0;
+  font-size: 12px !important;
+  line-height: 1.2;
+}
+
+#root .stat-card strong,
+.maa-stat strong,
+.assignment-stat strong {
+  font-size: 19px !important;
+  line-height: 1;
+}
+
+.maa-stat > div,
+.assignment-stat > div:last-child {
+  gap: 3px;
+}
+
+/* Device Status counts were inheriting the page's oversized stat token. */
+.device-row > b {
+  font-size: 14px !important;
+  line-height: 1.2;
+}
+
+/* One shared frame and horizontal content layout for every role's summary card. */
+.stat-card,
+.maa-stats > .maa-stat,
+.assignment-stats > .assignment-stat {
+  display: flex !important;
+  height: 80px !important;
+  min-height: 80px !important;
+  align-items: center !important;
+  gap: 14px !important;
+  padding: 12px 15px !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+
+.stat-card .stat-icon,
+.maa-stat > i,
+.assignment-stat-icon {
+  display: grid !important;
+  width: 40px !important;
+  height: 40px !important;
+  flex: 0 0 40px !important;
+  place-items: center;
+  border-radius: 11px !important;
+}
+
+.stat-card > div:last-child,
+.maa-stat > div,
+.assignment-stat > div:last-child {
+  display: flex !important;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px !important;
+}
+
+.stat-card::after,
+.maa-stat::after,
+.assignment-stat::after {
+  width: 5px;
+  height: 34px;
+}
+
+.statistics-grid,
+.dm-stats,
+.um-stats,
+.maa-stats,
+.assignment-stats {
+  align-items: stretch;
+}

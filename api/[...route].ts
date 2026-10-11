@@ -22,7 +22,12 @@ type UserRow = RowDataPacket & {
 
 const SESSION_COOKIE = 'batangai_session'
 const REMEMBER_COOKIE = 'batangai_remember'
-const SESSION_DURATION = 8 * 60 * 60
+function configuredSeconds(name: string, fallback: number, minimum: number, maximum: number): number {
+  const raw = Number(process.env[name])
+  return Number.isInteger(raw) ? Math.min(maximum, Math.max(minimum, raw)) : fallback
+}
+
+const SESSION_DURATION = configuredSeconds('SESSION_LIFETIME_SECONDS', 8 * 60 * 60, 300, 7 * 24 * 60 * 60)
 const REMEMBER_DURATION = 30 * 24 * 60 * 60
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -189,6 +194,25 @@ async function requireAdminSession(req: VercelRequest, res: VercelResponse): Pro
   return true
 }
 
+async function requireSessionUser(req: VercelRequest, res: VercelResponse, roles: string[], message: string): Promise<UserRow | undefined> {
+  const userID = readSessionUserID(req)
+  if (!userID) {
+    errorResponse(res, 'Please log in to access this resource.', 401)
+    return undefined
+  }
+  const user = await activeUser(userID)
+  if (!user || user.status.trim().toLowerCase() !== 'active') {
+    errorResponse(res, 'This account is inactive or unavailable. Please log in again.', 401)
+    return undefined
+  }
+  const role = canonicalRole(user.role)
+  if (!role || !roles.includes(role)) {
+    errorResponse(res, message, 403)
+    return undefined
+  }
+  return { ...user, role }
+}
+
 async function ensureRememberTable(): Promise<void> {
   await execute(`CREATE TABLE IF NOT EXISTS remember_tokens (
     tokenHash CHAR(64) NOT NULL PRIMARY KEY,
@@ -213,11 +237,11 @@ function adminRole(role: string): boolean {
 }
 
 function passwordIsStrong(password: string): boolean {
-  return password.length >= 8
-    && /[A-Z]/.test(password)
-    && /[a-z]/.test(password)
-    && /[0-9]/.test(password)
-    && /[^A-Za-z0-9]/.test(password)
+  return password.length >= configuredSeconds('PASSWORD_MIN_LENGTH', 8, 8, 128)
+    && (process.env.PASSWORD_REQUIRE_UPPERCASE === 'false' || /[A-Z]/.test(password))
+    && (process.env.PASSWORD_REQUIRE_LOWERCASE === 'false' || /[a-z]/.test(password))
+    && (process.env.PASSWORD_REQUIRE_NUMBER === 'false' || /[0-9]/.test(password))
+    && (process.env.PASSWORD_REQUIRE_SPECIAL === 'false' || /[^A-Za-z0-9]/.test(password))
 }
 
 async function hashPassword(password: string): Promise<string> {
@@ -298,6 +322,10 @@ const handler: VercelApiHandler = async (req, res) => {
       await updateIncidentStatus(req, res)
     } else if (route === 'users') {
       await users(req, res)
+    } else if (route === 'offices') {
+      await offices(req, res)
+    } else if (route === 'system_options') {
+      await systemOptions(req, res)
     } else if (route === 'it_personnel') {
       await itPersonnel(req, res)
     } else if (route === 'create_user') {
@@ -327,6 +355,38 @@ const handler: VercelApiHandler = async (req, res) => {
       errorResponse(res, 'The server could not complete the request.', 500)
     }
   }
+}
+
+async function offices(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== 'GET') {
+    errorResponse(res, 'Method not allowed.', 405)
+    return
+  }
+  const rows = await getRows<RowDataPacket & { officeName: string }>(
+    'SELECT officeName FROM offices WHERE active = 1 ORDER BY sortOrder, officeName',
+  )
+  send(res, 200, { success: true, offices: rows.map(row => row.officeName) })
+}
+
+async function systemOptions(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== 'GET') {
+    errorResponse(res, 'Method not allowed.', 405)
+    return
+  }
+  const rows = await getRows<RowDataPacket & { catalogGroup: string; catalogValue: string }>(
+    'SELECT catalogGroup, catalogValue FROM system_catalogs WHERE active = 1 ORDER BY catalogGroup, sortOrder, catalogValue',
+  )
+  const options: Record<string, string[]> = {}
+  for (const row of rows) (options[row.catalogGroup] ??= []).push(row.catalogValue)
+  send(res, 200, { success: true, options })
+}
+
+async function isActiveCatalogValue(group: string, value: string): Promise<boolean> {
+  const item = await getRow<RowDataPacket & { catalogID: number }>(
+    'SELECT catalogID FROM system_catalogs WHERE catalogGroup = ? AND catalogValue = ? AND active = 1 LIMIT 1',
+    [group, value],
+  )
+  return Boolean(item)
 }
 
 async function login(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -472,24 +532,14 @@ async function getIncidents(req: VercelRequest, res: VercelResponse): Promise<vo
     errorResponse(res, 'Method not allowed.', 405)
     return
   }
-  const userID = text(queryValue(req, 'userID'))
-  if (!userID) {
-    errorResponse(res, 'userID is required.')
+  const user = await requireSessionUser(req, res, ['Administrator', 'Secretary', 'IT Personnel', 'Employee'], 'You do not have permission to view incidents.')
+  if (!user) return
+  const userID = String(user.userID)
+  const requestedUserID = text(queryValue(req, 'userID'))
+  if (requestedUserID && requestedUserID !== userID) {
+    errorResponse(res, 'The requested account does not match the authenticated session.', 403)
     return
   }
-  const user = await getRow<RowDataPacket & { role: string; status: string }>(
-    'SELECT role, status FROM users WHERE userID = ? LIMIT 1',
-    [userID],
-  )
-  if (!user) {
-    errorResponse(res, 'User not found.', 404)
-    return
-  }
-  if (user.status.trim().toLowerCase() !== 'active') {
-    errorResponse(res, 'User account is inactive.', 403)
-    return
-  }
-
   const role = canonicalRole(user.role)
   const requestedScope = text(queryValue(req, 'scope')).toLowerCase()
   let where = ''
@@ -498,8 +548,11 @@ async function getIncidents(req: VercelRequest, res: VercelResponse): Promise<vo
     where = 'WHERE incidents.userId = ?'
     values = [userID]
   } else if (role === 'IT Personnel' && requestedScope !== 'all') {
-    where = 'WHERE incidents.assignedTo = ?'
-    values = [userID]
+    where = `WHERE (incidents.assignedTo = ? OR EXISTS (
+      SELECT 1 FROM incident_sub_assignments isa
+      WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
+    ))`
+    values = [userID, userID]
   }
   const incidents = await getRows<RowDataPacket>(
     `SELECT incidents.incidentID, incidents.affectedIssue, incidents.classification,
@@ -549,8 +602,18 @@ async function createIncident(req: VercelRequest, res: VercelResponse): Promise<
     errorResponse(res, 'Required incident information is missing.')
     return
   }
-  if (severity && !['High', 'Medium', 'Low'].includes(severity)) {
-    errorResponse(res, 'Severity must be High, Medium, or Low.')
+  for (const [group, value] of [
+    ['issue_category', issueCategory],
+    ['device_type', text(data.deviceType)],
+    ['connection_type', text(data.connectionType)],
+  ]) {
+    if (!(await isActiveCatalogValue(group, value))) {
+      errorResponse(res, 'Select an active option for each incident field.')
+      return
+    }
+  }
+  if (severity && !(await isActiveCatalogValue('severity', severity))) {
+    errorResponse(res, 'Select an active severity from the system options.')
     return
   }
   if (typeof data.resolvedByUser !== 'boolean') {
@@ -634,8 +697,9 @@ async function updateIncident(req: VercelRequest, res: VercelResponse): Promise<
   for (const field of fields) {
     if (!data || !Object.hasOwn(data, field)) continue
     const value = text(data[field])
-    if (field === 'severity' && !['High', 'Medium', 'Low'].includes(value)) {
-      errorResponse(res, 'Severity must be High, Medium, or Low.')
+    const optionGroup = ({ severity: 'severity', issueCategory: 'issue_category', deviceType: 'device_type', connectionType: 'connection_type' } as Record<string, string>)[field]
+    if (optionGroup && !(await isActiveCatalogValue(optionGroup, value))) {
+      errorResponse(res, 'Select an active option for each incident field.')
       return
     }
     setParts.push(`\`${field}\` = ?`)
@@ -715,17 +779,10 @@ async function assignIncident(req: VercelRequest, res: VercelResponse): Promise<
   const data = json(req)
   const incidentID = text(data?.incidentID)
   const assignedTo = text(data?.assignedTo)
-  const actorUserId = text(data?.actorUserId)
-  if (!incidentID || !assignedTo || !actorUserId) {
-    errorResponse(res, 'Incident ID, assigned personnel, and the current user are required.')
-    return
-  }
-  const actor = await getRow<RowDataPacket & { role: string; status: string }>(
-    'SELECT role, status FROM users WHERE userID = ? LIMIT 1',
-    [actorUserId],
-  )
-  if (!actor || actor.status.toLowerCase() !== 'active' || !['admin', 'administrator', 'secretary'].includes(actor.role.toLowerCase())) {
-    errorResponse(res, 'Only an Administrator or Secretary may assign incidents.', 403)
+  const actor = await requireSessionUser(req, res, ['Administrator', 'Secretary'], 'Only an Administrator or Secretary may assign incidents.')
+  if (!actor) return
+  if (!incidentID || !assignedTo) {
+    errorResponse(res, 'Incident ID and assigned personnel are required.')
     return
   }
   const personnel = await getRow<RowDataPacket & { userID: number; fullName: string }>(
@@ -740,7 +797,7 @@ async function assignIncident(req: VercelRequest, res: VercelResponse): Promise<
     `UPDATE incidents SET assigned = 'Yes', assignedAt = NOW(), assignedTo = ?,
        assignedToName = ?, status = 'Pending', startedAt = NULL
      WHERE incidentID = ? AND status NOT IN ('Resolved', 'Closed')
-       AND severity IN ('High', 'Medium', 'Low')`,
+       AND severity IS NOT NULL AND TRIM(severity) <> ''`,
     [personnel.userID, personnel.fullName, incidentID],
   )
   if (!result.affectedRows) {
@@ -779,24 +836,26 @@ async function updateIncidentStatus(req: VercelRequest, res: VercelResponse): Pr
   const data = json(req)
   const incidentID = text(data?.incidentID)
   const status = text(data?.status)
-  const actorUserId = text(data?.actorUserId)
-  if (!incidentID || !status || !actorUserId) {
-    errorResponse(res, 'Incident ID, status, and the current user are required.')
+  const actor = await requireSessionUser(req, res, ['IT Personnel'], 'Only an assigned Technician may update incident status.')
+  if (!actor) return
+  const actorUserId = String(actor.userID)
+  const requestedActor = text(data?.actorUserId)
+  if (requestedActor && requestedActor !== actorUserId) {
+    errorResponse(res, 'The requested account does not match the authenticated session.', 403)
     return
   }
-  const actor = await getRow<RowDataPacket & { fullName: string; role: string; status: string }>(
-    'SELECT fullName, role, status FROM users WHERE userID = ? LIMIT 1',
-    [actorUserId],
-  )
-  if (!actor || actor.role.trim().toLowerCase() !== 'it personnel' || actor.status.trim().toLowerCase() !== 'active') {
-    errorResponse(res, 'Only the assigned active Technician may update this incident.', 403)
+  if (!incidentID || !status) {
+    errorResponse(res, 'Incident ID and status are required.')
     return
   }
   const incident = await getRow<RowDataPacket & {
     status: string; assignedTo: number | string; startedAt: string | null; troubleshooting: string
   }>(
-    'SELECT status, assignedTo, startedAt, troubleshooting FROM incidents WHERE incidentID = ? AND assignedTo = ? LIMIT 1',
-    [incidentID, actorUserId],
+    `SELECT status, assignedTo, startedAt, troubleshooting FROM incidents
+     WHERE incidentID = ? AND (assignedTo = ? OR EXISTS (
+       SELECT 1 FROM incident_sub_assignments isa WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
+     )) LIMIT 1`,
+    [incidentID, actorUserId, actorUserId],
   )
   if (!incident) {
     errorResponse(res, 'This incident is not assigned to the current Technician account.', 403)
@@ -897,21 +956,12 @@ async function itPersonnel(req: VercelRequest, res: VercelResponse): Promise<voi
     errorResponse(res, 'Method not allowed.', 405)
     return
   }
+  if (!(await requireSessionUser(req, res, ['Administrator', 'Secretary', 'IT Personnel'], 'You do not have permission to view Technician options.'))) return
   const personnel = await getRows<RowDataPacket>(
-    `SELECT userID, employeeId, fullName, email, department, role, status
-     FROM users WHERE role = 'IT Personnel' ORDER BY fullName ASC`,
+    `SELECT userID, fullName, department, role, status
+     FROM users WHERE role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active' ORDER BY fullName ASC`,
   )
   send(res, 200, { success: true, personnel })
-}
-
-async function verifyAdmin(userID: unknown): Promise<boolean> {
-  const id = text(userID)
-  if (!/^\d+$/.test(id)) return false
-  const admin = await getRow<RowDataPacket & { role: string; status: string }>(
-    'SELECT role, status FROM users WHERE userID = ? LIMIT 1',
-    [id],
-  )
-  return Boolean(admin && adminRole(admin.role) && admin.status.toLowerCase() === 'active')
 }
 
 async function createUser(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -931,12 +981,19 @@ async function createUser(req: VercelRequest, res: VercelResponse): Promise<void
   const email = text(data.email).toLowerCase()
   const password = typeof data.password === 'string' ? data.password : ''
   const role = text(data.role)
-  const allowedRoles = ['Employee', 'IT Personnel', 'Secretary', 'Administrator']
   if (!fullName || !employeeId || !department || !email || !password || !role) {
     errorResponse(res, 'Please complete all required fields.')
     return
   }
-  if (!allowedRoles.includes(role)) {
+  const office = await getRow<RowDataPacket & { officeID: number }>(
+    'SELECT officeID FROM offices WHERE officeName = ? AND active = 1 LIMIT 1',
+    [department],
+  )
+  if (!office) {
+    errorResponse(res, 'Please select an active Office from the list.')
+    return
+  }
+  if (!(await isActiveCatalogValue('user_role', role)) || !canonicalRole(role)) {
     errorResponse(res, 'Invalid account role.')
     return
   }
@@ -1000,8 +1057,16 @@ async function updateUser(req: VercelRequest, res: VercelResponse): Promise<void
     const department = text(data?.department)
     const role = text(data?.role)
     if (!fullName || !employeeId || !department || !validEmail(email)
-      || !['Employee', 'Secretary', 'IT Personnel', 'Administrator'].includes(role)) {
+      || !(await isActiveCatalogValue('user_role', role)) || !canonicalRole(role)) {
       errorResponse(res, 'Please provide valid account details.')
+      return
+    }
+    const office = await getRow<RowDataPacket & { officeID: number }>(
+      'SELECT officeID FROM offices WHERE officeName = ? AND active = 1 LIMIT 1',
+      [department],
+    )
+    if (!office) {
+      errorResponse(res, 'Please select an active Office from the list.')
       return
     }
     const duplicateEmployee = await getRow<RowDataPacket>(
@@ -1070,10 +1135,11 @@ async function updateUserStatus(req: VercelRequest, res: VercelResponse): Promis
     errorResponse(res, 'Only POST requests are allowed.', 405)
     return
   }
+  if (!(await requireAdminSession(req, res))) return
   const data = json(req)
   const userID = text(data?.userID)
   const status = text(data?.status)
-  if (!data || !userID || !(await verifyAdmin(data.adminUserID))) {
+  if (!data || !userID) {
     errorResponse(res, 'Only an active Administrator can update account status.', 403)
     return
   }
@@ -1108,14 +1174,15 @@ async function deleteUser(req: VercelRequest, res: VercelResponse): Promise<void
     errorResponse(res, 'Only POST requests are allowed.', 405)
     return
   }
+  const sessionAdminID = readSessionUserID(req)
+  if (!(await requireAdminSession(req, res))) return
   const data = json(req)
-  const adminUserID = text(data?.adminUserID)
   const userID = text(data?.userID)
-  if (!data || !userID || !(await verifyAdmin(adminUserID))) {
+  if (!data || !userID) {
     errorResponse(res, 'Only an active Administrator can delete user accounts.', 403)
     return
   }
-  if (adminUserID === userID) {
+  if (String(sessionAdminID) === userID) {
     errorResponse(res, 'You cannot delete your own Administrator account.', 403)
     return
   }
@@ -1234,6 +1301,7 @@ function formatDevice(row: RowDataPacket): JsonRecord {
 
 async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method === 'GET') {
+    if (!(await requireSessionUser(req, res, ['Administrator', 'IT Personnel'], 'Only Administrators or Technicians may view devices.'))) return
     const rows = await getRows<RowDataPacket>(
       `SELECT d.*, u.fullName AS assignedUserName
        FROM devices d LEFT JOIN users u ON u.userID = d.assignedUserId
@@ -1252,6 +1320,12 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
     return
   }
   const action = text(data.action)
+  const deviceActor = await requireSessionUser(req, res, ['Administrator', 'IT Personnel'], 'Only Administrators or Technicians may manage device monitoring.')
+  if (!deviceActor) return
+  if (['add', 'delete'].includes(action) && deviceActor.role !== 'Administrator') {
+    errorResponse(res, 'Only an Administrator may add or delete devices.', 403)
+    return
+  }
   const deviceID = text(data.deviceID)
   if (action === 'ping') {
     if (!deviceID) {
@@ -1343,7 +1417,15 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
     errorResponse(res, 'Please provide a device name, valid IP address, location, department, and firmware version.')
     return
   }
-  if (!['Router', 'Switch', 'Access Point'].includes(type)) {
+  const office = await getRow<RowDataPacket & { officeID: number }>(
+    'SELECT officeID FROM offices WHERE officeName = ? AND active = 1 LIMIT 1',
+    [department],
+  )
+  if (!office) {
+    errorResponse(res, 'Select an active Office from the list.')
+    return
+  }
+  if (!(await isActiveCatalogValue('device_type', type))) {
     errorResponse(res, 'Invalid device type.')
     return
   }
@@ -1518,9 +1600,11 @@ async function deviceStatusHistory(req: VercelRequest, res: VercelResponse): Pro
     errorResponse(res, 'Method not allowed.', 405)
     return
   }
-  const userID = queryValue(req, 'userID')
-  if (!(await verifyAdmin(userID))) {
-    errorResponse(res, 'Only an active Administrator can view device status reports.', 403)
+  const admin = await requireSessionUser(req, res, ['Administrator'], 'Only an Administrator can view device status reports.')
+  if (!admin) return
+  const requestedUserID = text(queryValue(req, 'userID'))
+  if (requestedUserID && requestedUserID !== String(admin.userID)) {
+    errorResponse(res, 'The requested account does not match the authenticated session.', 403)
     return
   }
   const startDate = queryValue(req, 'startDate')

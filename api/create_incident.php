@@ -24,6 +24,7 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 }
 
 require_once "config.php";
+require_once "catalog.php";
 
 // Get JSON data from React
 $rawData = file_get_contents("php://input");
@@ -100,6 +101,18 @@ if (
 
     exit;
 }
+foreach ([
+    'issue_category' => $issueCategory,
+    'device_type' => $deviceType,
+    'connection_type' => $connectionType,
+] as $group => $value) {
+    if (!is_active_catalog_value($conn, $group, $value)) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'message' => 'Select an active option for each incident field.']);
+        $conn->close();
+        exit;
+    }
+}
 
 // The authenticated employee identity is the database source of truth for
 // reporter name and department. This prevents a browser payload from filing a
@@ -126,17 +139,11 @@ $department = (string)$employee['department'];
 |--------------------------------------------------------------------------
 */
 
-$allowedSeverity = [
-    "High",
-    "Medium",
-    "Low"
-];
-
-if ($severity !== null && !in_array($severity, $allowedSeverity, true)) {
+if ($severity !== null && !is_active_catalog_value($conn, 'severity', $severity)) {
     http_response_code(400);
     echo json_encode([
         "success" => false,
-        "message" => "Severity must be High, Medium, or Low."
+        "message" => "Select an active severity from the system options."
     ]);
     $conn->close();
     exit;

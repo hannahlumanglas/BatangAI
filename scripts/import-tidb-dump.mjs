@@ -85,7 +85,7 @@ try {
 
   stage = 'applying the Vercel schema migration'
   const migration = await readFile(
-    join(process.cwd(), 'database', 'vercel_migration.sql'),
+    join(process.cwd(), 'database', 'migrations', 'vercel_migration.sql'),
     'utf8',
   )
   await connection.query(migration)

@@ -12,6 +12,9 @@ type IncidentNotificationSource = {
   createdAt?: string | null
   employeeName?: string | null
   issueCategory?: string | null
+  status?: string | null
+  startedAt?: string | null
+  resolvedAt?: string | null
 }
 
 type Notification = {
@@ -73,6 +76,19 @@ function notificationForAssignment(incident: IncidentNotificationSource): Notifi
   }
 }
 
+function notificationForEmployee(incident: IncidentNotificationSource): Notification {
+  const status = incident.status?.trim() || 'Pending'
+  const issue = incident.affectedIssue?.trim() || incident.issueCategory?.trim() || 'Your incident report'
+
+  return {
+    id: `incident-${incident.incidentID}-status-${status.toLowerCase().replace(/\s+/g, '-')}`,
+    title: `Incident ${status.toLowerCase()}`,
+    detail: `${issue} · ${incident.incidentID}`,
+    time: relativeTime(incident.resolvedAt || incident.startedAt || incident.createdAt),
+    incidentID: String(incident.incidentID),
+  }
+}
+
 function readStorageKey() {
   const user = getAuthSession()?.user
   return `batangai-read-notifications-${user?.role ?? 'guest'}-${user?.email ?? 'guest'}`
@@ -119,7 +135,7 @@ export function AdminNotifications() {
       if (
         userId === undefined ||
         userId === null ||
-        !['Administrator', 'Secretary', 'IT Personnel'].includes(role ?? '')
+        !['Administrator', 'Secretary', 'IT Personnel', 'Employee'].includes(role ?? '')
       ) {
         setNotifications([])
         return
@@ -151,7 +167,9 @@ export function AdminNotifications() {
             .sort((a, b) => timestamp(b.createdAt) - timestamp(a.createdAt))
       const eventNotifications = role === 'IT Personnel'
         ? eventIncidents.map(notificationForAssignment)
-        : eventIncidents.map(notificationForReport)
+        : role === 'Employee'
+          ? eventIncidents.map(notificationForEmployee)
+          : eventIncidents.map(notificationForReport)
 
       if (!localStorage.getItem(initializedStorageKey())) {
         saveReadIds(new Set([
@@ -215,15 +233,17 @@ export function AdminNotifications() {
     const role = getAuthSession()?.user.role
     const incidentPath = role === 'IT Personnel'
       ? '/it/my-assignments'
-      : role === 'Secretary'
-        ? '/secretary/incidents'
-        : '/admin/incidents'
+      : role === 'Employee'
+        ? '/employee/incidents'
+        : role === 'Secretary'
+          ? '/secretary/incidents'
+          : '/admin/incidents'
     navigate(incidentPath, {
       state: { openIncidentId: notification.incidentID },
     })
   }
 
-  if (!['Administrator', 'Secretary', 'IT Personnel'].includes(
+  if (!['Administrator', 'Secretary', 'IT Personnel', 'Employee'].includes(
     getAuthSession()?.user.role ?? '',
   )) {
     return null

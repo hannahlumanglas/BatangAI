@@ -13,7 +13,9 @@ import {
 import '../Admin/Dashboard.css'
 import './ReportIncident.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { useSystemOptions } from '../../hooks/useSystemOptions'
 import { parseSelfHelpSteps } from '../../utils/selfHelp'
+import { analyzeIncidentWithAI } from '../../utils/incidentAi'
 
 type IconName =
   | 'report'
@@ -104,29 +106,6 @@ const navigation: {
 /* =============================================================
    SHARED INCIDENT FORM PIECES
    ============================================================= */
-
-export const ISSUE_CATEGORIES = [
-  'Network Connectivity',
-  'Hardware Malfunction',
-  'Software / Application Error',
-  'Email / Communication',
-  'Server / System Downtime',
-  'Security / Access Issue',
-]
-
-export const DEVICE_TYPES = [
-  'Access Point',
-  'Biometrics Scanner',
-  'Desktop Computer',
-  'Laptop',
-  'Printer',
-  'Router',
-  'Server',
-  'Switch',
-  'Tablet',
-]
-
-export const CONNECTION_TYPES = ['LAN', 'Wi-Fi']
 
 export type IncidentFormValues = {
   severity: string
@@ -223,73 +202,6 @@ function readIncidentReportDraft(key: string): IncidentReportDraft | null {
 }
 
 /*
- * Calls the PHP Gemini API.
- *
- * Gemini is the only source of the incident analysis
- * and troubleshooting suggestions.
- */
-export async function analyzeIncidentWithAI(
-  values: IncidentFormValues,
-): Promise<IncidentAnalysis> {
-  const response = await fetch(
-    `${API_BASE_URL}/analyze_incident.php`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        department: values.department,
-        location: values.location,
-        issueCategory: values.issueCategory,
-        deviceType: values.deviceType,
-        connectionType: values.connectionType,
-        affectedService: values.affectedService,
-        description: values.description,
-      }),
-    },
-  )
-
-  const responseText = await response.text()
-
-  console.log('Gemini PHP Response:', responseText)
-
-  let data
-
-  try {
-    data = JSON.parse(responseText)
-  } catch {
-    throw new Error(
-      'The AI server returned an invalid response.',
-    )
-  }
-
-  if (!response.ok || !data.success || !data.analysis) {
-    console.error('Gemini analysis error:', data)
-
-    throw new Error(
-      data.message ||
-        'AI assistance is currently unavailable. Please try again.',
-    )
-  }
-
-  return {
-    classification: typeof data.analysis.classification === 'string'
-      ? data.analysis.classification.trim()
-      : '',
-    keywords: Array.isArray(data.analysis.keywords)
-      ? data.analysis.keywords.filter((keyword: unknown) => typeof keyword === 'string')
-      : [],
-    summary: data.analysis.summary || '',
-    possibleInterpretation:
-      data.analysis.possibleInterpretation || '',
-    basicSelfHelp: data.analysis.basicSelfHelp || '',
-    itTroubleshooting:
-      data.analysis.itTroubleshooting || '',
-  }
-}
-
-/*
  * Combines the AI troubleshooting sections for storage
  * in the existing incidents.troubleshooting field.
  */
@@ -322,6 +234,7 @@ export function IncidentDetailsFields({
   departmentEditable?: boolean
   showSeverity?: boolean
 }) {
+  const { options, loading } = useSystemOptions()
   return (
     <fieldset className="incident-form-section">
       <legend className="sr-only">Incident Details</legend>
@@ -334,7 +247,7 @@ export function IncidentDetailsFields({
       <div className="incident-form-grid">
         <label className="incident-field">
           <span className="incident-field-label">
-            Department
+            Office
           </span>
 
           <input
@@ -343,7 +256,7 @@ export function IncidentDetailsFields({
             disabled={!departmentEditable}
             title={
               departmentEditable
-                ? 'Department'
+                ? 'Office'
                 : 'Automatically filled from your registered account'
             }
             onChange={e =>
@@ -374,6 +287,7 @@ export function IncidentDetailsFields({
 
           <select
             required
+            disabled={loading}
             value={values.issueCategory}
             onChange={e =>
               onChange('issueCategory', e.target.value)
@@ -381,7 +295,7 @@ export function IncidentDetailsFields({
           >
             <option value="">Select a category</option>
 
-            {ISSUE_CATEGORIES.map(item => (
+            {(options.issue_category ?? []).map(item => (
               <option key={item}>{item}</option>
             ))}
           </select>
@@ -394,6 +308,7 @@ export function IncidentDetailsFields({
 
           <select
             required
+            disabled={loading}
             value={values.deviceType}
             onChange={e =>
               onChange('deviceType', e.target.value)
@@ -401,7 +316,7 @@ export function IncidentDetailsFields({
           >
             <option value="">Select a device type</option>
 
-            {DEVICE_TYPES.map(item => (
+            {(options.device_type ?? []).map(item => (
               <option key={item}>{item}</option>
             ))}
           </select>
@@ -414,6 +329,7 @@ export function IncidentDetailsFields({
 
           <select
             required
+            disabled={loading}
             value={values.connectionType}
             onChange={e =>
               onChange('connectionType', e.target.value)
@@ -423,7 +339,7 @@ export function IncidentDetailsFields({
               Select a connection type
             </option>
 
-            {CONNECTION_TYPES.map(item => (
+            {(options.connection_type ?? []).map(item => (
               <option key={item}>{item}</option>
             ))}
           </select>
@@ -436,13 +352,12 @@ export function IncidentDetailsFields({
             </span>
             <select
               required
+              disabled={loading}
               value={values.severity}
               onChange={e => onChange('severity', e.target.value)}
             >
               <option value="">Select severity</option>
-              <option value="High">High</option>
-              <option value="Medium">Medium</option>
-              <option value="Low">Low</option>
+              {(options.severity ?? []).map(item => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
         )}
@@ -702,10 +617,8 @@ function ReportIncident() {
           checkedSelfHelpSteps,
         } satisfies IncidentReportDraft),
       )
-      setDraftSaveError('')
     } catch (error) {
       console.error('Unable to save the incident report draft:', error)
-      setDraftSaveError('Your incident report draft could not be saved in this browser.')
     }
   }, [
     aiAnalysis,
@@ -903,7 +816,7 @@ function ReportIncident() {
 
       try {
         data = JSON.parse(responseText)
-      } catch (jsonError) {
+      } catch {
         console.error(
           'Invalid JSON from PHP:',
           responseText,
@@ -1091,16 +1004,8 @@ function ReportIncident() {
           <article
             className="employee-report-dialog"
             role="region"
-            aria-labelledby="employee-report-title"
+            aria-label="Report a Network Incident form"
           >
-            <header className="employee-report-dialog-header">
-              <div>
-                <h2 id="employee-report-title">
-                  Report a Network Incident
-                </h2>
-              </div>
-            </header>
-
             <div className="employee-report-dialog-body">
               {phase === 'form' ? (
                 <form
@@ -1112,11 +1017,10 @@ function ReportIncident() {
                     onChange={(
                       field,
                       value,
-                    ) =>
-                      setValues(v => ({
-                        ...v,
-                        [field]: value,
-                      }))
+                    ) => {
+                      setDraftSaveError('')
+                      setValues(v => ({ ...v, [field]: value }))
+                    }
                     }
                   />
 
@@ -1125,11 +1029,10 @@ function ReportIncident() {
                     onChange={(
                       field,
                       value,
-                    ) =>
-                      setValues(v => ({
-                        ...v,
-                        [field]: value,
-                      }))
+                    ) => {
+                      setDraftSaveError('')
+                      setValues(v => ({ ...v, [field]: value }))
+                    }
                     }
                   />
 

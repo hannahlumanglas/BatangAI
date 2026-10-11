@@ -1,5 +1,7 @@
 <?php
 
+require_once __DIR__ . '/security_policy.php';
+
 const REMEMBER_COOKIE_NAME = 'batangai_remember';
 const REMEMBER_TOKEN_LIFETIME_DAYS = 30;
 
@@ -11,7 +13,7 @@ function start_auth_session(): void
 
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
-    ini_set('session.gc_maxlifetime', (string)(8 * 60 * 60));
+    ini_set('session.gc_maxlifetime', (string)session_lifetime_seconds());
     session_set_cookie_params([
         'lifetime' => 0,
         'path' => '/',
@@ -138,26 +140,33 @@ function load_auth_user(mysqli $conn, int $userID): ?array
     return $user;
 }
 
-function require_admin_session(mysqli $conn): bool
+function require_role_session(mysqli $conn, array $allowedRoles, string $message = 'You do not have permission to access this resource.'): ?array
 {
     start_auth_session();
     $userID = (int)($_SESSION['userID'] ?? 0);
-    if ($userID <= 0) {
-        json_auth_failure('Please log in with an Administrator account.', 401);
-        return false;
+    $startedAt = (int)($_SESSION['authStartedAt'] ?? 0);
+    if ($userID <= 0 || $startedAt <= 0 || time() - $startedAt >= session_lifetime_seconds()) {
+        unset($_SESSION['userID'], $_SESSION['authStartedAt']);
+        json_auth_failure('Please log in to access this resource.', 401);
+        return null;
     }
 
     $user = load_auth_user($conn, $userID);
     if (!$user) {
         json_auth_failure('This account is inactive or unavailable. Please log in again.', 401);
-        return false;
+        return null;
     }
-    if ($user['role'] !== 'Administrator') {
-        json_auth_failure('Only an Administrator can manage accounts.', 403);
-        return false;
+    if (!in_array($user['role'], $allowedRoles, true)) {
+        json_auth_failure($message, 403);
+        return null;
     }
 
-    return true;
+    return $user;
+}
+
+function require_admin_session(mysqli $conn): bool
+{
+    return require_role_session($conn, ['Administrator'], 'Only an Administrator can manage accounts.') !== null;
 }
 
 function json_auth_failure(string $message, int $status): void

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signOut } from '../../auth'
@@ -146,13 +146,9 @@ const navigation: {
   },
 ]
 
-type Status =
-  | 'Pending'
-  | 'In Progress'
-  | 'Resolved'
-  | 'Closed'
+type Status = string
 
-const statusTagClass: Record<Status, string> = {
+const statusTagClass: Record<string, string> = {
   Pending: 'pending-tag',
   'In Progress': 'progress-tag',
   Resolved: 'resolved-tag',
@@ -167,7 +163,7 @@ type EmployeeIncident = {
   issueCategory: string
   deviceType: string
   connectionType: string
-  severity: 'High' | 'Medium' | 'Low' | null
+  severity: string | null
   affectedIssue: string
   description: string
   status: Status
@@ -312,30 +308,13 @@ function ThemeToggle({
 function normalizeStatus(
   value: unknown,
 ): Status {
-  if (
-    value === 'Pending' ||
-    value === 'In Progress' ||
-    value === 'Resolved' ||
-    value === 'Closed'
-  ) {
-    return value
-  }
-
-  return 'Pending'
+  return typeof value === 'string' && value.trim() ? value : 'Pending'
 }
 
 function normalizeSeverity(
   value: unknown,
-): 'High' | 'Medium' | 'Low' | null {
-  if (
-    value === 'High' ||
-    value === 'Medium' ||
-    value === 'Low'
-  ) {
-    return value
-  }
-
-  return null
+): string | null {
+  return typeof value === 'string' && value.trim() ? value : null
 }
 
 function normalizeIncident(
@@ -545,7 +524,7 @@ function Incidents() {
      LOAD REAL DATABASE INCIDENTS
      ========================================================= */
 
-  const fetchEmployeeIncidents =
+  const fetchEmployeeIncidents = useCallback(
     async () => {
       try {
         setLoading(true)
@@ -650,11 +629,14 @@ function Incidents() {
       } finally {
         setLoading(false)
       }
-    }
+    },
+    [],
+  )
 
   useEffect(() => {
-    void fetchEmployeeIncidents()
-  }, [])
+    const timer = window.setTimeout(() => void fetchEmployeeIncidents(), 0)
+    return () => window.clearTimeout(timer)
+  }, [fetchEmployeeIncidents])
 
   /* =========================================================
      CLOSE ACTION MENU WHEN CLICKING OUTSIDE
@@ -1352,7 +1334,7 @@ function Incidents() {
                               className={`tag ${
                                 statusTagClass[
                                   incident.status
-                                ]
+                                ] ?? 'pending-tag'
                               }`}
                             >
                               {

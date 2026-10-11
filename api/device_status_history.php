@@ -21,28 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 require_once 'config.php';
+require_once 'auth_tokens.php';
 
-$userID = trim((string)($_GET['userID'] ?? ''));
+$sessionUser = require_role_session($conn, ['Administrator'], 'Only an Administrator can view device status reports.');
+if ($sessionUser === null) { $conn->close(); exit; }
+$userID = (string)$sessionUser['userID'];
+$requestedUserID = trim((string)($_GET['userID'] ?? ''));
 $startDate = trim((string)($_GET['startDate'] ?? ''));
 $endDate = trim((string)($_GET['endDate'] ?? ''));
-if (!preg_match('/^\d+$/', $userID)) {
+if ($requestedUserID !== '' && $requestedUserID !== $userID) {
     $conn->close();
-    respond(['success' => false, 'message' => 'A valid user ID is required.'], 400);
-}
-
-$userStmt = $conn->prepare('SELECT role, status FROM users WHERE userID = ? LIMIT 1');
-if (!$userStmt) {
-    $conn->close();
-    respond(['success' => false, 'message' => 'Unable to check report access.'], 500);
-}
-$userStmt->bind_param('s', $userID);
-$userStmt->execute();
-$user = $userStmt->get_result()->fetch_assoc();
-$userStmt->close();
-if (!$user || strcasecmp((string)$user['status'], 'Active') !== 0
-    || !in_array(strtolower(trim((string)$user['role'])), ['admin', 'administrator'], true)) {
-    $conn->close();
-    respond(['success' => false, 'message' => 'Only an active Administrator can view device status reports.'], 403);
+    respond(['success' => false, 'message' => 'The requested account does not match the authenticated session.'], 403);
 }
 
 $validDate = function ($value) {

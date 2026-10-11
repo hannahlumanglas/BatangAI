@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "config.php";
+require_once "catalog.php";
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -93,7 +94,12 @@ $updatableFields = [
     'summary'         => 's',
 ];
 
-$allowedSeverity = ['High', 'Medium', 'Low', 'Critical'];
+$catalogGroups = [
+    'severity' => 'severity',
+    'issueCategory' => 'issue_category',
+    'deviceType' => 'device_type',
+    'connectionType' => 'connection_type',
+];
 
 $setParts = [];
 $bindTypes = '';
@@ -106,12 +112,12 @@ foreach ($updatableFields as $field => $bindType) {
 
     $value = trim((string) $data[$field]);
 
-    if ($field === 'severity' && !in_array($value, $allowedSeverity, true)) {
+    if (isset($catalogGroups[$field]) && !is_active_catalog_value($conn, $catalogGroups[$field], $value)) {
         http_response_code(400);
 
         echo json_encode([
             "success" => false,
-            "message" => "Severity must be High, Medium, Low, or Critical."
+            "message" => "Select an active option for each incident field."
         ]);
 
         exit;

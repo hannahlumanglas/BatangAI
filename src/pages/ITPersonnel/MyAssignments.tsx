@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { JSX } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -28,25 +28,30 @@ type Ticket = {
   reporterProfilePhoto?: string | null
   date: string
   office: string
-  severity: 'High' | 'Medium' | 'Low' | 'Critical' | 'Not set'
+  severity: string
   status: Status
   actionTime?: string
   duration?: string
 
-  description?: string
-  issueCategory?: string
-  deviceType?: string
-  connectionType?: string
-  location?: string
-  classification?: string
-  summary?: string
+  description?: string | null
+  issueCategory?: string | null
+  deviceType?: string | null
+  connectionType?: string | null
+  location?: string | null
+  classification?: string | null
+  summary?: string | null
   troubleshooting?: string | null
   resolutionNotes?: string
-  resolvedBy?: string
+  resolvedBy?: string | null
   resolvedAt?: string
-  assignedToName?: string
+  assignedToName?: string | null
   technicianCheckedSteps: number[]
   incidentDetail: IncidentDetail
+}
+
+type AssignmentIncident = IncidentDetail & {
+  startedAt?: string | null
+  reporterProfilePhoto?: string | null
 }
 
 type IconName =
@@ -479,7 +484,7 @@ function MyAssignments() {
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const ticketsRef = useRef<Ticket[]>([])
-  const [selected, setSelected] = useState<Ticket | null>(
+  const [selectedOverride, setSelected] = useState<Ticket | null>(
     null,
   )
   const [sidebarCollapsed, setSidebarCollapsed] =
@@ -498,28 +503,7 @@ function MyAssignments() {
   const currentUserId = getCurrentUserId()
   const currentUserName = getCurrentUserName()
 
-  useEffect(() => {
-    loadAssignments()
-  }, [])
-
-  useEffect(() => {
-    const state = location.state as { openIncidentId?: unknown } | null
-    const requestedId = state?.openIncidentId
-    if (typeof requestedId !== 'string' || loading) return
-
-    const requestedTicket = tickets.find(ticket => ticket.id === requestedId)
-    if (requestedTicket) setSelected(requestedTicket)
-
-    navigate(location.pathname, { replace: true, state: null })
-  }, [loading, location.pathname, location.state, navigate, tickets])
-
-  // New assignments are made by the admin or secretary in a separate session.
-  useEffect(() => {
-    const refreshInterval = window.setInterval(loadAssignments, 15000)
-    return () => window.clearInterval(refreshInterval)
-  }, [])
-
-  const loadAssignments = async () => {
+  const loadAssignments = useCallback(async () => {
     try {
       setLoading(true)
       setError('')
@@ -541,7 +525,7 @@ function MyAssignments() {
         )
       }
 
-      const data = await response.json()
+      const data = await response.json() as { success?: boolean; incidents?: AssignmentIncident[] }
 
       if (
         !data.success ||
@@ -553,7 +537,7 @@ function MyAssignments() {
       }
 
       const mappedTickets: Ticket[] =
-        data.incidents.map((incident: any) => {
+        data.incidents.map(incident => {
           let status: Status = 'available'
 
           const incidentStatus = String(
@@ -602,11 +586,9 @@ function MyAssignments() {
             office:
               incident.department ||
               incident.location ||
-              'Unknown Department',
+              'Unknown Office',
 
-            severity: ['High', 'Medium', 'Low', 'Critical'].includes(incident.severity)
-              ? incident.severity as Ticket['severity']
-              : 'Not set',
+            severity: incident.severity || 'Not set',
 
             status,
 
@@ -685,7 +667,30 @@ function MyAssignments() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentUserId, currentUserName])
+
+  const routeState = location.state as { openIncidentId?: unknown } | null
+  const requestedIncidentId = routeState?.openIncidentId
+  const routeSelected = typeof requestedIncidentId === 'string' && !loading
+    ? tickets.find(ticket => ticket.id === requestedIncidentId) ?? null
+    : null
+  const selected = selectedOverride ?? routeSelected
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadAssignments(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loadAssignments])
+
+  useEffect(() => {
+    if (typeof requestedIncidentId !== 'string' || loading) return
+    navigate(location.pathname, { replace: true, state: null })
+  }, [loading, location.pathname, navigate, requestedIncidentId])
+
+  useEffect(() => {
+    const refreshInterval = window.setInterval(() => void loadAssignments(), 15000)
+    return () => window.clearInterval(refreshInterval)
+  }, [loadAssignments])
+
 
   const prioritizeHighSeverity = (items: Ticket[]) =>
     [...items].sort(
@@ -729,7 +734,7 @@ function MyAssignments() {
         },
       )
 
-      const data = await response.json()
+      const data = await response.json() as { success?: boolean; message?: string }
 
       if (!response.ok || !data.success) {
         throw new Error(
@@ -859,7 +864,7 @@ function MyAssignments() {
         },
       )
 
-      const data = await response.json()
+      const data = await response.json() as { success?: boolean; message?: string; incident?: { resolvedAt?: string; resolvedBy?: string; durationMinutes?: number } }
 
       if (!response.ok || !data.success) {
         throw new Error(
@@ -1391,7 +1396,9 @@ function ResolutionModal({
             disabled={loading}
             onClick={onClose}
           >
-            Ã—
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
           </button>
         </header>
 

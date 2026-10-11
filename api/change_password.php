@@ -20,6 +20,7 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 }
 
 require_once "config.php";
+require_once "security_policy.php";
 
 $data = json_decode(file_get_contents("php://input"), true);
 
@@ -110,52 +111,9 @@ if (!password_verify($currentPassword, $admin["password"] ?? "")) {
 |--------------------------------------------------------------------------
 */
 
-if (strlen($newPassword) < 8) {
+if (($passwordError = password_policy_error($newPassword)) !== null) {
     http_response_code(400);
-    echo json_encode([
-        "success" => false,
-        "message" => "Password must be at least 8 characters long."
-    ]);
-    $conn->close();
-    exit;
-}
-
-if (!preg_match('/[A-Z]/', $newPassword)) {
-    http_response_code(400);
-    echo json_encode([
-        "success" => false,
-        "message" => "Password must contain at least one uppercase letter."
-    ]);
-    $conn->close();
-    exit;
-}
-
-if (!preg_match('/[a-z]/', $newPassword)) {
-    http_response_code(400);
-    echo json_encode([
-        "success" => false,
-        "message" => "Password must contain at least one lowercase letter."
-    ]);
-    $conn->close();
-    exit;
-}
-
-if (!preg_match('/[0-9]/', $newPassword)) {
-    http_response_code(400);
-    echo json_encode([
-        "success" => false,
-        "message" => "Password must contain at least one number."
-    ]);
-    $conn->close();
-    exit;
-}
-
-if (!preg_match('/[^a-zA-Z0-9]/', $newPassword)) {
-    http_response_code(400);
-    echo json_encode([
-        "success" => false,
-        "message" => "Password must contain at least one special character."
-    ]);
+    echo json_encode(["success" => false, "message" => $passwordError]);
     $conn->close();
     exit;
 }

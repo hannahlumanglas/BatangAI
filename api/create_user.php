@@ -11,7 +11,9 @@ if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
 }
 
 require_once "config.php";
+require_once "catalog.php";
 require_once "auth_tokens.php";
+require_once "security_policy.php";
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     http_response_code(405);
@@ -67,19 +69,31 @@ if (
  * Active Administrators may create accounts for every supported role.
  */
 
-$allowedRoles = [
-    "Employee",
-    "IT Personnel",
-    "Secretary",
-    "Administrator"
-];
-
-if (!in_array($role, $allowedRoles, true)) {
+if (!is_active_catalog_value($conn, 'user_role', $role)) {
     http_response_code(400);
     echo json_encode([
         "success" => false,
         "message" => "Invalid account role."
     ]);
+    $conn->close();
+    exit;
+}
+
+$officeCheck = $conn->prepare('SELECT officeID FROM offices WHERE officeName = ? AND active = 1 LIMIT 1');
+if (!$officeCheck) {
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => "Unable to validate the selected Office."]);
+    $conn->close();
+    exit;
+}
+$officeCheck->bind_param('s', $department);
+$officeCheck->execute();
+$officeCheck->store_result();
+$validOffice = $officeCheck->num_rows === 1;
+$officeCheck->close();
+if (!$validOffice) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => "Please select an active Office from the list."]);
     $conn->close();
     exit;
 }
@@ -113,17 +127,12 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
  * - 1 special character
  */
 
-if (
-    strlen($password) < 8 ||
-    !preg_match('/[A-Z]/', $password) ||
-    !preg_match('/[a-z]/', $password) ||
-    !preg_match('/[0-9]/', $password) ||
-    !preg_match('/[^A-Za-z0-9]/', $password)
-) {
+$passwordError = password_policy_error((string)$password);
+if ($passwordError !== null) {
     http_response_code(400);
     echo json_encode([
         "success" => false,
-        "message" => "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
+        "message" => $passwordError
     ]);
     $conn->close();
     exit;

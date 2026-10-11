@@ -32,15 +32,15 @@
 }
 
 .um-role-stat {
-  min-height: 112px;
+  min-height: 104px;
   align-items: center;
   gap: 14px;
-  padding: 18px 14px;
+  padding: 16px;
 }
 
 .um-role-stat .stat-icon {
-  width: 48px;
-  height: 48px;
+  width: 50px;
+  height: 50px;
 }
 
 .um-role-stat .stat-icon .admin-icon {
@@ -49,12 +49,12 @@
 }
 
 .um-role-stat h3 {
-  margin: 0 0 12px;
-  font-size: 13px;
+  margin: 0 0 9px;
+  font-size: var(--font-card-title);
 }
 
 .um-role-stat strong {
-  font-size: 25px;
+  font-size: 32px;
 }
 
 @media (max-width: 900px) {
@@ -1507,6 +1507,7 @@
 @media(max-width:760px){.um-directory-columns,.um-directory-row{grid-template-columns:minmax(170px,1.3fr) minmax(130px,1fr) minmax(100px,.8fr) 36px;gap:10px}.um-directory-columns span:nth-child(4),.um-directory-row>span:nth-of-type(3){display:none}}
 @media(max-width:560px){.um-directory{overflow-x:auto}.um-directory-header{position:sticky;left:0}.um-directory-columns,.um-directory-row{min-width:570px}.um-directory-columns,.um-directory-row{padding-right:12px;padding-left:12px}}
 .um-password-input-wrap{position:relative;display:flex;align-items:center}
+.um-autofill-username{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 .um-password-input-wrap input{width:100%;padding-right:64px}
 .um-password-input-wrap button{position:absolute;right:8px;display:grid;min-width:46px;min-height:30px;place-items:center;padding:0 7px;color:var(--primary);font:inherit;font-size:12px;font-weight:700;background:var(--card-bg);border:0;border-radius:6px;cursor:pointer}
 .um-password-input-wrap button:hover{background:var(--hover-bg)}

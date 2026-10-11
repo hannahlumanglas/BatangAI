@@ -1,38 +1,53 @@
-/* Shared readable type scale for every role and page. */
+/* Shared 13px base type scale for every role and page. */
 :root {
-  --font-page-title: 22px;
-  --font-heading: 18px;
-  --font-card-title: 15px;
-  --font-body: 14px;
-  --font-nav: 14px;
+  --font-page-title: 16px;
+  --font-heading: 16px;
+  --font-card-title: 13px;
+  --font-body: 13px;
+  --font-nav: 13px;
   --font-button: 13px;
-  --font-input: 14px;
+  --font-input: 13px;
   --font-table: 13px;
-  --font-secondary: 12px;
-  --font-badge: 12px;
-  --font-metric: 18px;
-  --font-stat: 26px;
-  --font-brand: 21px;
+  --font-secondary: 13px;
+  --font-badge: 13px;
+  --font-metric: 14px;
+  --font-stat: 22px;
+  --font-brand: 16px;
 }
 
-#root { font-size: 14px; line-height: 1.5; }
+#root { font-size: 13px; line-height: 1.5; }
+#root .topbar-avatar {
+  width: 36px !important;
+  height: 36px !important;
+}
+#root :is(.sidebar-brand img, .dm-brand img, .um-brand img, .simple-brand img, .incidents-brand img) {
+  width: 56px !important;
+  height: 56px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+#root :is(.sidebar-brand strong, .dm-brand strong, .um-brand strong, .simple-brand strong, .incidents-brand strong) {
+  font-size: 18px !important;
+}
 #root :is(h1, .topbar-title h1, .incidents-header h1, .dm-header h1, .um-header h1, .simple-header h1) {
-  font-size: 22px !important;
+  font-size: 16px !important;
   line-height: 1.3 !important;
 }
 #root :is(h2, .dashboard-card h2, .profile-card h2, .settings-card h2, .incident-detail-header h2) {
-  font-size: 18px !important;
+  font-size: 16px !important;
   line-height: 1.35 !important;
 }
 #root :is(h3, .ticket-group h3, .incident-form-section h3) {
-  font-size: 15px !important;
+  font-size: 13px !important;
   line-height: 1.4 !important;
 }
 #root :is(h4, .ticket-card h4) {
-  font-size: 14px !important;
+  font-size: 13px !important;
   line-height: 1.45 !important;
 }
-#root :is(p, li, label, td, th, dt, dd) {
+#root :is(p, li, label, td, th, dt, dd, a, span) {
   font-size: 13px !important;
   line-height: 1.5;
 }
@@ -41,23 +56,122 @@
   line-height: 1.4;
 }
 #root :is(small, .ticket-card-title small, .ticket-date, .incident-detail-group-title, .incident-detail-field > span, .incident-resolution-field > span) {
-  font-size: 12px !important;
+  font-size: 13px !important;
   line-height: 1.4;
 }
 #root :is(.severity, .tag, .incident-tag, .ticket-status, .role, .status, .pending-tag, .progress-tag, .resolved-tag) {
-  font-size: 12px !important;
+  min-height: 20px !important;
+  height: auto !important;
+  padding: 2px 8px !important;
+  gap: 4px !important;
+  font-size: 13px !important;
   line-height: 1.35;
 }
+#root :is(.tag.high-tag, .tag.medium-tag, .tag.low-tag, .severity.severity--high, .severity.severity--medium, .severity.severity--low)::before {
+  width: 5px !important;
+  min-width: 5px !important;
+  height: 5px !important;
+  flex: 0 0 5px !important;
+}
 #root :is(.stat-card strong, .assignment-stat strong, .dm-stat strong, .um-stat strong) {
-  font-size: 26px !important;
+  font-size: 22px !important;
   line-height: 1.2;
+}
+#root :is(.incident-view, .view-incident, .employee-view-button) .admin-icon {
+  width: 12px !important;
+  height: 12px !important;
+  color: #fff !important;
+  stroke: #fff !important;
+}
+#root :is(.incident-view, .view-incident, .employee-view-button) {
+  font-size: 13px !important;
 }
 
 @media (max-width: 650px) {
   #root :is(h1, .topbar-title h1, .incidents-header h1, .dm-header h1, .um-header h1, .simple-header h1) {
-    font-size: 20px !important;
+    font-size: 15px !important;
   }
   #root :is(h2, .dashboard-card h2, .profile-card h2, .settings-card h2, .incident-detail-header h2) {
-    font-size: 16px !important;
+    font-size: 14px !important;
+  }
+}
+
+/* A single app-wide size overrides legacy per-page font declarations. */
+#root :not(#root):not(i):not(.stat-icon):not(.assignment-stat-icon):not(.admin-icon)
+  :not(.admin-topbar *):not(.dm-header *):not(.um-header *):not(.simple-header *)
+  :not(.incidents-header *):not(.assignment-topbar *)
+  :not(.sidebar-brand *):not(.dm-brand *):not(.um-brand *)
+  :not(.simple-brand *):not(.incidents-brand *):not(h1) {
+  font-size: 13px !important;
+}
+
+/* Shared, readable header scale across every role and route. */
+#root#root :is(.admin-topbar, .dm-header, .um-header, .simple-header, .incidents-header, .assignment-topbar) * {
+  font-size: 15px !important;
+}
+#root#root h1 {
+  font-size: 25px !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.02em;
+}
+#root#root :is(.admin-topbar, .dm-header, .um-header, .simple-header, .incidents-header, .assignment-topbar) {
+  min-height: 80px !important;
+  height: 80px !important;
+  padding-inline: 28px !important;
+}
+#root#root :is(.topbar-title h1, .admin-topbar h1, .dm-header h1, .um-header h1, .simple-header h1, .incidents-header h1) {
+  font-size: 25px !important;
+  font-weight: 650 !important;
+  line-height: 1.25 !important;
+  letter-spacing: -0.02em;
+}
+#root#root :is(.topbar-title p, .admin-topbar p, .dm-header p, .um-header p, .simple-header p, .incidents-header p) {
+  font-size: 15px !important;
+  line-height: 1.4 !important;
+}
+#root#root :is(.admin-topbar, .dm-header, .um-header, .simple-header, .incidents-header, .assignment-topbar) :is(.topbar-user strong, .topbar-user span, .header-label, .header-action-label) {
+  font-size: 15px !important;
+}
+#root#root :is(.sidebar-brand strong, .sidebar-brand strong span, .dm-brand strong, .dm-brand strong span, .um-brand strong, .um-brand strong span, .simple-brand strong, .simple-brand strong span, .incidents-brand strong, .incidents-brand strong span) {
+  font-size: 21px !important;
+}
+#root#root :is(.menu-button, .notification-button, .theme-toggle-button) {
+  width: 42px !important;
+  height: 42px !important;
+}
+#root#root .menu-button .admin-icon,
+#root#root .notification-button .admin-icon,
+#root#root .theme-toggle-button .admin-icon {
+  width: 20px !important;
+  height: 20px !important;
+}
+#root#root .topbar-avatar {
+  width: 42px !important;
+  height: 42px !important;
+  flex: 0 0 42px !important;
+}
+
+/* Keep long department names below their bars instead of overlaying them. */
+#root#root .dashboard-content .chart-card { padding-bottom: 72px !important; }
+#root#root .dashboard-content .chart-plot .bar-item > span {
+  bottom: -58px !important;
+  width: 112px !important;
+  font-size: 12px !important;
+  line-height: 1.25 !important;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 650px) {
+  #root#root :is(.admin-topbar, .dm-header, .um-header, .simple-header, .incidents-header, .assignment-topbar) {
+    min-height: 68px !important;
+    height: 68px !important;
+    padding-inline: 14px !important;
+  }
+  #root#root h1 {
+    font-size: 22px !important;
+  }
+  #root#root :is(.topbar-title h1, .admin-topbar h1, .dm-header h1, .um-header h1, .simple-header h1, .incidents-header h1) {
+    font-size: 22px !important;
   }
 }

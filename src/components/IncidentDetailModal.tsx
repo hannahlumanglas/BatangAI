@@ -81,7 +81,7 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
   const keywords = (incident.keywords || []).filter(keyword => typeof keyword === 'string')
   const keywordExtraction = [
     ['Reporter', incident.employeeName],
-    ['Department', incident.department],
+    ['Office', incident.department],
     ['Location / Room', incident.location],
     ['Issue Category', incident.issueCategory],
     ['Device Type', incident.deviceType],

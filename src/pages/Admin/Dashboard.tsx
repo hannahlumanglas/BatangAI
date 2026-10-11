@@ -1521,7 +1521,7 @@ function Dashboard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [currentUser?.userID])
 
 
   /* ------------------------------------------------------------------------
@@ -2080,7 +2080,7 @@ function Dashboard() {
 
           <section className="dashboard-grid charts-grid">
             {/* ==========================================================
-                INCIDENTS BY DEPARTMENT
+                INCIDENTS BY OFFICE
             ========================================================== */}
 
             <article className="dashboard-card chart-card">
@@ -2090,7 +2090,7 @@ function Dashboard() {
                 <h2>
                   <Icon name="chart" />
 
-                  Incidents by Department
+                  Incidents by Office
                 </h2>
 
                 <div className="dashboard-chart-controls">
@@ -2366,12 +2366,12 @@ function Dashboard() {
                     <div>
                       <h2 id="dashboard-interpretation-title">
                         {interpretationType === 'department'
-                          ? 'Department Report Interpretation'
+                          ? 'Office Report Interpretation'
                           : 'Severity Report Interpretation'}
                       </h2>
                       <p id="dashboard-interpretation-description">
                         {interpretationType === 'department'
-                          ? `Incident reports by department · ${chartPeriod}`
+                          ? `Incident reports by office · ${chartPeriod}`
                           : `Incident severity breakdown · ${severityPeriod}`}
                       </p>
                     </div>
@@ -2398,7 +2398,7 @@ function Dashboard() {
                         <>
                           <h3>Report Interpretation</h3>
                           <p className="dashboard-interpretation-empty">
-                            No incidents were recorded by department during this reporting period, so no department trend can be identified.
+                            No incidents were recorded by office during this reporting period, so no office trend can be identified.
                           </p>
                         </>
                       ) : (
@@ -2406,13 +2406,13 @@ function Dashboard() {
                           <h3>Report Interpretation</h3>
                           <p className="dashboard-interpretation-insight">
                             During {chartPeriod.toLowerCase()}, {departmentTotal} incident
-                            {departmentTotal === 1 ? ' was' : 's were'} reported across the departments shown.{' '}
+                            {departmentTotal === 1 ? ' was' : 's were'} reported across the offices shown.{' '}
                             {leadingDepartment
                               ? `${leadingDepartment.label} recorded the most reports (${leadingDepartment.value}, ${Math.round((leadingDepartment.value / departmentTotal) * 100)}% of the total).`
                               : ''}
                           </p>
                           <h3 className="dashboard-interpretation-breakdown-title">
-                            Department Report Breakdown
+                            Office Report Breakdown
                           </h3>
                           <ul className="dashboard-interpretation-list">
                             {departmentData.map(item => (
@@ -2520,7 +2520,7 @@ function Dashboard() {
                     </th>
 
                     <th>
-                      Department
+                      Office
                     </th>
 
                     <th>

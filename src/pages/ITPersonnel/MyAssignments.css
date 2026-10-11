@@ -104,3 +104,11 @@
   .ticket-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .assignment-content { padding-right: 36px; padding-left: 36px; }
 }
+
+/* Keep the assignment status summary compact and proportional. */
+.assignment-stats .assignment-stat { height:80px; min-height:80px; gap:14px; padding:12px 15px; border-radius:12px; }
+.assignment-stats .assignment-stat::after { width:5px; height:34px; }
+.assignment-stats .assignment-stat .assignment-stat-icon { width:40px; height:40px; flex:0 0 40px; font-size:20px; }
+.assignment-stat>div:last-child { gap:3px; }
+.assignment-stats .assignment-stat span { font-size:12px; }
+.assignment-stats .assignment-stat strong { font-size:24px !important; }

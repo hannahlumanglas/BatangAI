@@ -1,3 +1,17 @@
+function checklistItemText(item: unknown): string {
+  if (typeof item === 'string') return item.trim()
+  if (typeof item === 'number') return String(item)
+  if (Array.isArray(item)) return item.map(checklistItemText).filter(Boolean).join(' ')
+  if (!item || typeof item !== 'object') return ''
+
+  const record = item as Record<string, unknown>
+  for (const key of ['step', 'instruction', 'text', 'title', 'description', 'action', 'content', 'label']) {
+    const text = checklistItemText(record[key])
+    if (text) return text
+  }
+  return ''
+}
+
 /** Keep Basic Self-Help formatting identical in the report form and incident view. */
 export function parseSelfHelpSteps(value: string): string[] {
   const normalized = value
@@ -11,7 +25,7 @@ export function parseSelfHelpSteps(value: string): string[] {
   try {
     const parsed: unknown = JSON.parse(normalized)
     if (Array.isArray(parsed)) {
-      return parsed.map(step => String(step).trim()).filter(Boolean)
+      return parsed.map(checklistItemText).filter(Boolean)
     }
   } catch {
     // Plain text is the normal storage format.
@@ -37,7 +51,7 @@ export function parseTechnicianSteps(value: string): string[] {
   if (!normalized) return []
   try {
     const parsed: unknown = JSON.parse(normalized)
-    if (Array.isArray(parsed)) return parsed.map(step => String(step).trim()).filter(Boolean)
+    if (Array.isArray(parsed)) return parsed.map(checklistItemText).filter(Boolean)
   } catch {
     // Plain text is the normal storage format.
   }

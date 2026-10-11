@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
@@ -9,28 +9,28 @@ import {
   type AuthSession,
 } from '../auth'
 
-import Dashboard from '../pages/Admin/Dashboard'
-import Incidents from '../pages/Admin/Incidents'
-import DeviceMonitoring from '../pages/Admin/DeviceMonitoring'
-import UserManagement from '../pages/Admin/UserManagement'
-import GenerateReports from '../pages/Admin/GenerateReports'
-import Profile from '../pages/Admin/Profile'
-import ManageAndAssign from '../pages/Admin/ManageandAssign'
+const Dashboard = lazy(() => import('../pages/Admin/Dashboard'))
+const Incidents = lazy(() => import('../pages/Admin/Incidents'))
+const DeviceMonitoring = lazy(() => import('../pages/Admin/DeviceMonitoring'))
+const UserManagement = lazy(() => import('../pages/Admin/UserManagement'))
+const GenerateReports = lazy(() => import('../pages/Admin/GenerateReports'))
+const Profile = lazy(() => import('../pages/Admin/Profile'))
+const ManageAndAssign = lazy(() => import('../pages/Admin/ManageandAssign'))
 
-import Login from '../pages/Auth/Login'
+const Login = lazy(() => import('../pages/Auth/Login'))
 
-import ReportIncident from '../pages/Employee/ReportIncident'
-import EmployeeIncidents from '../pages/Employee/Incidents'
-import EmployeeProfile from '../pages/Employee/Profile'
+const ReportIncident = lazy(() => import('../pages/Employee/ReportIncident'))
+const EmployeeIncidents = lazy(() => import('../pages/Employee/Incidents'))
+const EmployeeProfile = lazy(() => import('../pages/Employee/Profile'))
 
-import ITPersonnelIncidents from '../pages/ITPersonnel/Incidents'
-import ITPersonnelAssignments from '../pages/ITPersonnel/MyAssignments'
-import ITPersonnelDeviceMonitoring from '../pages/ITPersonnel/DeviceMonitoring'
-import ITPersonnelProfile from '../pages/ITPersonnel/Profile'
+const ITPersonnelIncidents = lazy(() => import('../pages/ITPersonnel/Incidents'))
+const ITPersonnelAssignments = lazy(() => import('../pages/ITPersonnel/MyAssignments'))
+const ITPersonnelDeviceMonitoring = lazy(() => import('../pages/ITPersonnel/DeviceMonitoring'))
+const ITPersonnelProfile = lazy(() => import('../pages/ITPersonnel/Profile'))
 
-import SecretaryIncidents from '../pages/Secretary/Incidents'
-import SecretaryManageAndAssign from '../pages/Secretary/ManageandAssign'
-import SecretaryProfile from '../pages/Secretary/Profile'
+const SecretaryIncidents = lazy(() => import('../pages/Secretary/Incidents'))
+const SecretaryManageAndAssign = lazy(() => import('../pages/Secretary/ManageandAssign'))
+const SecretaryProfile = lazy(() => import('../pages/Secretary/Profile'))
 
 function ProtectedRoute({
   role,
@@ -77,6 +77,7 @@ function AppRouter() {
 
   return (
     <BrowserRouter>
+      <Suspense fallback={<main role="status" aria-live="polite">Loading page...</main>}>
       <Routes>
         <Route path="/" element={<Login />} />
 
@@ -305,6 +306,7 @@ function AppRouter() {
           }
         />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   )
 }

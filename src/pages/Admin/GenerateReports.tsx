@@ -143,7 +143,7 @@ const reportTypes = [
   'Resolved Incidents Report',
   'Pending Incidents Report',
   'Personnel Performance Report',
-  'Department Incident History Report',
+  'Office Incident History Report',
   'Device Online/Offline History Report',
 ]
 
@@ -398,7 +398,7 @@ function buildReport(
       headers: [
         'Incident ID',
         'Employee',
-        'Department',
+        'Office',
         'Issue Category',
         'Severity',
         'Assigned Technician',
@@ -433,7 +433,7 @@ function buildReport(
       headers: [
         'Incident ID',
         'Employee',
-        'Department',
+        'Office',
         'Issue Category',
         'Severity',
         'Status',
@@ -527,7 +527,7 @@ function buildReport(
 
   if (
     reportType ===
-    'Department Incident History Report'
+    'Office Incident History Report'
   ) {
     const departmentMap = new Map<
       string,
@@ -587,7 +587,7 @@ function buildReport(
 
     return {
       headers: [
-        'Department',
+        'Office',
         'Total Incidents',
         'Pending',
         'In Progress',
@@ -602,7 +602,7 @@ function buildReport(
     headers: [
       'Incident ID',
       'Employee',
-      'Department',
+      'Office',
       'Issue Category',
       'Severity',
       'Status',

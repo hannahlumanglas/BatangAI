@@ -12,6 +12,8 @@ import {
   signOut,
 } from '../../auth'
 import { API_BASE_URL } from '../../apiConfig'
+import { useOffices } from '../../hooks/useOffices'
+import { useSystemOptions } from '../../hooks/useSystemOptions'
 
 /* --------- API ---------- */
 const USERS_API_URL = `${API_BASE_URL}/users.php`
@@ -58,54 +60,6 @@ type CreateUserForm = {
   confirmPassword: string
 }
 
-const CITY_HALL_DEPARTMENTS = [
-  'Office of the City Accountant',
-  'Office of the City Administrator',
-  'Office of the City Assessor',
-  'Office of the City Budget Officer',
-  'Office of the City Civil Registrar',
-  'Office of the City Disaster Risk Reduction & Management Officer',
-  'Office of the City Engineer',
-  'Office of the City Environment & Natural Resources Officer',
-  'Office of the City General Services Officer',
-  'Office of the City Health Officer',
-  'Office of the City Legal Officer',
-  'Office of the City Market Administrator',
-  'Office of the City Mayor',
-  'Office of the City Planning & Development Coordinator',
-  'Office of the City Prosecutor',
-  'Office of the City Social Welfare and Development Officer',
-  'Office of the City Treasurer',
-  'Office of the City Veterinarian',
-  'Colegio ng Lungsod ng Batangas',
-  'Office of the City Human Resource Management Officer',
-  'Office of the City Internal Audit Service',
-  'Office of the City Agriculturist',
-  'Office of the Sangguniang Panlungsod',
-  'City Local Government Operation Officer VI â€“ DILG',
-  'Chief of Police, City PNP Office',
-  'City Fire Marshal',
-  'City Schools Division Superintendent â€“ DepEd',
-  'City Warden',
-  'City Wardress',
-  'COMELEC Election Officer IV',
-  'MTCC Judge Branch I',
-  'MTCC Judge Branch II',
-  'State Auditor IV â€“ Commission on Audit',
-  "City Mayor's Division",
-  "Mayor's Action Center",
-  'Business Permits & Licensing Office',
-  'Discipline, Safety & Security Office',
-  'City Tourism Office',
-  'Information Technology Services Division',
-  'Local Economic Development & Investment Promotion Office',
-  'Office of the Senior Citizen Affairs',
-  'Public Affairs and Assistance Division',
-  'Public Library and Information Center',
-  'Public Employment Services Office',
-  'Public Information Office',
-  'Transportation Development and Regulatory Office',
-] as const
 /* ---------- Helpers ---------- */
 function getInitials(name: string) {
   return name
@@ -397,12 +351,12 @@ function ChangePasswordCard({
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
-  const [currentPasswordFocused, setCurrentPasswordFocused] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [updating, setUpdating] = useState(false)
+  const administratorEmail = getAuthSession()?.user.email ?? ''
 
   const clearForm = () => {
     if (updating) return
@@ -540,13 +494,23 @@ function ChangePasswordCard({
         </div>
       </header>
 
+      <input
+        className="um-autofill-username"
+        type="email"
+        name="username"
+        value={administratorEmail}
+        autoComplete="username"
+        readOnly
+        tabIndex={-1}
+        aria-hidden="true"
+      />
+
       <label className="um-field">
         <span>Current Password</span>
         <div className="um-password-input-wrap">
-          <input type={showCurrentPassword ? 'text' : 'password'} name={`user-management-current-${user.id}`} value={currentPassword}
-            readOnly={!currentPasswordFocused} onFocus={() => setCurrentPasswordFocused(true)}
+          <input type={showCurrentPassword ? 'text' : 'password'} name="current-password" value={currentPassword}
             onChange={e => { setCurrentPassword(e.target.value); setError(''); setSuccess('') }}
-            placeholder="Enter your current password" autoComplete="new-password" disabled={updating} />
+            placeholder="Enter your current password" autoComplete="current-password" disabled={updating} />
           <button type="button" onClick={() => setShowCurrentPassword(value => !value)} aria-label={showCurrentPassword ? 'Hide current password' : 'Show current password'}>
             <PasswordVisibilityIcon visible={showCurrentPassword} />
           </button>
@@ -612,7 +576,6 @@ function ChangePasswordCard({
 function UserDetails({
   user,
   users,
-  departments,
   onSaved,
   onClose,
   onToggleStatus,
@@ -620,13 +583,14 @@ function UserDetails({
 }: {
   user: User
   users: User[]
-  departments: string[]
   onSaved: () => Promise<void>
   onClose: () => void
   onToggleStatus: (user: User) => Promise<void>
   onDelete: (user: User) => Promise<void>
 }) {
-  const departmentOptions = [...new Set([...departments, user.department].map(item => item.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+  const { offices } = useOffices()
+  const { options: systemOptions } = useSystemOptions()
+  const departmentOptions = offices.includes(user.department) ? offices : [user.department, ...offices]
   const [values, setValues] = useState({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
@@ -636,9 +600,6 @@ function UserDetails({
       normalizeEmployeeId(existing.employeeId) ===
         normalizeEmployeeId(values.employeeId),
   )
-  useEffect(() => {
-    setValues({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
-  }, [user.name, user.employeeId, user.email, user.department, user.role])
   const save = async () => {
     if (!values.name.trim() || !values.employeeId.trim() || !values.department.trim() || !values.email.trim()) { setError('Complete all account fields before saving.'); return }
     if (duplicateEmployeeId) {
@@ -698,8 +659,8 @@ function UserDetails({
         <section className="um-inline-info-section">
           <h3 className="um-inline-section-title">Access</h3>
           <div className="um-inline-edit-grid um-inline-role-grid">
-            <label className="um-field"><span>Department</span><select value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))}><option value="" disabled>Select department</option>{departmentOptions.map(department => <option key={department} value={department}>{department}</option>)}</select></label>
-            <label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}><option>Employee</option><option value="Secretary">Front Desk</option><option value="IT Personnel">Technician</option><option>Administrator</option></select></label>
+            <label className="um-field"><span>Office</span><select value={values.department} onChange={e => setValues(current => ({ ...current, department: e.target.value }))}><option value="" disabled>Select office</option>{departmentOptions.map(department => <option key={department} value={department}>{department}</option>)}</select></label>
+            <label className="um-field"><span>Role</span><select value={values.role} onChange={e => setValues(current => ({ ...current, role: e.target.value as UserRole }))}>{(systemOptions.user_role ?? []).map(role => <option key={role} value={role}>{role === 'Secretary' ? 'Front Desk' : role === 'IT Personnel' ? 'Technician' : role}</option>)}</select></label>
           </div>
         </section>
         {error && <p className="um-form-message um-form-error">{error}</p>}
@@ -720,6 +681,8 @@ function CreateUserModal({
   onCreated: (user: User) => void
   users: User[]
 }) {
+  const { offices, loading: officesLoading, error: officesError } = useOffices()
+  const { options: systemOptions } = useSystemOptions()
   const session = getAuthSession()
   const [form, setForm] =
     useState<CreateUserForm>({
@@ -753,13 +716,13 @@ function CreateUserModal({
     const search = form.department.trim().toLowerCase()
 
     if (!search) {
-      return [...CITY_HALL_DEPARTMENTS]
+      return [...offices]
     }
 
-    return CITY_HALL_DEPARTMENTS.filter(department =>
-      department.toLowerCase().includes(search),
+    return offices.filter(office =>
+      office.toLowerCase().includes(search),
     )
-  }, [form.department])
+  }, [form.department, offices])
   useEffect(() => {
     if (!departmentOpen) return
     const handleOutsideClick = (event: MouseEvent) => {
@@ -776,9 +739,6 @@ function CreateUserModal({
       document.removeEventListener('mousedown', handleOutsideClick)
     }
   }, [departmentOpen])
-  useEffect(() => {
-    setDepartmentHighlight(0)
-  }, [form.department])
   const selectDepartment = (department: string) => {
     updateField('department', department)
     setDepartmentOpen(false)
@@ -790,6 +750,7 @@ function CreateUserModal({
     field: K,
     value: CreateUserForm[K],
   ) => {
+    if (field === 'department') setDepartmentHighlight(0)
     setForm(current => ({
       ...current,
       [field]: value,
@@ -803,18 +764,6 @@ function CreateUserModal({
   ) => {
     if (password.length < 8) {
       return 'Password must be at least 8 characters long.'
-    }
-    if (!/[A-Z]/.test(password)) {
-      return 'Password must contain at least one uppercase letter.'
-    }
-    if (!/[a-z]/.test(password)) {
-      return 'Password must contain at least one lowercase letter.'
-    }
-    if (!/[0-9]/.test(password)) {
-      return 'Password must contain at least one number.'
-    }
-    if (!/[^A-Za-z0-9]/.test(password)) {
-      return 'Password must contain at least one special character.'
     }
     return ''
   }
@@ -849,8 +798,8 @@ function CreateUserModal({
       setError('This Employee ID is already registered. Use a unique Employee ID.')
       return
     }
-    if (!CITY_HALL_DEPARTMENTS.includes(form.department.trim() as (typeof CITY_HALL_DEPARTMENTS)[number])) {
-      setError('Please select a department from the list.')
+    if (!offices.includes(form.department.trim())) {
+      setError('Please select an office from the list.')
       return
     }
     if (
@@ -1010,7 +959,9 @@ function CreateUserModal({
             disabled={submitting}
             aria-label="Close"
           >
-            Ã—
+            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
           </button>
         </div>
 
@@ -1066,8 +1017,9 @@ function CreateUserModal({
           </label>
           <div className="um-field" ref={departmentRef}>
             <span>
-              Department
+              Office
             </span>
+            {officesError && <small className="um-form-error" role="alert">{officesError}</small>}
             <div
               style={{
                 position: 'relative',
@@ -1120,9 +1072,9 @@ function CreateUserModal({
                     setDepartmentOpen(false)
                   }
                 }}
-                placeholder="Search or select department"
+                placeholder="Search or select office"
                 autoComplete="off"
-                disabled={submitting}
+                disabled={submitting || officesLoading || offices.length === 0}
                 required
                 aria-autocomplete="list"
                 aria-expanded={departmentOpen}
@@ -1187,7 +1139,7 @@ function CreateUserModal({
                         fontSize: '0.9rem',
                       }}
                     >
-                      No department found.
+                      No office found.
                     </div>
                   )}
                 </div>
@@ -1231,21 +1183,7 @@ function CreateUserModal({
               disabled={submitting}
               required
             >
-              <option value="Employee">
-                Employee
-              </option>
-
-              <option value="IT Personnel">
-                Technician
-              </option>
-
-              <option value="Secretary">
-                Front Desk
-              </option>
-
-              <option value="Administrator">
-                Administrator
-              </option>
+              {(systemOptions.user_role ?? []).map(role => <option key={role} value={role}>{role === 'Secretary' ? 'Front Desk' : role === 'IT Personnel' ? 'Technician' : role}</option>)}
             </select>
           </label>
           <label className="um-field">
@@ -1921,10 +1859,9 @@ function UserManagement() {
     employee: users.filter(user => user.role === 'Employee').length,
     itPersonnel: users.filter(user => user.role === 'IT Personnel').length,
   }), [users])
-  const departments = useMemo(
-    () => [...new Set(users.map(user => user.department.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
-    [users],
-  )
+  const { offices } = useOffices()
+  const { options: systemOptions } = useSystemOptions()
+  const departments = offices
   const selectedUser = users.find(user => user.id === selectedUserId) ?? null
   /* LOGOUT */
   const handleLogout = () => {
@@ -2160,16 +2097,13 @@ function UserManagement() {
             <label className="um-filter-select" aria-label="Filter by role">
               <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
                 <option value="">All Roles</option>
-                <option>Employee</option>
-                <option value="Secretary">Front Desk</option>
-                <option value="IT Personnel">Technician</option>
-                <option>Administrator</option>
+                {(systemOptions.user_role ?? []).map(role => <option key={role} value={role}>{role === 'Secretary' ? 'Front Desk' : role === 'IT Personnel' ? 'Technician' : role}</option>)}
               </select>
             </label>
 
-            <label className="um-filter-select" aria-label="Filter by department">
+            <label className="um-filter-select" aria-label="Filter by office">
               <select value={departmentFilter} onChange={event => setDepartmentFilter(event.target.value)}>
-                <option value="">All Departments</option>
+                <option value="">All Offices</option>
                 {departments.map(item => <option key={item}>{item}</option>)}
               </select>
             </label>
@@ -2205,7 +2139,7 @@ function UserManagement() {
           </>}
           {selectedUser && (
             <section className="um-inline-user-details" aria-label={`Profile and account security for ${selectedUser.name}`}>
-              <UserDetails user={selectedUser} users={users} departments={departments} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} onDelete={handleDeleteUser} />
+              <UserDetails key={selectedUser.id} user={selectedUser} users={users} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} onDelete={handleDeleteUser} />
             </section>
           )}
         </div>

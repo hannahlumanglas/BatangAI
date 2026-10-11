@@ -20,113 +20,18 @@ if ($_SERVER["REQUEST_METHOD"] !== "GET") {
 }
 
 require_once "config.php";
-
-$userID = isset($_GET["userID"]) ? trim($_GET["userID"]) : "";
-
-if ($userID === "") {
-    http_response_code(400);
-    echo json_encode([
-        "success" => false,
-        "message" => "userID is required."
-    ]);
-    $conn->close();
-    exit;
-}
-
-/*
-|--------------------------------------------------------------------------
-| Get logged-in user's role
-|--------------------------------------------------------------------------
-*/
-
-$userSql = "
-    SELECT userID, role, status
-    FROM users
-    WHERE userID = ?
-    LIMIT 1
-";
-
-$userStmt = $conn->prepare($userSql);
-
-if (!$userStmt) {
-    http_response_code(500);
-    echo json_encode([
-        "success" => false,
-        "message" => "Unable to prepare user query.",
-        "error" => $conn->error
-    ]);
-    $conn->close();
-    exit;
-}
-
-$userStmt->bind_param("s", $userID);
-
-if (!$userStmt->execute()) {
-    http_response_code(500);
-    echo json_encode([
-        "success" => false,
-        "message" => "Unable to execute user query.",
-        "error" => $userStmt->error
-    ]);
-    $userStmt->close();
-    $conn->close();
-    exit;
-}
-
-$userStmt->store_result();
-
-if ($userStmt->num_rows === 0) {
-    http_response_code(404);
-    echo json_encode([
-        "success" => false,
-        "message" => "User not found."
-    ]);
-    $userStmt->close();
-    $conn->close();
-    exit;
-}
-
-$userStmt->bind_result(
-    $dbUserID,
-    $dbRole,
-    $dbStatus
-);
-
-$userStmt->fetch();
-
-$userStmt->close();
-
-/*
-|--------------------------------------------------------------------------
-| Block inactive users
-|--------------------------------------------------------------------------
-*/
-
-if (strcasecmp((string)$dbStatus, "Active") !== 0) {
+require_once "auth_tokens.php";
+$sessionUser = require_role_session($conn, ['Administrator', 'Secretary', 'IT Personnel', 'Employee']);
+if ($sessionUser === null) { $conn->close(); exit; }
+$userID = (string)$sessionUser['userID'];
+$requestedUserID = trim((string)($_GET['userID'] ?? ''));
+if ($requestedUserID !== '' && $requestedUserID !== $userID) {
     http_response_code(403);
-    echo json_encode([
-        "success" => false,
-        "message" => "User account is inactive."
-    ]);
-    $conn->close();
-    exit;
+    echo json_encode(['success' => false, 'message' => 'The requested account does not match the authenticated session.']);
+    $conn->close(); exit;
 }
-
-/*
-|--------------------------------------------------------------------------
-| Normalize role
-|--------------------------------------------------------------------------
-*/
-
-$role = trim((string)$dbRole);
+$role = (string)$sessionUser['role'];
 $requestedScope = strtolower(trim((string)($_GET['scope'] ?? '')));
-
-if (strcasecmp($role, "Admin") === 0) {
-    $role = "Administrator";
-}
-if (strcasecmp($role, "IT Support") === 0) {
-    $role = "IT Personnel";
-}
 
 /*
 |--------------------------------------------------------------------------
@@ -187,7 +92,10 @@ if (strcasecmp($role, "Employee") === 0) {
 } elseif (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all') {
 
     $sql .= "
-        WHERE incidents.assignedTo = ?
+        WHERE incidents.assignedTo = ? OR EXISTS (
+            SELECT 1 FROM incident_sub_assignments isa
+            WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
+        )
         ORDER BY incidents.createdAt DESC
     ";
 
@@ -230,7 +138,8 @@ if (
     strcasecmp($role, "Employee") === 0 ||
     (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all')
 ) {
-    $stmt->bind_param("s", $userID);
+    if (strcasecmp($role, "IT Personnel") === 0) $stmt->bind_param("ss", $userID, $userID);
+    else $stmt->bind_param("s", $userID);
 }
 
 /*
@@ -299,6 +208,12 @@ while ($stmt->fetch()) {
         $decodedKeywords = [];
     }
 
+    $incidentSubs = [];
+    $subsStmt = $conn->prepare("SELECT isa.userID, u.fullName FROM incident_sub_assignments isa JOIN users u ON u.userID = isa.userID WHERE isa.incidentID = ? ORDER BY u.fullName");
+    $subsStmt->bind_param('s', $incidentID); $subsStmt->execute(); $subsResult = $subsStmt->get_result();
+    while ($subRow = $subsResult->fetch_assoc()) $incidentSubs[] = $subRow;
+    $subsStmt->close();
+
     $incidents[] = [
         "incidentID" => $incidentID,
         "affectedIssue" => $affectedIssue,
@@ -327,7 +242,8 @@ while ($stmt->fetch()) {
         "resolutionNotes" => $resolutionNotes,
         "startedAt" => $startedAt,
         "reporterProfilePhoto" => is_string($reporterProfilePhoto) ? basename($reporterProfilePhoto) : $reporterProfilePhoto,
-        "assignedToProfilePhoto" => is_string($assignedToProfilePhoto) ? basename($assignedToProfilePhoto) : $assignedToProfilePhoto
+        "assignedToProfilePhoto" => is_string($assignedToProfilePhoto) ? basename($assignedToProfilePhoto) : $assignedToProfilePhoto,
+        "subAssignments" => $incidentSubs
     ];
 }
 

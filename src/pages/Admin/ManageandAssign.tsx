@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { JSX } from 'react'
 import { useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
@@ -20,6 +20,7 @@ import {
 import './Dashboard.css'
 import './ManageandAssign.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { useSystemOptions } from '../../hooks/useSystemOptions'
 
 type IconName =
   | 'dashboard'
@@ -194,9 +195,9 @@ const navigation: {
   },
 ]
 
-type Severity = 'High' | 'Medium' | 'Low'
+type Severity = string
 
-type Status = 'Pending' | 'In Progress' | 'Resolved'
+type Status = string
 
 type Channel = 'Phone Call' | 'Walk-in' | 'Web Form' | 'Email'
 
@@ -226,6 +227,7 @@ type Incident = IncidentDetail & {
   aiSummary: string
   aiSteps: string[]
   aiCheckedSteps: number[]
+  subAssignments?: { userID: number | string; fullName: string }[]
 }
 
 type Personnel = {
@@ -269,7 +271,10 @@ type ApiIncident = {
   resolutionNotes?: string | null
   resolvedAt?: string | null
   resolvedBy?: string | null
+  subAssignments?: { userID: number | string; fullName: string }[]
 }
+
+type DepartmentAssignment = { id: number; department: string; primaryUserID: string; primaryName: string; subs: { userID: number | string; fullName: string }[] }
 
 const statusTagClass: Record<Status, string> = {
   Pending: 'pending-tag',
@@ -281,10 +286,6 @@ const severityTagClass: Record<Severity, string> = {
   High: 'high-tag',
   Medium: 'medium-tag',
   Low: 'low-tag',
-}
-
-function getSeverityTagClass(severity: Severity | null): string {
-  return severity ? severityTagClass[severity] : ''
 }
 
 /* ---------- Theme ---------- */
@@ -637,7 +638,7 @@ function parseTroubleshooting(
     .split(/\r?\n/)
     .map(step =>
       step
-        .replace(/^\s*(\d+[\.\)]|-|\*)\s*/, '')
+        .replace(/^\s*(\d+[.)]|-|\*)\s*/, '')
         .trim(),
     )
     .filter(Boolean)
@@ -718,6 +719,7 @@ function mapIncident(item: ApiIncident): Incident {
     department: item.department || '—',
     severity: mapSeverity(item.severity),
     status: mapStatus(item.status),
+    subAssignments: item.subAssignments || [],
     assigned: item.assigned || (item.assignedToName ? 'Yes' : 'No'),
     assignedToName: item.assignedToName || null,
     affectedIssue: item.affectedIssue || 'Not specified',
@@ -791,6 +793,7 @@ function ManageAndAssign({
 }: {
   audience?: 'administrator' | 'secretary' | 'it'
 }) {
+  const { options: systemOptions } = useSystemOptions()
   const navigate = useNavigate()
 
   const isSecretary = audience === 'secretary'
@@ -935,33 +938,23 @@ function ManageAndAssign({
   const [search, setSearch] =
     useState('')
 
-  const [statusFilter, setStatusFilter] =
-    useState<'All Statuses' | Status>(
-      'All Statuses',
-    )
+  const [statusFilter, setStatusFilter] = useState('All Statuses')
 
-  const [severityFilter, setSeverityFilter] =
-    useState<'All Severities' | Severity>(
-      'All Severities',
-    )
+  const [severityFilter, setSeverityFilter] = useState('All Severities')
 
   const [assigningId, setAssigningId] =
     useState<string | null>(null)
 
   const [selectedPersonnelId, setSelectedPersonnelId] =
     useState('')
+  const [selectedSubIds, setSelectedSubIds] = useState<string[]>([])
+  const [departmentAssignments, setDepartmentAssignments] = useState<DepartmentAssignment[]>([])
 
   const [viewingId, setViewingId] =
     useState<string | null>(null)
 
   const [selectedSeverity, setSelectedSeverity] =
     useState<Severity | ''>('')
-
-  const [detailsExpanded, setDetailsExpanded] =
-    useState(false)
-
-  const [analysisExpanded, setAnalysisExpanded] =
-    useState(false)
 
   const [savingAssignment, setSavingAssignment] =
     useState(false)
@@ -971,7 +964,7 @@ function ManageAndAssign({
 
   /* ---------- Load Database Data ---------- */
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
     setError('')
 
@@ -1036,6 +1029,16 @@ function ManageAndAssign({
       )
 
       setItPersonnel(apiPersonnel)
+      if (!isIT) {
+        try {
+          const coverageResponse = await fetch(`${API_BASE_URL}/department_assignments.php`)
+          const coverageData = await coverageResponse.json()
+          if (coverageData.success) setDepartmentAssignments(coverageData.assignments || [])
+        } catch (coverageError) {
+          console.error('Department coverage loading error:', coverageError)
+          setDepartmentAssignments([])
+        }
+      }
     } catch (err) {
       console.error(
         'Manage & Assign loading error:',
@@ -1053,11 +1056,12 @@ function ManageAndAssign({
     } finally {
       setLoading(false)
     }
-  }
+  }, [currentUserId, isIT])
 
   useEffect(() => {
-    void loadData()
-  }, [])
+    const timer = window.setTimeout(() => void loadData(), 0)
+    return () => window.clearTimeout(timer)
+  }, [loadData])
 
   // A report can be submitted or assigned from another user's session.
   // Refresh the shared queue so each role sees the change without a manual reload.
@@ -1067,7 +1071,7 @@ function ManageAndAssign({
     }, 15000)
 
     return () => window.clearInterval(refreshInterval)
-  }, [])
+  }, [loadData])
 
   /* ---------- Logout ---------- */
 
@@ -1081,11 +1085,8 @@ function ManageAndAssign({
   const visibleIncidents = isIT
     ? incidents.filter(
         incident =>
-          incident.assignedToUserId !== null &&
           currentUserId !== null &&
-          String(
-            incident.assignedToUserId,
-          ) === String(currentUserId),
+          (String(incident.assignedToUserId || '') === String(currentUserId) || (incident.subAssignments || []).some(sub => String(sub.userID) === String(currentUserId))),
       )
     : incidents
 
@@ -1149,7 +1150,10 @@ function ManageAndAssign({
     const existingAssignedId =
       incident?.assignedToUserId
 
-    if (
+    const coverage = departmentAssignments.find(item => item.department.toLowerCase() === incident.department.toLowerCase())
+    if (coverage && itPersonnel.some(person => String(person.userID) === coverage.primaryUserID)) {
+      setSelectedPersonnelId(coverage.primaryUserID)
+    } else if (
       existingAssignedId &&
       itPersonnel.some(
         person =>
@@ -1167,6 +1171,7 @@ function ManageAndAssign({
           : '',
       )
     }
+    setSelectedSubIds((coverage?.subs || []).map(sub => String(sub.userID)))
   }
 
   const closeAssign = () => {
@@ -1174,6 +1179,7 @@ function ManageAndAssign({
 
     setAssigningId(null)
     setSelectedPersonnelId('')
+    setSelectedSubIds([])
   }
 
   const confirmAssign = async () => {
@@ -1210,6 +1216,7 @@ function ManageAndAssign({
             assignedToName:
               selectedPersonnel.fullName,
             actorUserId: currentUserId,
+            subUserIDs: selectedSubIds,
           }),
         },
       )
@@ -1234,6 +1241,10 @@ function ManageAndAssign({
                   String(
                     selectedPersonnel.userID,
                   ),
+                subAssignments: selectedSubIds.map(id => {
+                  const person = itPersonnel.find(item => String(item.userID) === id)
+                  return person ? { userID: person.userID, fullName: person.fullName } : null
+                }).filter((person): person is { userID: number | string; fullName: string } => person !== null),
                 // Assignment only puts the report in the selected IT user's
                 // queue. It becomes In Progress when that user takes action.
                 status: 'Pending',
@@ -1244,6 +1255,7 @@ function ManageAndAssign({
 
       setAssigningId(null)
       setSelectedPersonnelId('')
+      setSelectedSubIds([])
     } catch (err) {
       console.error(
         'Assignment error:',
@@ -1517,28 +1529,14 @@ function ManageAndAssign({
               <select
                 value={statusFilter}
                 onChange={e =>
-                  setStatusFilter(
-                    e.target.value as
-                      | 'All Statuses'
-                      | Status,
-                  )
+                  setStatusFilter(e.target.value)
                 }
               >
                 <option>
                   All Statuses
                 </option>
 
-                <option>
-                  Pending
-                </option>
-
-                <option>
-                  In Progress
-                </option>
-
-                <option>
-                  Resolved
-                </option>
+                {(systemOptions.incident_status ?? []).map(status => <option key={status}>{status}</option>)}
               </select>
             </label>
 
@@ -1546,17 +1544,11 @@ function ManageAndAssign({
               <select
                 value={severityFilter}
                 onChange={e =>
-                  setSeverityFilter(
-                    e.target.value as
-                      | 'All Severities'
-                      | Severity,
-                  )
+                  setSeverityFilter(e.target.value)
                 }
               >
                 <option>All Severities</option>
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
+                {(systemOptions.severity ?? []).map(severity => <option key={severity}>{severity}</option>)}
               </select>
             </label>
           </div>
@@ -1657,6 +1649,7 @@ function ManageAndAssign({
                             ) : (
                               'Unassigned'
                             )}
+                            {(i.subAssignments || []).length > 0 && <small className="maa-sub-assigned">SUB: {(i.subAssignments || []).map(sub => sub.fullName).join(', ')}</small>}
                           </span>
                         </td>
 
@@ -1756,14 +1749,15 @@ function ManageAndAssign({
             </p>
 
             <label className="maa-modal-field">
-              Personnel
+              Technician
 
               <select
                 value={selectedPersonnelId}
                 onChange={e =>
-                  setSelectedPersonnelId(
-                    e.target.value,
-                  )
+                  {
+                    setSelectedPersonnelId(e.target.value)
+                    setSelectedSubIds(current => current.filter(id => id !== e.target.value))
+                  }
                 }
                 disabled={
                   savingAssignment ||
@@ -1790,6 +1784,19 @@ function ManageAndAssign({
                 )}
               </select>
             </label>
+
+            <div className="maa-sub-picker">
+              <div className="maa-sub-picker-heading"><strong>SUB Technicians</strong><button type="button" className="maa-btn-secondary" onClick={() => setSelectedSubIds(current => [...current, ''])} disabled={savingAssignment}>+ Add SUB</button></div>
+              {selectedSubIds.map((subID, index) => (
+                <div className="maa-sub-row" key={`sub-${index}`}>
+                  <select value={subID} onChange={e => setSelectedSubIds(current => current.map((id, row) => row === index ? e.target.value : id))} disabled={savingAssignment}>
+                    <option value="">Select SUB technician</option>
+                    {itPersonnel.filter(person => person.status.toLowerCase() === 'active' && String(person.userID) !== selectedPersonnelId && (String(person.userID) === subID || !selectedSubIds.includes(String(person.userID)))).map(person => <option key={person.userID} value={String(person.userID)}>{person.fullName}</option>)}
+                  </select>
+                  <button type="button" className="maa-remove-sub" aria-label="Remove SUB" onClick={() => setSelectedSubIds(current => current.filter((_, row) => row !== index))} disabled={savingAssignment}>Remove</button>
+                </div>
+              ))}
+            </div>
 
             <div className="maa-modal-footer">
               <button
@@ -1848,9 +1855,7 @@ function ManageAndAssign({
                     disabled={savingSeverity}
                   >
                     <option value="" disabled>Select severity</option>
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
+                    {(systemOptions.severity ?? []).map(severity => <option key={severity} value={severity}>{severity}</option>)}
                   </select>
                 </label>
 
@@ -1873,366 +1878,7 @@ function ManageAndAssign({
         />
       )}
 
-      {false && viewingIncident && ((viewingIncident: Incident) => (
-        <div
-          className="maa-modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          onClick={closeView}
-        >
-          <div
-            className="maa-modal maa-modal--view"
-            onClick={e =>
-              e.stopPropagation()
-            }
-          >
-            <div className="maa-modal-header">
-              <div>
-                <h2>
-                  {viewingIncident.id}
-                </h2>
 
-                <div className="maa-view-header-meta">
-                  <span
-                    className={`tag ${
-                      getSeverityTagClass(viewingIncident.severity)
-                    }`}
-                  >
-                    {
-                      viewingIncident.severity
-                    }
-                  </span>
-
-                  <span className="maa-encoded-by">
-                    Encoded by{' '}
-                    <PersonName
-                      name={
-                        viewingIncident.encodedBy
-                      }
-                      compact
-                    />
-                  </span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                className="maa-modal-close"
-                aria-label="Close"
-                onClick={closeView}
-                disabled={savingSeverity}
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-
-            <div className="maa-view-divider" />
-
-            {/* Severity */}
-
-            <div className="maa-severity-control">
-              <div>
-                <span className="maa-severity-control-label">
-                  Select Severity Level{' '}
-                  <em>*</em>
-                </span>
-
-                <span className="maa-severity-hint">
-                  Use highlights only to show
-                  the selected priority.
-                </span>
-              </div>
-
-              <div
-                className="maa-severity-group"
-                role="radiogroup"
-                aria-label="Severity level"
-                aria-required="true"
-              >
-                {(
-                  [
-                    'Low',
-                    'Medium',
-                    'High',
-                  ] as Severity[]
-                ).map(level => (
-                  <button
-                    key={level}
-                    type="button"
-                    role="radio"
-                    aria-checked={
-                      selectedSeverity ===
-                      level
-                    }
-                    className={`maa-severity-btn maa-severity-btn--${level.toLowerCase()}${
-                      selectedSeverity ===
-                      level
-                        ? ' is-active'
-                        : ''
-                    }`}
-                    disabled={
-                      savingSeverity
-                    }
-                    onClick={() =>
-                      void updateSeverity(
-                        viewingIncident.id,
-                        level,
-                      )
-                    }
-                  >
-                    <strong>
-                      {level}
-                    </strong>
-
-                    <small>
-                      priority
-                    </small>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Problem */}
-
-            <div className="maa-problem-card">
-              <p className="maa-problem-label">
-                Problem Description
-              </p>
-
-              <p className="maa-problem-text">
-                {
-                  viewingIncident.description
-                }
-              </p>
-            </div>
-
-            {/* Incident Information */}
-
-            <section className="maa-disclosure-section">
-              <button
-                type="button"
-                className="maa-disclosure-button"
-                aria-expanded={
-                  detailsExpanded
-                }
-                aria-controls="incident-information"
-                onClick={() =>
-                  setDetailsExpanded(
-                    current => !current,
-                  )
-                }
-              >
-                <span className="maa-disclosure-title">
-                  <Icon name="eye" />
-                  Incident information
-                </span>
-
-                <span className="maa-disclosure-action">
-                  {detailsExpanded
-                    ? 'Hide details'
-                    : 'View details'}{' '}
-                  <b>
-                    {detailsExpanded
-                      ? '−'
-                      : '+'}
-                  </b>
-                </span>
-              </button>
-
-              {detailsExpanded && (
-                <div
-                  id="incident-information"
-                  className="maa-disclosure-content"
-                >
-                  <div className="maa-info-grid">
-                    <div className="maa-info-item">
-                      <span>
-                        Reporter
-                      </span>
-
-                      <strong>
-                        <PersonName
-                          name={
-                            viewingIncident.reporter
-                          }
-                        />
-                      </strong>
-                    </div>
-
-                    <div className="maa-info-item">
-                      <span>
-                        Employee ID
-                      </span>
-
-                      <strong>
-                        {
-                          viewingIncident.employeeId
-                        }
-                      </strong>
-                    </div>
-
-                    <div className="maa-info-item">
-                      <span>
-                        Department
-                      </span>
-
-                      <strong>
-                        {
-                          viewingIncident.department
-                        }
-                      </strong>
-                    </div>
-
-                    <div className="maa-info-item">
-                      <span>
-                        Location
-                      </span>
-
-                      <strong>
-                        {
-                          viewingIncident.location
-                        }
-                      </strong>
-                    </div>
-
-                    <div className="maa-info-item">
-                      <span>
-                        Device Type
-                      </span>
-
-                      <strong>
-                        {
-                          viewingIncident.deviceType
-                        }
-                      </strong>
-                    </div>
-
-                    <div className="maa-info-item">
-                      <span>
-                        Connection
-                      </span>
-
-                      <strong>
-                        {
-                          viewingIncident.connection
-                        }
-                      </strong>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </section>
-
-            {/* BatangAI Analysis */}
-
-            <section className="maa-disclosure-section maa-disclosure-section--analysis">
-              <button
-                type="button"
-                className="maa-disclosure-button"
-                aria-expanded={
-                  analysisExpanded
-                }
-                aria-controls="batangai-analysis"
-                onClick={() =>
-                  setAnalysisExpanded(
-                    current => !current,
-                  )
-                }
-              >
-                <span className="maa-disclosure-title">
-                  <Icon name="sparkle" />
-                  BatangAI Analysis
-                </span>
-
-                <span className="maa-disclosure-action">
-                  <small>
-                    {
-                      viewingIncident.aiDuration
-                    }
-                  </small>{' '}
-                  {analysisExpanded
-                    ? 'Hide analysis'
-                    : 'View analysis'}{' '}
-                  <b>
-                    {analysisExpanded
-                      ? '−'
-                      : '+'}
-                  </b>
-                </span>
-              </button>
-
-              {analysisExpanded && (
-                <div
-                  id="batangai-analysis"
-                  className="maa-ai-panel"
-                >
-                  <div className="maa-ai-panel-head">
-                    <span className="maa-ai-panel-title">
-                      Suggested diagnosis
-                    </span>
-
-                    <span className="maa-ai-duration">
-                      {
-                        viewingIncident.aiDuration
-                      }
-                    </span>
-                  </div>
-
-                  <p className="maa-ai-headline">
-                    {
-                      viewingIncident.aiClassification
-                    }
-                  </p>
-
-                  <p className="maa-ai-summary">
-                    {
-                      viewingIncident.aiSummary
-                    }
-                  </p>
-
-                  <p className="maa-ai-checklist-label">Basic Self-Help completed by employee</p>
-                  <ol className="maa-ai-steps">
-                    {viewingIncident.aiSteps.map(
-                      (step, index) => (
-                        <li
-                          key={`${viewingIncident.id}-${index}`}
-                          className={viewingIncident.aiCheckedSteps.includes(index) ? 'is-employee-checked' : ''}
-                        >
-                          <label>
-                            <input type="checkbox" checked={viewingIncident.aiCheckedSteps.includes(index)} readOnly />
-                            <span className="maa-ai-step-num">{index + 1}</span>
-                            <span>{step}</span>
-                          </label>
-                        </li>
-                      ),
-                    )}
-                  </ol>
-                </div>
-              )}
-            </section>
-
-            {/* Assignment */}
-
-            {!isIT && viewingIncident.status !== 'Resolved' && (
-              <button
-                type="button"
-                className="maa-assign-full"
-                onClick={() =>
-                  openAssign(
-                    viewingIncident.id,
-                  )
-                }
-              >
-                <Icon name="assign" />
-
-                {viewingIncident.assignedTo
-                  ? 'Reassign Technician'
-                  : 'Assign Technician'}
-              </button>
-            )}
-          </div>
-        </div>
-      ))(viewingIncident!)}
     </div>
   )
 }

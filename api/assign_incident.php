@@ -11,6 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 require_once "config.php";
+require_once "auth_tokens.php";
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -38,9 +39,12 @@ if (!$data) {
 
 $incidentID = trim($data['incidentID'] ?? '');
 $assignedTo = trim((string)($data['assignedTo'] ?? ''));
-$actorUserId = trim((string)($data['actorUserId'] ?? ''));
+$rawSubs = is_array($data['subUserIDs'] ?? null) ? $data['subUserIDs'] : [];
+$subUserIDs = array_values(array_unique(array_filter(array_map('strval', $rawSubs), fn($id) => $id !== '' && $id !== $assignedTo)));
+$sessionUser = require_role_session($conn, ['Administrator', 'Secretary'], 'Only an Administrator or Secretary may assign incidents.');
+if ($sessionUser === null) { $conn->close(); exit; }
 
-if ($incidentID === '' || $assignedTo === '' || $actorUserId === '') {
+if ($incidentID === '' || $assignedTo === '') {
     http_response_code(400);
 
     echo json_encode([
@@ -48,23 +52,6 @@ if ($incidentID === '' || $assignedTo === '' || $actorUserId === '') {
         "message" => "Incident ID, assigned personnel, and the current user are required."
     ]);
 
-    exit;
-}
-
-// Only an active Administrator or Secretary may assign a report. The role and
-// assignee name are looked up server-side so browser-provided values cannot
-// grant assignment access or corrupt the saved personnel record.
-$actorStmt = $conn->prepare('SELECT role, status FROM users WHERE userID = ? LIMIT 1');
-$actorStmt->bind_param('s', $actorUserId);
-$actorStmt->execute();
-$actor = $actorStmt->get_result()->fetch_assoc();
-$actorStmt->close();
-
-$actorRole = strtolower(trim((string)($actor['role'] ?? '')));
-if (!$actor || strtolower(trim((string)$actor['status'])) !== 'active' || !in_array($actorRole, ['admin', 'administrator', 'secretary'], true)) {
-    http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Only an Administrator or Secretary may assign incidents.']);
-    $conn->close();
     exit;
 }
 
@@ -83,6 +70,17 @@ if (!$personnel) {
 
 $assignedTo = (string)$personnel['userID'];
 $assignedToName = (string)$personnel['fullName'];
+
+foreach ($subUserIDs as $subID) {
+    if (!ctype_digit($subID)) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Invalid SUB technician selected.']); $conn->close(); exit; }
+}
+if ($subUserIDs) {
+    $placeholders = implode(',', array_fill(0, count($subUserIDs), '?'));
+    $check = $conn->prepare("SELECT userID FROM users WHERE userID IN ($placeholders) AND role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active'");
+    $check->bind_param(str_repeat('s', count($subUserIDs)), ...$subUserIDs); $check->execute();
+    $validSubs = $check->get_result()->num_rows; $check->close();
+    if ($validSubs !== count($subUserIDs)) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Every SUB must be an active Technician.']); $conn->close(); exit; }
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -111,7 +109,7 @@ $sql = "
         startedAt = NULL
     WHERE incidentID = ?
       AND status NOT IN ('Resolved', 'Closed')
-      AND severity IN ('High', 'Medium', 'Low', 'Critical')
+      AND severity IS NOT NULL AND TRIM(severity) <> ''
 ";
 
 $stmt = $conn->prepare($sql);
@@ -193,12 +191,28 @@ if ($stmt->affected_rows === 0) {
     }
 }
 
+$conn->begin_transaction();
+try {
+    $deleteSubs = $conn->prepare('DELETE FROM incident_sub_assignments WHERE incidentID = ?');
+    $deleteSubs->bind_param('s', $incidentID); $deleteSubs->execute(); $deleteSubs->close();
+    if ($subUserIDs) {
+        $insertSub = $conn->prepare('INSERT INTO incident_sub_assignments (incidentID, userID) VALUES (?, ?)');
+        foreach ($subUserIDs as $subID) { $insertSub->bind_param('ss', $incidentID, $subID); $insertSub->execute(); }
+        $insertSub->close();
+    }
+    $conn->commit();
+} catch (Throwable $e) {
+    $conn->rollback(); http_response_code(500); echo json_encode(['success'=>false,'message'=>'Incident assignment was saved, but SUB assignments could not be saved.']);
+    $stmt->close(); $conn->close(); exit;
+}
+
 echo json_encode([
     "success" => true,
     "message" => "Incident assigned successfully.",
     "incidentID" => $incidentID,
     "assignedTo" => $assignedTo,
     "assignedToName" => $assignedToName,
+    "subUserIDs" => $subUserIDs,
     "status" => "Pending"
 ]);
 

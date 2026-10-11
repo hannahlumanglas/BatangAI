@@ -581,7 +581,15 @@ body {
 .dashboard-content:has(.charts-grid) .bar-chart { height: 174px; margin-top: 8px; }
 .dashboard-content:has(.charts-grid) .y-axis,
 .dashboard-content:has(.charts-grid) .chart-plot { height: 140px; }
-.dashboard-content:has(.charts-grid) .bar-item span { bottom: -31px; font-size: 9px; }
+.dashboard-content:has(.charts-grid) .bar-item span {
+  z-index: 3;
+  bottom: -40px;
+  width: 84px;
+  padding-top: 3px;
+  background: var(--card-bg);
+  font-size: 9px;
+  line-height: 1.2;
+}
 .dashboard-content:has(.charts-grid) .severity-content { height: 174px; gap: 24px; }
 .dashboard-content:has(.charts-grid) .donut-chart { width: 106px; height: 106px; }
 .dashboard-content:has(.charts-grid) .donut-chart::after { inset: 27px; }
@@ -971,7 +979,7 @@ body {
 /* Login --------------------------------------------------------------- */
 
 .login-page {
-  background: url('../assets/background.png') center / cover no-repeat;
+  background: url('../assets/background.jpg') center / cover no-repeat;
 }
 
 .system-accent { background: linear-gradient(90deg, var(--primary), var(--primary-mint)); }
