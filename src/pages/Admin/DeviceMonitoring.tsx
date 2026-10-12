@@ -19,7 +19,8 @@ import './DeviceMonitoring.css'
 import './DeviceMonitoringOverrides.css'
 import { API_BASE_URL } from '../../apiConfig'
 import { useOffices } from '../../hooks/useOffices'
-import { useSystemOptions } from '../../hooks/useSystemOptions'
+
+const NETWORK_DEVICE_TYPES = ['Router', 'Switch', 'Access Point'] as const
 
 type IconName =
   | 'dashboard'
@@ -602,6 +603,7 @@ function DeviceCard({
   expanded,
   onToggle,
   onPing,
+  onEdit,
   onDelete,
   pinging,
   deleting,
@@ -610,6 +612,7 @@ function DeviceCard({
   expanded: boolean
   onToggle: () => void
   onPing: () => void
+  onEdit: () => void
   onDelete: () => void
   pinging: boolean
   deleting: boolean
@@ -736,6 +739,13 @@ function DeviceCard({
           </div>
           <div className="dm-card-actions">
             <button
+              className="dm-edit"
+              type="button"
+              onClick={onEdit}
+            >
+              Edit Device
+            </button>
+            <button
               className="dm-delete"
               type="button"
               disabled={deleting}
@@ -753,25 +763,34 @@ function DeviceCard({
 function AddDeviceModal({
   onClose,
   onAdd,
+  onEdit,
+  initialDevice,
   users,
 }: {
   onClose: () => void
   onAdd: (device: DeviceDraft) => Promise<void>
+  onEdit?: (deviceId: string, device: DeviceDraft) => Promise<void>
+  initialDevice?: Device
   users: UserOption[]
 }) {
   const { offices, loading: officesLoading } = useOffices()
-  const { options: systemOptions, loading: optionsLoading } = useSystemOptions()
-  const [name, setName] = useState('')
-  const [type, setType] = useState<DeviceType>('')
-  const selectedType = type || systemOptions.device_type?.[0] || ''
-  const [ip, setIp] = useState('')
-  const [mac, setMac] = useState('')
-  const [location, setLocation] = useState('')
-  const [department, setDepartment] = useState('')
+  const isEditing = Boolean(initialDevice)
+  const initialType = NETWORK_DEVICE_TYPES.find(
+    option => option === initialDevice?.type,
+  ) ?? NETWORK_DEVICE_TYPES[0]
+  const [name, setName] = useState(initialDevice?.name ?? '')
+  const [type, setType] = useState<(typeof NETWORK_DEVICE_TYPES)[number]>(initialType)
+  const selectedType = type || NETWORK_DEVICE_TYPES[0]
+  const [ip, setIp] = useState(initialDevice?.ip ?? '')
+  const [mac, setMac] = useState(initialDevice?.mac === '—' ? '' : initialDevice?.mac ?? '')
+  const [location, setLocation] = useState(initialDevice?.location ?? '')
+  const [department, setDepartment] = useState(initialDevice?.department ?? '')
   const selectedDepartment = department || offices[0] || ''
   const [assignedUserId, setAssignedUserId] =
-    useState('')
-  const [firmware, setFirmware] = useState('')
+    useState(String(initialDevice?.assignedUserId ?? ''))
+  const [firmware, setFirmware] = useState(
+    initialDevice?.firmware === '—' ? '' : initialDevice?.firmware ?? '',
+  )
   const [errors, setErrors] =
     useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
@@ -812,10 +831,6 @@ function AddDeviceModal({
       next.location = 'Location is required.'
     }
 
-    if (!firmware.trim()) {
-      next.firmware = 'Firmware version is required.'
-    }
-
     setErrors(next)
 
     return Object.keys(next).length === 0
@@ -829,7 +844,7 @@ function AddDeviceModal({
     setSaving(true)
 
     try {
-      await onAdd({
+      const device: DeviceDraft = {
         name: name.trim(),
         type: selectedType,
         ip: ip.trim(),
@@ -838,7 +853,13 @@ function AddDeviceModal({
         department: selectedDepartment,
         firmware: firmware.trim(),
         assignedUserId: assignedUserId || null,
-      })
+      }
+      if (initialDevice) {
+        if (!onEdit) throw new Error('Device editing is unavailable.')
+        await onEdit(initialDevice.id, device)
+      } else {
+        await onAdd(device)
+      }
     } catch (error) {
       setErrors({
         submit:
@@ -870,12 +891,13 @@ function AddDeviceModal({
         <div className="add-device-header">
           <div>
             <h2 id="add-device-title">
-              Add Device
+              {isEditing ? 'Edit Device' : 'Add Device'}
             </h2>
 
             <p>
-              Register a new device to start monitoring
-              it.
+              {isEditing
+                ? 'Update the registered device details.'
+                : 'Register a new device to start monitoring it.'}
             </p>
           </div>
 
@@ -932,15 +954,14 @@ function AddDeviceModal({
               <select
                 id="dev-type"
                 required
-                disabled={optionsLoading || !(systemOptions.device_type?.length)}
                 value={selectedType}
                 onChange={e =>
                   setType(
-                    e.target.value as DeviceType,
+                    e.target.value as (typeof NETWORK_DEVICE_TYPES)[number],
                   )
                 }
               >
-                {(systemOptions.device_type ?? []).map(t => (
+                {NETWORK_DEVICE_TYPES.map(t => (
                   <option key={t}>{t}</option>
                 ))}
               </select>
@@ -1087,26 +1108,18 @@ function AddDeviceModal({
                 className="dm-field-label"
                 htmlFor="dev-firmware"
               >
-                Firmware Version<em>*</em>
+                Firmware Version <span>(optional)</span>
               </label>
 
               <input
                 id="dev-firmware"
                 type="text"
                 placeholder="e.g. v4.2.1"
-                required
                 value={firmware}
                 onChange={e =>
                   setFirmware(e.target.value)
                 }
-                aria-invalid={!!errors.firmware}
               />
-
-              {errors.firmware && (
-                <span className="dm-field-error">
-                  {errors.firmware}
-                </span>
-              )}
             </div>
           </div>
 
@@ -1134,7 +1147,7 @@ function AddDeviceModal({
               className="btn-primary"
               disabled={saving}
             >
-              {saving ? 'Adding…' : 'Add Device'}
+              {isEditing ? 'Save Changes' : 'Add Device'}
             </button>
           </div>
         </form>
@@ -1271,6 +1284,7 @@ function DeviceMonitoring({
 
   const [showAddModal, setShowAddModal] =
     useState(false)
+  const [editingDevice, setEditingDevice] = useState<Device | null>(null)
 
   const [query, setQuery] = useState('')
 
@@ -1459,6 +1473,29 @@ function DeviceMonitoring({
     setExpandedId(data.device.id)
   }
 
+  const handleUpdateDevice = async (
+    deviceId: string,
+    device: DeviceDraft,
+  ) => {
+    const response = await fetch(DEVICES_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update', deviceID: deviceId, ...device }),
+    })
+    const data = await response.json() as {
+      success?: boolean
+      device?: Device
+      message?: string
+    }
+
+    if (!response.ok || !data.success || !data.device) {
+      throw new Error(data.message || 'Unable to update the device.')
+    }
+
+    setDeviceList(list => list.map(item => item.id === deviceId ? data.device! : item))
+    setEditingDevice(null)
+  }
+
   const pingDevice = async (device: Device) => {
     setPingingId(device.id)
     try {
@@ -1514,7 +1551,7 @@ function DeviceMonitoring({
             lastPingAt: result.lastPingAt ?? null,
           }
         : item))
-      window.alert(`${device.name}: ${result.status === 'online' ? 'Online' : 'Offline'}`)
+      window.alert(`${device.name}: ${result.message || (result.status === 'online' ? 'Online' : 'Offline')}`)
     } catch (error) {
       window.alert(error instanceof Error ? error.message : 'Unable to ping device.')
     } finally {
@@ -1750,6 +1787,7 @@ function DeviceMonitoring({
                   pinging={pingingId === device.id}
                   deleting={deletingId === device.id}
                   onDelete={() => void deleteDevice(device)}
+                  onEdit={() => setEditingDevice(device)}
                   onPing={() => void pingDevice(device)}
                   onToggle={() =>
                     setExpandedId(current =>
@@ -1771,6 +1809,15 @@ function DeviceMonitoring({
             setShowAddModal(false)
           }
           onAdd={handleAddDevice}
+          users={users}
+        />
+      )}
+      {editingDevice && (
+        <AddDeviceModal
+          onClose={() => setEditingDevice(null)}
+          onAdd={handleAddDevice}
+          onEdit={handleUpdateDevice}
+          initialDevice={editingDevice}
           users={users}
         />
       )}

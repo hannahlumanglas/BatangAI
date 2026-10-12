@@ -117,7 +117,40 @@ function formatUptime($uptimeSeconds) {
     return $minutes . 'm';
 }
 
-function pingHost($ip) {
+function normalizeMacAddress($mac) {
+    $normalized = strtolower(preg_replace('/[^0-9a-f]/i', '', (string)$mac));
+    return strlen($normalized) === 12 ? $normalized : '';
+}
+
+function getNeighborMacAddress($ip) {
+    if (!function_exists('exec')) return null;
+
+    if (PHP_OS_FAMILY === 'Windows') {
+        $neighborPath = getenv('SystemRoot') . '\\System32\\arp.exe';
+        if (!is_executable($neighborPath)) return null;
+        $command = escapeshellarg($neighborPath) . ' -a ' . escapeshellarg($ip);
+    } else {
+        $neighborPath = is_executable('/usr/sbin/ip')
+            ? '/usr/sbin/ip'
+            : (is_executable('/usr/bin/ip') ? '/usr/bin/ip' : null);
+        if ($neighborPath === null) return null;
+        $command = escapeshellarg($neighborPath) . ' neigh show ' . escapeshellarg($ip);
+    }
+
+    $output = [];
+    exec($command, $output);
+    $ipPattern = '/(?<![0-9.])' . preg_quote($ip, '/') . '(?![0-9.])/';
+    foreach ($output as $line) {
+        // Match the complete IP token so (for example) .1 cannot match .130.
+        if (!preg_match($ipPattern, $line)) continue;
+        if (preg_match('/(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}/i', $line, $matches)) {
+            return strtoupper(str_replace('-', ':', $matches[0]));
+        }
+    }
+    return null;
+}
+
+function pingHost($ip, $expectedMac) {
     if (!filter_var($ip, FILTER_VALIDATE_IP) || !function_exists('exec')) {
         return ['available' => false, 'reachable' => false, 'responseTimeMs' => null];
     }
@@ -130,20 +163,38 @@ function pingHost($ip) {
     $command = PHP_OS_FAMILY === 'Windows'
         ? escapeshellarg($pingPath) . ' -n 1 -w 2000 ' . escapeshellarg($ip)
         : escapeshellarg($pingPath) . ' -n -c 1 -W 2 ' . escapeshellarg($ip);
+    $pingReachable = false;
+    $responseTimeMs = null;
     for ($attempt = 0; $attempt < 2; $attempt++) {
         $output = [];
         $exitCode = 1;
         exec($command, $output, $exitCode);
         if ($exitCode === 0) {
+            $pingReachable = true;
             foreach ($output as $line) {
                 if (preg_match('/time[=<]\\s*([\\d.,]+)\\s*ms/i', $line, $matches)) {
-                    return ['available' => true, 'reachable' => true, 'responseTimeMs' => str_replace(',', '.', $matches[1])];
+                    $responseTimeMs = str_replace(',', '.', $matches[1]);
+                    break;
                 }
             }
-            return ['available' => true, 'reachable' => true, 'responseTimeMs' => null];
+            break;
         }
     }
-    return ['available' => true, 'reachable' => false, 'responseTimeMs' => null];
+    if (!$pingReachable) {
+        return ['available' => true, 'reachable' => false, 'pingReachable' => false, 'macAddress' => null, 'responseTimeMs' => null];
+    }
+
+    $actualMac = getNeighborMacAddress($ip);
+    $macMatches = $actualMac !== null
+        && normalizeMacAddress($actualMac) !== ''
+        && hash_equals(normalizeMacAddress($expectedMac), normalizeMacAddress($actualMac));
+    return [
+        'available' => true,
+        'reachable' => $macMatches,
+        'pingReachable' => true,
+        'macAddress' => $actualMac,
+        'responseTimeMs' => $macMatches ? $responseTimeMs : null,
+    ];
 }
 
 function deviceFromRow($row) {
@@ -232,7 +283,7 @@ if ($action === 'ping') {
         respond(['success' => false, 'message' => 'Device ID is required.'], 400);
     }
 
-    $lookup = $conn->prepare('SELECT ipAddress, name, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1');
+    $lookup = $conn->prepare('SELECT ipAddress, macAddress, name, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1');
     $lookup->bind_param('s', $deviceId);
     $lookup->execute();
     $deviceRow = $lookup->get_result()->fetch_assoc();
@@ -242,7 +293,7 @@ if ($action === 'ping') {
         respond(['success' => false, 'message' => 'Device not found.'], 404);
     }
 
-    $probeResult = pingHost($deviceRow['ipAddress']);
+    $probeResult = pingHost($deviceRow['ipAddress'], $deviceRow['macAddress']);
     if (!$probeResult['available']) {
         $conn->close();
         respond(['success' => false, 'message' => 'Ping is unavailable on this server.'], 501);
@@ -288,7 +339,13 @@ if ($action === 'ping') {
         'responseTimeMs' => $responseTime,
         'lastSeen' => $savedResult['lastSeen'],
         'lastPingAt' => $savedResult['lastPingAt'],
-        'message' => $reachable ? 'Reachable.' : 'Timeout after 2 attempts.',
+        'message' => $reachable
+            ? 'IP and MAC address match.'
+            : ($probeResult['pingReachable']
+                ? ($probeResult['macAddress']
+                    ? 'The IP responded, but its MAC address does not match the registered device.'
+                    : 'The IP responded, but its MAC address could not be verified.')
+                : 'No ping response after 2 attempts.'),
     ]);
 }
 
@@ -315,9 +372,15 @@ if ($action === 'delete') {
     respond(['success' => true, 'message' => 'Device deleted.']);
 }
 
-if ($action !== 'add') {
+if (!in_array($action, ['add', 'update'], true)) {
     $conn->close();
     respond(['success' => false, 'message' => 'Invalid device request.'], 400);
+}
+
+$deviceId = trim((string)($data['deviceID'] ?? ''));
+if ($action === 'update' && $deviceId === '') {
+    $conn->close();
+    respond(['success' => false, 'message' => 'Device ID is required.'], 400);
 }
 
 $name = trim((string)($data['name'] ?? ''));
@@ -331,9 +394,13 @@ $department = trim((string)($data['department'] ?? ''));
 $firmware = trim((string)($data['firmware'] ?? ''));
 $assignedUserId = trim((string)($data['assignedUserId'] ?? ''));
 
-if ($name === '' || $location === '' || $department === '' || $firmware === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
+if ($name === '' || $location === '' || $department === '' || !filter_var($ip, FILTER_VALIDATE_IP)) {
     $conn->close();
-    respond(['success' => false, 'message' => 'Please provide a device name, valid IP address, location, department, and firmware version.'], 400);
+    respond(['success' => false, 'message' => 'Please provide a device name, valid IP address, location, and department.'], 400);
+}
+if (!in_array($type, ['Router', 'Switch', 'Access Point'], true)) {
+    $conn->close();
+    respond(['success' => false, 'message' => 'Select Router, Switch, or Access Point.'], 400);
 }
 if (!is_active_catalog_value($conn, 'device_type', $type)) {
     $conn->close();
@@ -370,6 +437,30 @@ if ($assignedUserId !== '') {
 }
 
 $assignedUser = $assignedUserId === '' ? null : (int)$assignedUserId;
+if ($action === 'update') {
+    $lookup = $conn->prepare('SELECT deviceID FROM devices WHERE deviceID = ? LIMIT 1');
+    if (!$lookup) { $conn->close(); respond(['success' => false, 'message' => 'Unable to find the device.'], 500); }
+    $lookup->bind_param('s', $deviceId);
+    $lookup->execute();
+    $exists = $lookup->get_result()->num_rows > 0;
+    $lookup->close();
+    if (!$exists) { $conn->close(); respond(['success' => false, 'message' => 'Device not found.'], 404); }
+
+    $update = $conn->prepare("UPDATE devices SET name = ?, type = ?, ipAddress = ?, macAddress = NULLIF(?, ''), location = ?, department = ?, firmware = NULLIF(?, ''), assignedUserId = ? WHERE deviceID = ?");
+    if (!$update) { $conn->close(); respond(['success' => false, 'message' => 'Unable to prepare the device update.'], 500); }
+    $update->bind_param('sssssssis', $name, $type, $ip, $mac, $location, $department, $firmware, $assignedUser, $deviceId);
+    if (!$update->execute()) {
+        $databaseError = $update->errno;
+        $update->close();
+        $conn->close();
+        respond(['success' => false, 'message' => $databaseError === 1062 ? 'A device already uses that IP address.' : 'Unable to update the device.'], $databaseError === 1062 ? 409 : 500);
+    }
+    $update->close();
+    $device = fetchDevice($conn, $deviceId);
+    $conn->close();
+    respond(['success' => true, 'device' => $device]);
+}
+
 $stmt = $conn->prepare("INSERT INTO devices (name, type, status, ipAddress, macAddress, location, department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs, lastPingAt, lastSeen) VALUES (?, ?, ?, ?, NULLIF(?, ''), ?, ?, NULLIF(?, ''), ?, ?, NULL, NULL, NULL)");
 $stmt->bind_param('ssssssssis', $name, $type, $status, $ip, $mac, $location, $department, $firmware, $assignedUser, $monitoringStatus);
 if (!$stmt->execute()) {

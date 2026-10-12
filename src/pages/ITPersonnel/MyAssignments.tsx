@@ -789,16 +789,21 @@ function MyAssignments() {
     }
   }
 
-  const openResolution = (ticket: Ticket) => {
+  const viewTicket = (ticket: Ticket) => {
+    setSelected(ticket)
+    setResolutionNotes(ticket.resolutionNotes || ticket.incidentDetail.resolutionNotes || '')
+  }
+
+  const openResolution = (ticket: Ticket, preserveDraft = false) => {
     const technicianSteps = parseTechnicianSteps(ticket.troubleshooting || '')
     if (!technicianSteps.length || ticket.technicianCheckedSteps.length !== technicianSteps.length) {
       alert('Please complete every technician troubleshooting step in View Report & AI before resolving this incident.')
       return
     }
     setResolutionTicket(ticket)
-    setResolutionNotes(
-      ticket.resolutionNotes || '',
-    )
+    if (!preserveDraft) {
+      setResolutionNotes(ticket.resolutionNotes || ticket.incidentDetail.resolutionNotes || '')
+    }
   }
 
   const closeResolution = () => {
@@ -900,6 +905,13 @@ function MyAssignments() {
                   resolvedIncident.resolvedBy ||
                   currentUserName,
                 resolvedAt,
+                incidentDetail: {
+                  ...ticket.incidentDetail,
+                  resolutionNotes: notes,
+                  resolvedBy: resolvedIncident.resolvedBy || currentUserName,
+                  resolvedAt,
+                  durationMinutes: durationMinutes ?? ticket.incidentDetail.durationMinutes,
+                },
                 duration:
                   updatedDuration,
               }
@@ -918,6 +930,13 @@ function MyAssignments() {
                 resolvedIncident.resolvedBy ||
                 currentUserName,
               resolvedAt,
+              incidentDetail: {
+                ...current.incidentDetail,
+                resolutionNotes: notes,
+                resolvedBy: resolvedIncident.resolvedBy || currentUserName,
+                resolvedAt,
+                durationMinutes: durationMinutes ?? current.incidentDetail.durationMinutes,
+              },
               duration:
                 updatedDuration,
             }
@@ -1109,7 +1128,7 @@ function MyAssignments() {
                   title={`Assigned to Me (${available.length})`}
                   tone="available"
                   tickets={available}
-                  onView={setSelected}
+                  onView={viewTicket}
                   onTakeAction={takeAction}
                   onResolve={openResolution}
                   actionLoading={actionLoading}
@@ -1122,7 +1141,7 @@ function MyAssignments() {
                   title={`In Progress (${inProgress.length})`}
                   tone="in-progress"
                   tickets={inProgress}
-                  onView={setSelected}
+                  onView={viewTicket}
                   onTakeAction={takeAction}
                   onResolve={openResolution}
                   actionLoading={actionLoading}
@@ -1135,7 +1154,7 @@ function MyAssignments() {
                   title={`Resolved by Me (${solved.length})`}
                   tone="solved"
                   tickets={solved}
-                  onView={setSelected}
+                  onView={viewTicket}
                   onTakeAction={takeAction}
                   onResolve={openResolution}
                   actionLoading={actionLoading}
@@ -1154,10 +1173,12 @@ function MyAssignments() {
             setSelected(null)
           }
           onTakeAction={takeAction}
-          onResolve={openResolution}
+          onResolve={(ticket) => openResolution(ticket, true)}
           onTechnicianStepChange={(index, checked) => updateTechnicianStep(selected.id, index, checked)}
           actionLoading={actionLoading}
           resolutionLoading={resolutionLoading}
+          resolutionNotesDraft={resolutionNotes}
+          onResolutionNotesDraftChange={setResolutionNotes}
         />
       )}
 
@@ -1303,14 +1324,18 @@ function ReportModal({
   onTechnicianStepChange,
   actionLoading,
   resolutionLoading,
+  resolutionNotesDraft,
+  onResolutionNotesDraftChange,
 }: {
   ticket: Ticket
   onClose: () => void
   onTakeAction: (id: string) => void
-  onResolve: (ticket: Ticket) => void
+  onResolve: (ticket: Ticket, preserveDraft?: boolean) => void
   onTechnicianStepChange: (index: number, checked: boolean) => void
   actionLoading: string | null
   resolutionLoading: boolean
+  resolutionNotesDraft: string
+  onResolutionNotesDraftChange: (value: string) => void
 }) {
   const footer =
     ticket.status === 'available' ? (
@@ -1327,7 +1352,7 @@ function ReportModal({
         className="btn-primary"
         type="button"
         disabled={resolutionLoading}
-        onClick={() => onResolve(ticket)}
+        onClick={() => onResolve(ticket, true)}
       >
         Resolve Incident
       </button>
@@ -1342,6 +1367,8 @@ function ReportModal({
       showTechnicianChecklist
       checkedTechnicianSteps={ticket.technicianCheckedSteps}
       onTechnicianStepChange={onTechnicianStepChange}
+      resolutionNotesDraft={ticket.status === 'in-progress' ? resolutionNotesDraft : undefined}
+      onResolutionNotesDraftChange={ticket.status === 'in-progress' ? onResolutionNotesDraftChange : undefined}
     />
   )
 }

@@ -52,7 +52,6 @@ type CreateUserRole =
 
 type CreateUserForm = {
   fullName: string
-  employeeId: string
   department: string
   email: string
   role: CreateUserRole
@@ -675,11 +674,9 @@ function UserDetails({
 function CreateUserModal({
   onClose,
   onCreated,
-  users,
 }: {
   onClose: () => void
   onCreated: (user: User) => void
-  users: User[]
 }) {
   const { offices, loading: officesLoading, error: officesError } = useOffices()
   const { options: systemOptions } = useSystemOptions()
@@ -687,7 +684,6 @@ function CreateUserModal({
   const [form, setForm] =
     useState<CreateUserForm>({
       fullName: '',
-      employeeId: '',
       department: '',
       email: '',
       role: 'Employee',
@@ -699,11 +695,6 @@ function CreateUserModal({
     useState('')
   const [submitting, setSubmitting] =
     useState(false)
-  const duplicateEmployeeId = users.some(
-    user =>
-      normalizeEmployeeId(user.employeeId) ===
-      normalizeEmployeeId(form.employeeId),
-  )
   const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false)
   const [departmentOpen, setDepartmentOpen] =
@@ -783,7 +774,6 @@ function CreateUserModal({
     }
     if (
       !form.fullName.trim() ||
-      !form.employeeId.trim() ||
       !form.department.trim() ||
       !form.email.trim() ||
       !form.password ||
@@ -792,10 +782,6 @@ function CreateUserModal({
       setError(
         'Please complete all required fields.',
       )
-      return
-    }
-    if (duplicateEmployeeId) {
-      setError('This Employee ID is already registered. Use a unique Employee ID.')
       return
     }
     if (!offices.includes(form.department.trim())) {
@@ -841,8 +827,6 @@ function CreateUserModal({
           body: JSON.stringify({
             fullName:
               form.fullName.trim(),
-            employeeId:
-              form.employeeId.trim(),
             department:
               form.department.trim(),
             email:
@@ -867,14 +851,13 @@ function CreateUserModal({
       const newUser: User = {
         id: String(
           created.userID ??
-            created.employeeId ??
-            form.employeeId.trim(),
+            created.employeeId,
         ),
         userID:
           created.userID,
         employeeId:
           created.employeeId ??
-          form.employeeId.trim(),
+          `EMP-${String(created.userID).padStart(4, '0')}`,
         name:
           created.fullName ??
           form.fullName.trim(),
@@ -996,24 +979,11 @@ function CreateUserModal({
 
             <input
               type="text"
-              value={form.employeeId}
-              onChange={e =>
-                updateField(
-                  'employeeId',
-                  e.target.value,
-                )
-              }
-              placeholder="e.g. EMP-004"
+              value="Automatically assigned when saved"
               autoComplete="off"
-              disabled={submitting}
-              aria-invalid={duplicateEmployeeId}
-              required
+              readOnly
+              aria-readonly="true"
             />
-            {duplicateEmployeeId && (
-              <small className="um-form-error" role="alert">
-                This Employee ID is already registered. Enter a unique ID.
-              </small>
-            )}
           </label>
           <div className="um-field" ref={departmentRef}>
             <span>
@@ -1271,7 +1241,7 @@ function CreateUserModal({
             <button
               type="submit"
               className="um-btn-primary"
-              disabled={submitting || duplicateEmployeeId}
+              disabled={submitting}
             >
               {submitting
                 ? 'Creating Account...'
@@ -2151,7 +2121,6 @@ function UserManagement() {
             setShowCreateUser(false)
           }
           onCreated={handleUserCreated}
-          users={users}
         />
       )}
     </div>

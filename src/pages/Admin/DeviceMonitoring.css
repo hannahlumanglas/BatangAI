@@ -47,7 +47,9 @@
 .dm-ping { padding:6px 12px; color:var(--primary); font:inherit; font-size:var(--font-secondary); font-weight:700; background:var(--card-bg); border:1px solid var(--border-color); border-radius:7px; cursor:pointer; }
 .dm-ping:hover:not(:disabled) { background:var(--hover-bg); }
 .dm-ping:disabled { opacity:.65; cursor:wait; }
-.dm-card-actions { display:flex; justify-content:flex-end; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-color); }
+.dm-card-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:16px; padding-top:14px; border-top:1px solid var(--border-color); }
+.dm-edit { padding:8px 14px; color:var(--primary); font:inherit; font-size:var(--font-secondary); font-weight:700; background:var(--card-bg); border:1px solid var(--primary); border-radius:7px; cursor:pointer; }
+.dm-edit:hover { color:#fff; background:var(--primary); }
 .dm-delete { padding:8px 14px; color:var(--danger); font:inherit; font-size:var(--font-secondary); font-weight:700; background:var(--card-bg); border:1px solid var(--danger); border-radius:7px; cursor:pointer; }
 .dm-delete:hover:not(:disabled) { color:#fff; background:var(--danger); }
 .dm-delete:disabled { opacity:.65; cursor:wait; }

@@ -976,12 +976,11 @@ async function createUser(req: VercelRequest, res: VercelResponse): Promise<void
     return
   }
   const fullName = text(data.fullName)
-  const employeeId = text(data.employeeId)
   const department = text(data.department)
   const email = text(data.email).toLowerCase()
   const password = typeof data.password === 'string' ? data.password : ''
   const role = text(data.role)
-  if (!fullName || !employeeId || !department || !email || !password || !role) {
+  if (!fullName || !department || !email || !password || !role) {
     errorResponse(res, 'Please complete all required fields.')
     return
   }
@@ -1013,20 +1012,36 @@ async function createUser(req: VercelRequest, res: VercelResponse): Promise<void
     errorResponse(res, 'An account with this email already exists.', 409)
     return
   }
-  const duplicateEmployee = await getRow<RowDataPacket>(
-    'SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) LIMIT 1',
-    [employeeId],
-  )
-  if (duplicateEmployee) {
-    errorResponse(res, 'This Employee ID is already registered.', 409)
-    return
+  const connection = await getPool().getConnection()
+  let userID = 0
+  let employeeId = ''
+  try {
+    await connection.beginTransaction()
+    const pendingEmployeeId = `__PENDING__${randomBytes(16).toString('hex')}`
+    const [result] = await connection.execute<ResultSetHeader>(
+      `INSERT INTO users (dateCreated, department, email, employeeId, fullName, password, role, status)
+       VALUES (NOW(), ?, ?, ?, ?, ?, ?, 'Active')`,
+      [department, email, pendingEmployeeId, fullName, await hashPassword(password), role === 'Administrator' ? 'Admin' : role],
+    )
+    userID = result.insertId
+    const employeeIdBase = `EMP-${String(userID).padStart(4, '0')}`
+    employeeId = employeeIdBase
+    for (let suffix = 1; ; suffix += 1) {
+      const [matches] = await connection.execute<RowDataPacket[]>(
+        'SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) LIMIT 1',
+        [employeeId],
+      )
+      if (matches.length === 0) break
+      employeeId = `${employeeIdBase}-${suffix}`
+    }
+    await connection.execute('UPDATE users SET employeeId = ? WHERE userID = ?', [employeeId, userID])
+    await connection.commit()
+  } catch (error) {
+    await connection.rollback()
+    throw error
+  } finally {
+    connection.release()
   }
-  const [result] = await getPool().execute<ResultSetHeader>(
-    `INSERT INTO users (dateCreated, department, email, employeeId, fullName, password, role, status)
-     VALUES (NOW(), ?, ?, ?, ?, ?, ?, 'Active')`,
-    [department, email, employeeId, fullName, await hashPassword(password), role === 'Administrator' ? 'Admin' : role],
-  )
-  const userID = result.insertId
   const created = await getRow<RowDataPacket & { dateCreated: string }>(
     'SELECT dateCreated FROM users WHERE userID = ? LIMIT 1',
     [userID],
@@ -1384,7 +1399,9 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
       lastPingAt: pingRequest.completedAt,
       message: pingRequest.status === 'pending'
         ? 'Waiting for the network monitoring agent.'
-        : pingRequest.reachable ? 'Reachable from the device network.' : 'No ping response from the device.',
+        : pingRequest.reachable
+          ? 'The probed IP and detected MAC match the registered device.'
+          : 'The device is offline, the probed IP differs, or the detected MAC does not match.',
     })
     return
   }
@@ -1401,8 +1418,12 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
     send(res, 200, { success: true, message: 'Device deleted.' })
     return
   }
-  if (action !== 'add') {
+  if (!['add', 'update'].includes(action)) {
     errorResponse(res, 'Invalid device request.')
+    return
+  }
+  if (action === 'update' && !deviceID) {
+    errorResponse(res, 'Device ID is required.')
     return
   }
   const name = text(data.name)
@@ -1413,8 +1434,12 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
   const department = text(data.department)
   const firmware = text(data.firmware)
   const assignedUserId = text(data.assignedUserId)
-  if (!name || !location || !department || !firmware || !isIP(ip)) {
-    errorResponse(res, 'Please provide a device name, valid IP address, location, department, and firmware version.')
+  if (!name || !location || !department || !isIP(ip)) {
+    errorResponse(res, 'Please provide a device name, valid IP address, location, and department.')
+    return
+  }
+  if (!['Router', 'Switch', 'Access Point'].includes(type)) {
+    errorResponse(res, 'Select Router, Switch, or Access Point.')
     return
   }
   const office = await getRow<RowDataPacket & { officeID: number }>(
@@ -1447,13 +1472,44 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
       return
     }
   }
+  if (action === 'update') {
+    const existing = await getRow<RowDataPacket>(
+      'SELECT deviceID FROM devices WHERE deviceID = ? LIMIT 1',
+      [deviceID],
+    )
+    if (!existing) {
+      errorResponse(res, 'Device not found.', 404)
+      return
+    }
+    try {
+      await execute(
+        `UPDATE devices SET name = ?, deviceType = ?, ipAddress = ?, macAddress = ?,
+           location = ?, department = ?, firmware = ?, assignedUserId = ?
+         WHERE deviceID = ?`,
+        [name, type, ip, mac, location, department, firmware || null, assignedUserId || null, deviceID],
+      )
+      const updated = await getRow<RowDataPacket>(
+        `SELECT d.*, u.fullName AS assignedUserName FROM devices d
+         LEFT JOIN users u ON u.userID = d.assignedUserId WHERE d.deviceID = ? LIMIT 1`,
+        [deviceID],
+      )
+      send(res, 200, { success: true, device: updated ? formatDevice(updated) : null })
+    } catch (error) {
+      if (isRecord(error) && error.code === 'ER_DUP_ENTRY') {
+        errorResponse(res, 'A device already uses that IP address.', 409)
+        return
+      }
+      throw error
+    }
+    return
+  }
   try {
     const [insert] = await getPool().execute<ResultSetHeader>(
       `INSERT INTO devices (name, deviceType, status, ipAddress, macAddress, location,
          department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs,
          lastPingAt, lastSeen)
        VALUES (?, ?, 'offline', ?, ?, ?, ?, ?, ?, 'unknown', NULL, NULL, NULL)`,
-      [name, type, ip, mac, location, department, firmware, assignedUserId || null],
+      [name, type, ip, mac, location, department, firmware || null, assignedUserId || null],
     )
     const insertedId = insert.insertId
     const id = `DEV-${String(insertedId).padStart(3, '0')}`
@@ -1507,7 +1563,7 @@ async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<voi
   if (req.method === 'GET') {
     await ensureDevicePingTable()
     const rows = await getRows<RowDataPacket>(
-      'SELECT deviceID, ipAddress FROM devices ORDER BY createdAt ASC, id ASC',
+      'SELECT deviceID, ipAddress, macAddress FROM devices ORDER BY createdAt ASC, id ASC',
     )
     const requestedRows = await getRows<RowDataPacket>(
       `SELECT DISTINCT deviceID FROM device_ping_requests
@@ -1515,7 +1571,11 @@ async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<voi
     )
     send(res, 200, {
       success: true,
-      devices: rows.map((row) => ({ deviceID: row.deviceID, ipAddress: row.ipAddress })),
+      devices: rows.map((row) => ({
+        deviceID: row.deviceID,
+        ipAddress: row.ipAddress,
+        macAddress: row.macAddress,
+      })),
       requestedDeviceIDs: requestedRows.map((row) => row.deviceID),
     })
     return
@@ -1527,25 +1587,36 @@ async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<voi
 
   const data = json(req)
   const deviceID = text(data?.deviceID)
-  if (!deviceID || typeof data?.reachable !== 'boolean') {
-    errorResponse(res, 'A device ID and reachability result are required.')
+  const reportedIpAddress = text(data?.ipAddress)
+  if (!deviceID || !reportedIpAddress || typeof data?.reachable !== 'boolean') {
+    errorResponse(res, 'A device ID, probed IP address, and reachability result are required.')
     return
   }
-  const responseTime = data.reachable && typeof data.responseTimeMs === 'number'
-    && Number.isFinite(data.responseTimeMs) && data.responseTimeMs >= 0
-    ? String(Math.round(data.responseTimeMs * 100) / 100)
-    : null
-  const status = data.reachable ? 'online' : 'offline'
+  const neighborMacAddress = text(data.neighborMacAddress)
   await ensureDevicePingTable()
   await ensureDeviceStatusHistoryTable()
   const currentDevice = await getRow<RowDataPacket>(
-    'SELECT deviceID, name, ipAddress, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1',
+    'SELECT deviceID, name, ipAddress, macAddress, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1',
     [deviceID],
   )
   if (!currentDevice) {
     errorResponse(res, 'Device not found.', 404)
     return
   }
+  const normalizeMac = (value: unknown) => text(value).replace(/[^0-9a-f]/gi, '').toLowerCase()
+  const registeredMac = normalizeMac(currentDevice.macAddress)
+  const ipMatches = reportedIpAddress === text(currentDevice.ipAddress)
+  const macMatches = registeredMac.length === 12
+    && normalizeMac(neighborMacAddress) === registeredMac
+  const reachable = data.reachable
+    && ipMatches
+    && registeredMac.length === 12
+    && macMatches
+  const responseTime = reachable && typeof data.responseTimeMs === 'number'
+    && Number.isFinite(data.responseTimeMs) && data.responseTimeMs >= 0
+    ? String(Math.round(data.responseTimeMs * 100) / 100)
+    : null
+  const status = reachable ? 'online' : 'offline'
   const previousEvent = await getRow<RowDataPacket>(
     `SELECT status FROM device_status_history
      WHERE deviceID = ? ORDER BY checkedAt DESC, id DESC LIMIT 1`,
@@ -1577,9 +1648,20 @@ async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<voi
     `UPDATE device_ping_requests
      SET status = 'complete', reachable = ?, responseTimeMs = ?, completedAt = CURRENT_TIMESTAMP
      WHERE deviceID = ? AND status = 'pending'`,
-    [data.reachable ? 1 : 0, responseTime, deviceID],
+    [reachable ? 1 : 0, responseTime, deviceID],
   )
-  send(res, 200, { success: true, status, responseTimeMs: responseTime })
+  send(res, 200, {
+    success: true,
+    status,
+    responseTimeMs: responseTime,
+    message: reachable
+      ? 'The probed IP and detected MAC match the registered device.'
+      : !ipMatches
+        ? 'The monitoring agent probed a different IP address than the one registered for this device.'
+        : !data.reachable
+          ? 'The registered IP did not respond to ping.'
+          : 'The IP responded, but its detected MAC address does not match the registered MAC.',
+  })
 }
 
 async function ensureDeviceStatusHistoryTable(): Promise<void> {

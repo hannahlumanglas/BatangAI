@@ -80,14 +80,58 @@ function ping(ipAddress) {
   })
 }
 
+function getNeighborMacAddress(ipAddress) {
+  return new Promise((resolve) => {
+    const isWindows = process.platform === 'win32'
+    const executable = isWindows ? 'arp.exe' : 'ip'
+    const args = isWindows ? ['-a', ipAddress] : ['neigh', 'show', ipAddress]
+    let output = ''
+    let finished = false
+    let child
+    const finish = (macAddress) => {
+      if (finished) return
+      finished = true
+      clearTimeout(timeout)
+      resolve(macAddress)
+    }
+    const timeout = setTimeout(() => {
+      child?.kill()
+      finish(null)
+    }, 2_000)
+
+    try {
+      child = spawn(executable, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+      child.stdout.setEncoding('utf8')
+      child.stderr.setEncoding('utf8')
+      child.stdout.on('data', (chunk) => { output += chunk })
+      child.stderr.on('data', (chunk) => { output += chunk })
+      child.on('error', () => finish(null))
+      child.on('close', () => {
+        const escapedIp = ipAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const ipPattern = new RegExp(`(?<![\\d.])${escapedIp}(?![\\d.])`)
+        const line = output.split(/\r?\n/).find((item) => ipPattern.test(item)) ?? ''
+        const match = line.match(/(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}/i)
+        finish(match ? match[0].replaceAll('-', ':').toUpperCase() : null)
+      })
+    } catch {
+      finish(null)
+    }
+  })
+}
+
 async function monitorDevice(device) {
   const result = await ping(device.ipAddress)
+  const neighborMacAddress = result.reachable
+    ? await getNeighborMacAddress(device.ipAddress)
+    : null
   await request({
     method: 'POST',
     body: JSON.stringify({
       deviceID: device.deviceID,
+      ipAddress: device.ipAddress,
       reachable: result.reachable,
       responseTimeMs: result.responseTimeMs,
+      neighborMacAddress,
     }),
   })
 }

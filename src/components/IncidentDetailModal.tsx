@@ -36,6 +36,8 @@ type Props = {
   showTechnicianChecklist?: boolean
   checkedTechnicianSteps?: number[]
   onTechnicianStepChange?: (index: number, checked: boolean) => void
+  resolutionNotesDraft?: string
+  onResolutionNotesDraftChange?: (value: string) => void
 }
 
 function displayTroubleshooting(value: IncidentDetail['troubleshooting']) {
@@ -67,7 +69,7 @@ function formatIncidentDateTime(value: string | null | undefined) {
   }).format(parsed)
 }
 
-export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChecklist = false, showTechnicianChecklist = false, checkedTechnicianSteps = [], onTechnicianStepChange }: Props) {
+export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChecklist = false, showTechnicianChecklist = false, checkedTechnicianSteps = [], onTechnicianStepChange, resolutionNotesDraft, onResolutionNotesDraftChange }: Props) {
   const duration = displayDuration(incident.durationMinutes)
   const troubleshooting = displayTroubleshooting(incident.troubleshooting)
   const checkedMatch = troubleshooting.match(/\[Employee checked self-help steps: ([^\]]*)\]/i)
@@ -91,9 +93,6 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
   ]
     .filter(([, value]) => typeof value === 'string' && value.trim() !== '')
     .map(([label, value]) => `${label}: ${value}`)
-  if (keywords.length) {
-    keywordExtraction.push(`Extracted terms: ${keywords.join(', ')}`)
-  }
   // A confirmed employee resolution means every suggested self-help step was
   // completed, including reports created before check data was saved.
   const resolvedByReporter = Boolean(incident.resolvedBy && incident.employeeName && incident.resolvedBy.trim() === incident.employeeName.trim())
@@ -149,6 +148,16 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
                   })}
                 </ul> : <p>No technician troubleshooting steps were generated.</p>}
               </div>}
+          {onResolutionNotesDraftChange && <div className="incident-ai-block incident-resolution-notes-editor">
+            <label htmlFor="incident-resolution-notes">Resolution Notes</label>
+            <textarea
+              id="incident-resolution-notes"
+              value={resolutionNotesDraft || ''}
+              onChange={event => onResolutionNotesDraftChange(event.target.value)}
+              placeholder="Describe the troubleshooting performed and how the issue was resolved."
+              rows={4}
+            />
+          </div>}
             </section>
           )}
 

@@ -32,7 +32,7 @@ if (!require_admin_session($conn)) {
 $data = json_decode(file_get_contents("php://input"), true);
 
 $fullName = trim($data["fullName"] ?? "");
-$employeeId = trim($data["employeeId"] ?? "");
+$employeeId = "";
 $department = trim($data["department"] ?? "");
 $email = strtolower(trim((string)($data["email"] ?? "")));
 $password = $data["password"] ?? "";
@@ -46,7 +46,6 @@ $role = trim($data["role"] ?? "");
 
 if (
     $fullName === "" ||
-    $employeeId === "" ||
     $department === "" ||
     $email === "" ||
     $password === "" ||
@@ -171,37 +170,6 @@ $stmt->close();
 
 /*
  * ---------------------------------------------------------
- * 7. Check duplicate Employee ID
- * ---------------------------------------------------------
- */
-
-$stmt = $conn->prepare("
-    SELECT userID
-    FROM users
-    WHERE LOWER(TRIM(employeeId)) = LOWER(?)
-    LIMIT 1
-");
-
-$stmt->bind_param("s", $employeeId);
-$stmt->execute();
-
-$result = $stmt->get_result();
-
-if ($result->num_rows > 0) {
-    http_response_code(409);
-    echo json_encode([
-        "success" => false,
-        "message" => "This Employee ID is already registered."
-    ]);
-    $stmt->close();
-    $conn->close();
-    exit;
-}
-
-$stmt->close();
-
-/*
- * ---------------------------------------------------------
  * 8. Hash password
  * ---------------------------------------------------------
  */
@@ -216,6 +184,8 @@ $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
 $status = "Active";
 $databaseRole = $role === "IT Personnel" ? "IT Support" : $role;
+$pendingEmployeeId = "__PENDING__" . bin2hex(random_bytes(16));
+$conn->begin_transaction();
 
 $stmt = $conn->prepare("
     INSERT INTO users (
@@ -244,7 +214,7 @@ $stmt->bind_param(
     "sssssss",
     $department,
     $email,
-    $employeeId,
+    $pendingEmployeeId,
     $fullName,
     $hashedPassword,
     $databaseRole,
@@ -252,6 +222,7 @@ $stmt->bind_param(
 );
 
 if (!$stmt->execute()) {
+    $conn->rollback();
     http_response_code(500);
     echo json_encode([
         "success" => false,
@@ -263,6 +234,30 @@ if (!$stmt->execute()) {
 }
 
 $newUserId = $conn->insert_id;
+$employeeIdBase = "EMP-" . str_pad((string)$newUserId, 4, "0", STR_PAD_LEFT);
+$employeeId = $employeeIdBase;
+$suffix = 1;
+do {
+    $checkEmployeeId = $conn->prepare("SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) LIMIT 1");
+    $checkEmployeeId->bind_param("s", $employeeId);
+    $checkEmployeeId->execute();
+    $idExists = $checkEmployeeId->get_result()->num_rows > 0;
+    $checkEmployeeId->close();
+    if ($idExists) $employeeId = $employeeIdBase . "-" . $suffix++;
+} while ($idExists);
+$saveEmployeeId = $conn->prepare("UPDATE users SET employeeId = ? WHERE userID = ?");
+$saveEmployeeId->bind_param("si", $employeeId, $newUserId);
+if (!$saveEmployeeId->execute()) {
+    $saveEmployeeId->close();
+    $conn->rollback();
+    http_response_code(500);
+    echo json_encode(["success" => false, "message" => "Failed to save the generated Employee ID."]);
+    $stmt->close();
+    $conn->close();
+    exit;
+}
+$saveEmployeeId->close();
+$conn->commit();
 $createdAt = null;
 $dateStmt = $conn->prepare("SELECT dateCreated FROM users WHERE userID = ? LIMIT 1");
 if ($dateStmt) {
