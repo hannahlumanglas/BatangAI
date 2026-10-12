@@ -85,15 +85,59 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+  min-height: 54px;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 .um-tools .incident-search {
-  flex: 1 1 auto;
+  flex: 0 1 337px;
+  width: 337px;
+  min-width: 220px;
+  max-width: 337px;
+  height: 54px !important;
+  background: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+  border-radius: 14px !important;
+}
+
+.um-tools .incident-search input {
+  width: 100%;
   min-width: 0;
+  height: auto;
+  padding: 0;
+  color: var(--text-heading);
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: 0;
 }
 
 .um-tools .um-filter-select {
   flex: 0 1 190px;
+}
+
+.um-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.um-toolbar-actions .um-filter-select {
+  flex: 0 0 180px;
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+  height: 54px !important;
+  background: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+  border-radius: 14px !important;
 }
 
 
@@ -102,6 +146,9 @@
 .um-create-user-btn {
   flex: 0 0 auto;
   min-width: 126px;
+  height: 54px !important;
+  padding: 0 20px;
+  border-radius: 14px !important;
   white-space: nowrap;
 }
 
@@ -115,11 +162,26 @@
 
   .um-tools .incident-search {
     flex-basis: 100%;
+    width: 100%;
+    max-width: 100%;
   }
 
   .um-tools .um-filter-select {
     flex: 1 1 auto;
     min-width: min(100%, 210px);
+  }
+
+  .um-toolbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    margin-left: 0;
+  }
+
+  .um-toolbar-actions .um-filter-select {
+    flex: 1 1 150px;
+    width: auto;
+    min-width: min(100%, 150px);
+    max-width: none;
   }
 
   .um-create-user-btn {
@@ -142,9 +204,9 @@
   min-width: 175px;
   padding: 0 16px;
 
-  background: var(--card-bg);
+  background: var(--card-bg) !important;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 14px !important;
 
   cursor: pointer;
 
@@ -186,7 +248,7 @@
   font-size: 14px;
   font-weight: 500;
 
-  background: var(--card-bg);
+  background: transparent !important;
 
   border: 0;
   outline: 0;
@@ -1485,7 +1547,7 @@
     padding-right: 34px;
   }
 }
-.um-directory{overflow:visible;background:var(--card-bg);border:1px solid var(--border-color);border-radius:14px;box-shadow:var(--card-shadow)}
+.um-directory{overflow:visible;background:transparent;border:0;border-radius:0;box-shadow:none}
 .um-directory-header{padding:18px 20px;border-bottom:1px solid var(--border-color)}
 .um-directory-header h2{margin:0;color:var(--text-heading);font-size:16px}
 .um-directory-header p{margin:4px 0 0;color:var(--text-secondary);font-size:12px}
@@ -1586,7 +1648,10 @@
 /* Compact, calm layout for the selected user's details. */
 .um-inline-user-details{padding:22px 28px;border-radius:12px;box-shadow:0 8px 28px rgba(15,23,42,.07)}
 .um-inline-account-card{padding:0 4px 4px}
-.um-inline-account-card .um-account-heading{padding:0 42px 14px 0;margin:0 0 16px}
+.um-inline-account-card .um-account-heading{position:relative;padding:0 42px 14px 0;margin:0 0 16px}
+.um-inline-close{position:absolute;top:-4px;right:0;display:grid;width:32px;height:32px;place-items:center;padding:0;color:var(--text-secondary);font:inherit;font-size:24px;line-height:1;background:var(--card-bg);border:1px solid var(--border-color);border-radius:8px;cursor:pointer}
+.um-inline-close:hover{color:var(--text-heading);background:var(--hover-bg)}
+.um-inline-close:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
 .um-inline-account-card .um-account-heading .um-eyebrow{margin:0 0 4px;color:var(--text-secondary);font-size:10px;letter-spacing:.08em}
 .um-inline-account-card .um-account-heading h2{font-size:18px;font-weight:650}
 .um-inline-account-card .um-account-profile{gap:14px;padding:0 0 16px;margin:0 0 14px}

@@ -20,7 +20,6 @@ const USERS_API_URL = `${API_BASE_URL}/users.php`
 const UPDATE_USER_API_URL = `${API_BASE_URL}/update_user.php`
 const CREATE_USER_API_URL = `${API_BASE_URL}/create_user.php`
 const UPDATE_USER_STATUS_API_URL = `${API_BASE_URL}/update_user_status.php`
-const DELETE_USER_API_URL = `${API_BASE_URL}/delete_user.php`
 /* ---------- Types ---------- */
 type UserRole =
   | 'Employee'
@@ -68,10 +67,6 @@ function getInitials(name: string) {
     .slice(0, 2)
     .join('')
     .toUpperCase()
-}
-
-function normalizeEmployeeId(employeeId: string) {
-  return employeeId.trim().toLowerCase()
 }
 
 function formatJoinedDate(value: string | null | undefined) {
@@ -338,12 +333,10 @@ function PasswordVisibilityIcon({ visible }: { visible: boolean }) {
 function ChangePasswordCard({
   user,
   onSaved,
-  onCancel,
   resetMode = false,
 }: {
   user: User
   onSaved: () => Promise<void>
-  onCancel?: () => void
   resetMode?: boolean
 }) {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -356,16 +349,6 @@ function ChangePasswordCard({
   const [success, setSuccess] = useState('')
   const [updating, setUpdating] = useState(false)
   const administratorEmail = getAuthSession()?.user.email ?? ''
-
-  const clearForm = () => {
-    if (updating) return
-
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
-    setError('')
-    setSuccess('')
-  }
 
   const handleUpdate = async () => {
     setError('')
@@ -558,14 +541,6 @@ function ChangePasswordCard({
           {updating ? 'Updating Password...' : 'Update Password'}
         </button>
 
-        <button
-          type="button"
-          className="um-btn-secondary"
-          onClick={resetMode ? (onCancel ?? clearForm) : clearForm}
-          disabled={updating}
-        >
-          Cancel
-        </button>
       </div>
     </article>
   )
@@ -574,40 +549,26 @@ function ChangePasswordCard({
 /* SELECTED USER DETAILS*/
 function UserDetails({
   user,
-  users,
   onSaved,
   onClose,
   onToggleStatus,
-  onDelete,
 }: {
   user: User
-  users: User[]
   onSaved: () => Promise<void>
   onClose: () => void
   onToggleStatus: (user: User) => Promise<void>
-  onDelete: (user: User) => Promise<void>
 }) {
   const { offices } = useOffices()
   const { options: systemOptions } = useSystemOptions()
   const departmentOptions = offices.includes(user.department) ? offices : [user.department, ...offices]
-  const [values, setValues] = useState({ name: user.name, employeeId: user.employeeId, email: user.email, department: user.department, role: user.role })
+  const [values, setValues] = useState({ name: user.name, email: user.email, department: user.department, role: user.role })
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
-  const duplicateEmployeeId = users.some(
-    existing =>
-      existing.id !== user.id &&
-      normalizeEmployeeId(existing.employeeId) ===
-        normalizeEmployeeId(values.employeeId),
-  )
   const save = async () => {
-    if (!values.name.trim() || !values.employeeId.trim() || !values.department.trim() || !values.email.trim()) { setError('Complete all account fields before saving.'); return }
-    if (duplicateEmployeeId) {
-      setError('This Employee ID is already assigned to another account.')
-      return
-    }
+    if (!values.name.trim() || !values.department.trim() || !values.email.trim()) { setError('Complete all account fields before saving.'); return }
     try {
       setSaving(true); setError('')
-      await updateUserOnServer({ action: 'update', userID: user.id, fullName: values.name.trim(), employeeId: values.employeeId.trim(), email: values.email.trim(), department: values.department.trim(), role: values.role })
+      await updateUserOnServer({ action: 'update', userID: user.id, fullName: values.name.trim(), email: values.email.trim(), department: values.department.trim(), role: values.role })
       await onSaved()
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to save user changes.') } finally { setSaving(false) }
   }
@@ -619,6 +580,14 @@ function UserDetails({
             <p className="um-eyebrow">USER PROFILE</p>
             <h2>User details</h2>
           </div>
+          <button
+            type="button"
+            className="um-inline-close"
+            aria-label="Close user profile"
+            onClick={onClose}
+          >
+            ×
+          </button>
         </header>
 
         <div className="um-account-profile">
@@ -650,7 +619,7 @@ function UserDetails({
           <h3 className="um-inline-section-title">Account Information</h3>
           <div className="um-inline-edit-grid">
             <label className="um-field"><span>Full Name</span><input value={values.name} onChange={e => setValues(current => ({ ...current, name: e.target.value }))} /></label>
-            <label className="um-field"><span>Employee ID</span><input value={values.employeeId} onChange={e => { setValues(current => ({ ...current, employeeId: e.target.value })); setError('') }} aria-invalid={duplicateEmployeeId} />{duplicateEmployeeId && <small className="um-form-error" role="alert">This Employee ID is already assigned to another account.</small>}</label>
+            <div className="um-field"><span>Employee ID</span><div className="um-inline-readonly-value">{user.employeeId}</div><small className="um-inline-readonly-note">Automatically generated when the account is created</small></div>
             <label className="um-field"><span>Email Address</span><input type="email" value={values.email} onChange={e => setValues(current => ({ ...current, email: e.target.value }))} /></label>
             <div className="um-field"><span>Date Joined</span><div className="um-inline-readonly-value">{user.joined || 'Not available'}</div><small className="um-inline-readonly-note">Automatically set when the account is created</small></div>
           </div>
@@ -665,7 +634,7 @@ function UserDetails({
         {error && <p className="um-form-message um-form-error">{error}</p>}
       </article>
       <ChangePasswordCard user={user} onSaved={onSaved} resetMode />
-      <footer className="um-inline-save-actions"><button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => void onToggleStatus(user)}>{user.status === 'Active' ? 'Disable Account' : 'Enable Account'}</button><button type="button" className="um-btn-danger" onClick={() => void onDelete(user)}>Delete Account</button><span className="um-inline-save-spacer" /><button type="button" className="um-btn-secondary" onClick={onClose}>Cancel</button><button type="button" className="um-btn-primary" disabled={saving || duplicateEmployeeId} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer>
+      <footer className="um-inline-save-actions"><span className="um-inline-save-spacer" /><button type="button" className={user.status === 'Active' ? 'um-btn-danger' : 'um-btn-primary'} onClick={() => void onToggleStatus(user)}>{user.status === 'Active' ? 'Disable Account' : 'Enable Account'}</button><button type="button" className="um-btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving...' : 'Save Changes'}</button></footer>
     </div>
   )
 }
@@ -1875,35 +1844,6 @@ function UserManagement() {
       window.alert(requestError instanceof Error ? requestError.message : 'Unable to update the account status. Please try again.')
     }
   }
-  const handleDeleteUser = async (user: User) => {
-    if (!window.confirm(`Permanently delete ${user.name}'s account? This action cannot be undone.`)) return
-
-    const adminUserID = session?.user?.userID
-    const targetUserID = user.userID
-    if (adminUserID === undefined || adminUserID === null || String(adminUserID).trim() === '') {
-      window.alert('Administrator session not found. Please log in again.')
-      return
-    }
-    if (targetUserID === undefined || targetUserID === null || String(targetUserID).trim() === '') {
-      window.alert('Unable to identify the selected user.')
-      return
-    }
-
-    try {
-      const response = await fetch(DELETE_USER_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ adminUserID, userID: targetUserID }),
-      })
-      const data = await response.json()
-      if (!response.ok || !data.success) throw new Error(data.message || 'Unable to delete the account.')
-      setUsers(current => current.filter(item => item.id !== user.id))
-      setSelectedUserId(null)
-      window.alert(data.message || `${user.name}'s account was deleted.`)
-    } catch (requestError) {
-      window.alert(requestError instanceof Error ? requestError.message : 'Unable to delete the account. Please try again.')
-    }
-  }
   /* AFTER CREATE */
   const handleUserCreated = (
     createdUser: User,
@@ -2056,27 +1996,29 @@ function UserManagement() {
               />
             </label>
 
-            <button
-              type="button"
-              className="um-btn-primary um-create-user-btn"
-              onClick={() => setShowCreateUser(true)}
-            >
-              + Create User
-            </button>
+            <div className="um-toolbar-actions">
+              <label className="um-filter-select" aria-label="Filter by role">
+                <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
+                  <option value="">All Roles</option>
+                  {(systemOptions.user_role ?? []).map(role => <option key={role} value={role}>{role === 'Secretary' ? 'Front Desk' : role === 'IT Personnel' ? 'Technician' : role}</option>)}
+                </select>
+              </label>
 
-            <label className="um-filter-select" aria-label="Filter by role">
-              <select value={roleFilter} onChange={event => setRoleFilter(event.target.value)}>
-                <option value="">All Roles</option>
-                {(systemOptions.user_role ?? []).map(role => <option key={role} value={role}>{role === 'Secretary' ? 'Front Desk' : role === 'IT Personnel' ? 'Technician' : role}</option>)}
-              </select>
-            </label>
+              <label className="um-filter-select" aria-label="Filter by office">
+                <select value={departmentFilter} onChange={event => setDepartmentFilter(event.target.value)}>
+                  <option value="">All Offices</option>
+                  {departments.map(item => <option key={item}>{item}</option>)}
+                </select>
+              </label>
 
-            <label className="um-filter-select" aria-label="Filter by office">
-              <select value={departmentFilter} onChange={event => setDepartmentFilter(event.target.value)}>
-                <option value="">All Offices</option>
-                {departments.map(item => <option key={item}>{item}</option>)}
-              </select>
-            </label>
+              <button
+                type="button"
+                className="um-btn-primary um-create-user-btn"
+                onClick={() => setShowCreateUser(true)}
+              >
+                + Create User
+              </button>
+            </div>
 
           </section>
           {/* ERROR */}
@@ -2093,10 +2035,6 @@ function UserManagement() {
           ) : shown.length >
             0 ? (
             <section className="um-directory" aria-label="User directory">
-              <header className="um-directory-header">
-                <div><h2>User Directory</h2><p>{shown.length} {shown.length === 1 ? 'user' : 'users'} found. Select a name to view account details.</p></div>
-              </header>
-              <div className="um-directory-columns" aria-hidden="true"><span>Name</span></div>
               <div className="um-directory-list">
                 {shown.map(user => <UserDirectoryRow key={user.id} user={user} onSelect={handleSelect} />)}
               </div>
@@ -2109,7 +2047,7 @@ function UserManagement() {
           </>}
           {selectedUser && (
             <section className="um-inline-user-details" aria-label={`Profile and account security for ${selectedUser.name}`}>
-              <UserDetails key={selectedUser.id} user={selectedUser} users={users} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} onDelete={handleDeleteUser} />
+              <UserDetails key={selectedUser.id} user={selectedUser} onClose={() => setSelectedUserId(null)} onSaved={async () => { await loadUsers() }} onToggleStatus={handleToggleUserStatus} />
             </section>
           )}
         </div>

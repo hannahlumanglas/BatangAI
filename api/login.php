@@ -104,6 +104,7 @@ $roleMap = [
     "secretary" => "Secretary",
     "it support" => "IT Personnel",
     "it personnel" => "IT Personnel",
+    "technician" => "IT Personnel",
     "employee" => "Employee"
 ];
 $normalizedRole = strtolower(trim((string)$user["role"]));

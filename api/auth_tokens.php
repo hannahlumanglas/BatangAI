@@ -127,6 +127,7 @@ function load_auth_user(mysqli $conn, int $userID): ?array
         'secretary' => 'Secretary',
         'it support' => 'IT Personnel',
         'it personnel' => 'IT Personnel',
+        'technician' => 'IT Personnel',
         'employee' => 'Employee',
     ];
     $role = strtolower(trim((string)$user['role']));

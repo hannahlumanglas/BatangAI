@@ -29,8 +29,9 @@ database to the public internet.
 1. Connect the remote phone/laptop to the same VPN as the XAMPP computer.
 2. Open `http://100.x.y.z:5173` using the XAMPP computer's VPN IPv4 address.
 3. Keep the XAMPP computer connected to the router and keep Apache, MySQL,
-   `npm run api:dev`, and `npm run dev` running. Use **Ping** in Device
-   Monitoring to check the router.
+   `npm run api:dev`, and `npm run dev` running. Device Monitoring checks
+   registered IP addresses automatically every five minutes. Use Refresh on a
+   device to request an additional check without changing that schedule.
 
 The viewing phone may use mobile data or another Wi-Fi once its VPN is
 connected. If the XAMPP computer itself leaves the router's local network, it

@@ -534,7 +534,6 @@ interface Device {
   type: DeviceType
   status: DeviceStatus
   ip: string
-  mac: string
   location: string
   department: string
   firmware: string
@@ -602,19 +601,15 @@ function DeviceCard({
   device,
   expanded,
   onToggle,
-  onPing,
   onEdit,
   onDelete,
-  pinging,
   deleting,
 }: {
   device: Device
   expanded: boolean
   onToggle: () => void
-  onPing: () => void
   onEdit: () => void
   onDelete: () => void
-  pinging: boolean
   deleting: boolean
 }) {
   return (
@@ -663,18 +658,6 @@ function DeviceCard({
                 : 'Unknown'}
           </p>
 
-          <button
-            className="dm-ping"
-            type="button"
-            disabled={pinging}
-            onClick={e => {
-              e.stopPropagation()
-              onPing()
-            }}
-          >
-            {pinging ? 'Pinging…' : 'Ping'}
-          </button>
-
           <Icon name="chevron" />
         </div>
       </div>
@@ -691,11 +674,6 @@ function DeviceCard({
               <div>
                 <dt>IP Address</dt>
                 <dd>{device.ip}</dd>
-              </div>
-
-              <div>
-                <dt>MAC Address</dt>
-                <dd>{device.mac}</dd>
               </div>
 
               <div>
@@ -782,7 +760,6 @@ function AddDeviceModal({
   const [type, setType] = useState<(typeof NETWORK_DEVICE_TYPES)[number]>(initialType)
   const selectedType = type || NETWORK_DEVICE_TYPES[0]
   const [ip, setIp] = useState(initialDevice?.ip ?? '')
-  const [mac, setMac] = useState(initialDevice?.mac === '—' ? '' : initialDevice?.mac ?? '')
   const [location, setLocation] = useState(initialDevice?.location ?? '')
   const [department, setDepartment] = useState(initialDevice?.department ?? '')
   const selectedDepartment = department || offices[0] || ''
@@ -798,14 +775,6 @@ function AddDeviceModal({
   const ipPattern =
     /^(\d{1,3}\.){3}\d{1,3}$/
 
-  const normalizeMacAddress = (value: string) => {
-    // Router labels may append a radio identifier, e.g. C416C877919B-A4(10).
-    const withoutRadioSuffix = value.trim().replace(/-[0-9A-Fa-f]{2}\(\d+\)$/, '')
-    const hex = withoutRadioSuffix.replace(/[:-]/g, '')
-    if (!/^[0-9A-Fa-f]{12}$/.test(hex)) return null
-    return hex.match(/.{2}/g)!.join(':').toUpperCase()
-  }
-
   const validate = () => {
     const next: Record<string, string> = {}
 
@@ -818,13 +787,6 @@ function AddDeviceModal({
     } else if (!ipPattern.test(ip.trim())) {
       next.ip =
         'Enter a valid IP address (e.g. 10.10.0.5).'
-    }
-
-    if (!mac.trim()) {
-      next.mac = 'MAC address is required.'
-    } else if (!normalizeMacAddress(mac)) {
-      next.mac =
-        'Enter 12 hexadecimal MAC characters, with or without separators. Router labels like C416C877919B-A4(10) are supported.'
     }
 
     if (!location.trim()) {
@@ -848,7 +810,6 @@ function AddDeviceModal({
         name: name.trim(),
         type: selectedType,
         ip: ip.trim(),
-        mac: normalizeMacAddress(mac)!,
         location: location.trim(),
         department: selectedDepartment,
         firmware: firmware.trim(),
@@ -990,34 +951,6 @@ function AddDeviceModal({
               {errors.ip && (
                 <span className="dm-field-error">
                   {errors.ip}
-                </span>
-              )}
-            </div>
-
-            <div className="dm-field">
-              <label
-                className="dm-field-label"
-                htmlFor="dev-mac"
-              >
-                MAC Address<em>*</em>
-              </label>
-
-              <input
-                id="dev-mac"
-                type="text"
-                placeholder="C416C877919B-A4(10) or AC:DE:48:00:11:22"
-                required
-                value={mac}
-                onChange={e =>
-                  setMac(e.target.value)
-                }
-                aria-invalid={!!errors.mac}
-              />
-
-
-              {errors.mac && (
-                <span className="dm-field-error">
-                  {errors.mac}
                 </span>
               )}
             </div>
@@ -1279,7 +1212,7 @@ function DeviceMonitoring({
 
   const deviceRequestInFlight = useRef(false)
 
-  const [pingingId, setPingingId] = useState<string | null>(null)
+  const [refreshingAll, setRefreshingAll] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [showAddModal, setShowAddModal] =
@@ -1496,9 +1429,7 @@ function DeviceMonitoring({
     setEditingDevice(null)
   }
 
-  const pingDevice = async (device: Device) => {
-    setPingingId(device.id)
-    try {
+  const refreshDevice = async (device: Device) => {
       const response = await fetch(DEVICES_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1514,13 +1445,13 @@ function DeviceMonitoring({
         lastPingAt?: string | null
       }
       if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Unable to ping device.')
+        throw new Error(data.message || 'Unable to refresh device status.')
       }
 
       let result = data
       if (data.pending && data.requestID) {
-        for (let attempt = 0; attempt < 20; attempt += 1) {
-          await new Promise(resolve => window.setTimeout(resolve, 1500))
+        for (let attempt = 0; attempt < 24; attempt += 1) {
+          await new Promise(resolve => window.setTimeout(resolve, 1000))
           const statusResponse = await fetch(DEVICES_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1532,7 +1463,7 @@ function DeviceMonitoring({
           })
           const statusData = await statusResponse.json() as typeof data
           if (!statusResponse.ok || !statusData.success) {
-            throw new Error(statusData.message || 'Unable to retrieve ping result.')
+            throw new Error(statusData.message || 'Unable to retrieve refreshed status.')
           }
           result = statusData
           if (!statusData.pending) break
@@ -1540,7 +1471,7 @@ function DeviceMonitoring({
       }
 
       if (result.pending || !result.status || result.status === 'unknown') {
-        throw new Error('No response from the network monitoring agent. Check that it is running inside the device network.')
+        throw new Error('The monitoring agent did not return a result. Check that it is running inside the device network.')
       }
 
       setDeviceList(list => list.map(item => item.id === device.id
@@ -1551,11 +1482,21 @@ function DeviceMonitoring({
             lastPingAt: result.lastPingAt ?? null,
           }
         : item))
-      window.alert(`${device.name}: ${result.message || (result.status === 'online' ? 'Online' : 'Offline')}`)
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to ping device.')
+  }
+
+  const refreshAllDevices = async () => {
+    if (refreshingAll || deviceList.length === 0) return
+    setRefreshingAll(true)
+    try {
+      const results = await Promise.allSettled(deviceList.map(refreshDevice))
+      const failures = results.filter(result => result.status === 'rejected')
+      if (failures.length > 0) {
+        const firstError = failures[0].status === 'rejected' ? failures[0].reason : null
+        const detail = firstError instanceof Error ? ` ${firstError.message}` : ''
+        window.alert(`Could not refresh ${failures.length} of ${deviceList.length} devices.${detail}`)
+      }
     } finally {
-      setPingingId(null)
+      setRefreshingAll(false)
     }
   }
 
@@ -1704,45 +1645,50 @@ function DeviceMonitoring({
               />
             </label>
 
-            <button
-              type="button"
-              className="incident-new"
-              onClick={() =>
-                setShowAddModal(true)
-              }
-            >
-              <Icon name="plus" />
-              Add Device
-            </button>
-            <div className="dm-filter-group">
-              <label className="dm-filter-select" aria-label="Filter by device type">
-                <select
-                  aria-label="Filter by device type"
-                  value={typeFilter}
-                  onChange={e =>
-                    setTypeFilter(e.target.value)
-                  }
-                >
-                  <option>All Types</option>
-                  <option>Router</option>
-                  <option>Switch</option>
-                  <option>Access Point</option>
-                </select>
-              </label>
+            <div className="dm-toolbar-actions">
+              <div className="dm-filter-group">
+                <label className="dm-filter-select" aria-label="Filter by device type">
+                  <select
+                    aria-label="Filter by device type"
+                    value={typeFilter}
+                    onChange={e => setTypeFilter(e.target.value)}
+                  >
+                    <option>All Types</option>
+                    <option>Router</option>
+                    <option>Switch</option>
+                    <option>Access Point</option>
+                  </select>
+                </label>
 
-              <label className="dm-filter-select" aria-label="Filter by device status">
-                <select
-                  aria-label="Filter by device status"
-                  value={statusFilter}
-                  onChange={e =>
-                    setStatusFilter(e.target.value)
-                  }
-                >
-                  <option>All Statuses</option>
-                  <option>Online</option>
-                  <option>Offline</option>
-                </select>
-              </label>
+                <label className="dm-filter-select" aria-label="Filter by device status">
+                  <select
+                    aria-label="Filter by device status"
+                    value={statusFilter}
+                    onChange={e => setStatusFilter(e.target.value)}
+                  >
+                    <option>All Statuses</option>
+                    <option>Online</option>
+                    <option>Offline</option>
+                  </select>
+                </label>
+              </div>
+              <button
+                type="button"
+                className="incident-new"
+                onClick={() => setShowAddModal(true)}
+              >
+                <Icon name="plus" />
+                Add Device
+              </button>
+              <button
+                type="button"
+                className="incident-new dm-ping-all"
+                disabled={refreshingAll || deviceList.length === 0}
+                onClick={() => void refreshAllDevices()}
+              >
+                <Icon name="online" />
+                {refreshingAll ? 'PINGING…' : 'PING'}
+              </button>
             </div>
           </div>
 
@@ -1784,11 +1730,9 @@ function DeviceMonitoring({
                   expanded={
                     expandedId === device.id
                   }
-                  pinging={pingingId === device.id}
                   deleting={deletingId === device.id}
                   onDelete={() => void deleteDevice(device)}
                   onEdit={() => setEditingDevice(device)}
-                  onPing={() => void pingDevice(device)}
                   onToggle={() =>
                     setExpandedId(current =>
                       current === device.id

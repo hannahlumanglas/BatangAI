@@ -70,12 +70,13 @@ BatangAI device agent on a computer that stays on inside the device network:
    with `$env:DEVICE_MONITOR_API_URL = 'https://<your-domain>/api/device_agent'`
    and `$env:DEVICE_MONITOR_TOKEN = '<same secret as Vercel>'` before running
    the command. The agent checks only devices registered in BatangAI, reports
-   their results to the API, and repeats every 15 seconds by default.
+   their results to the API, scans all devices every 5 minutes by default, and
+   checks for manual Refresh requests every 5 seconds.
    `DEVICE_MONITOR_INTERVAL_MS` can change that interval (minimum 5 seconds).
-4. Keep the agent running. The Device Monitoring page refreshes status every 15
-   seconds, and its Ping button waits for the agent's next result. If the
-   agent is stopped, a device's status becomes unknown after two minutes; if
-   the agent cannot reach a device, it records the device as offline.
+4. Keep the agent running. The Device Monitoring page refreshes saved status
+   every 15 seconds. Use Refresh on a device to request an immediate check;
+   it does not change the automatic five-minute scan schedule. If the agent is stopped, a device's status becomes unknown
+   after ten minutes; if it cannot reach a device, it records it as offline.
 5. The Device Online/Offline History Report records the agent's first observed
    status for each device and each later status change. It cannot recreate
    status history from before monitoring was enabled.

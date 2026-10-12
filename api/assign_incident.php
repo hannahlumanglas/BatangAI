@@ -55,7 +55,7 @@ if ($incidentID === '' || $assignedTo === '') {
     exit;
 }
 
-$personnelStmt = $conn->prepare("SELECT userID, fullName FROM users WHERE userID = ? AND role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active' LIMIT 1");
+$personnelStmt = $conn->prepare("SELECT userID, fullName FROM users WHERE userID = ? AND role IN ('Technician', 'IT Personnel', 'IT Support') AND LOWER(status) = 'active' LIMIT 1");
 $personnelStmt->bind_param('s', $assignedTo);
 $personnelStmt->execute();
 $personnel = $personnelStmt->get_result()->fetch_assoc();
@@ -76,7 +76,7 @@ foreach ($subUserIDs as $subID) {
 }
 if ($subUserIDs) {
     $placeholders = implode(',', array_fill(0, count($subUserIDs), '?'));
-    $check = $conn->prepare("SELECT userID FROM users WHERE userID IN ($placeholders) AND role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active'");
+    $check = $conn->prepare("SELECT userID FROM users WHERE userID IN ($placeholders) AND role IN ('Technician', 'IT Personnel', 'IT Support') AND LOWER(status) = 'active'");
     $check->bind_param(str_repeat('s', count($subUserIDs)), ...$subUserIDs); $check->execute();
     $validSubs = $check->get_result()->num_rows; $check->close();
     if ($validSubs !== count($subUserIDs)) { http_response_code(400); echo json_encode(['success'=>false,'message'=>'Every SUB must be an active Technician.']); $conn->close(); exit; }

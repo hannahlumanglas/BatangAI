@@ -62,7 +62,7 @@ if (!$result) {
 $users = [];
 
 while ($row = $result->fetch_assoc()) {
-    $role = strtolower(trim((string)$row["role"])) === "it support"
+    $role = in_array(strtolower(trim((string)$row["role"])), ["it support", "technician"], true)
         ? "IT Personnel"
         : $row["role"];
     $profilePhoto = $row["profilePhoto"];

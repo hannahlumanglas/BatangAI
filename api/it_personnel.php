@@ -33,9 +33,10 @@ $sql = "
         fullName,
         department,
         role,
-        status
+        status,
+        profilePhoto
     FROM users
-    WHERE role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active'
+    WHERE role IN ('Technician', 'IT Personnel', 'IT Support') AND LOWER(status) = 'active'
     ORDER BY fullName ASC
 ";
 
@@ -56,6 +57,7 @@ if (!$result) {
 $personnel = [];
 
 while ($row = $result->fetch_assoc()) {
+    if (is_string($row['profilePhoto']) && str_contains($row['profilePhoto'], '/')) $row['profilePhoto'] = basename($row['profilePhoto']);
     $personnel[] = $row;
 }
 

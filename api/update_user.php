@@ -23,24 +23,31 @@ $data = json_decode(file_get_contents('php://input'), true);
 $action = trim((string)($data['action'] ?? ''));
 $userID = trim((string)($data['userID'] ?? ''));
 function fail($conn, $message, $status = 400) { http_response_code($status); echo json_encode(['success' => false, 'message' => $message]); $conn->close(); exit; }
+function employee_id_prefix_for_role($role) {
+  $prefixes = ['Employee' => 'EMP', 'Secretary' => 'SEC', 'IT Personnel' => 'ITS', 'Technician' => 'ITS', 'IT Support' => 'ITS', 'Administrator' => 'ADM', 'Admin' => 'ADM'];
+  return $prefixes[$role] ?? null;
+}
+function next_employee_id($conn, $role) {
+  $prefix = employee_id_prefix_for_role($role);
+  if ($prefix === null) return null;
+  $query = $conn->prepare('SELECT employeeId FROM users WHERE employeeId LIKE ? FOR UPDATE');
+  $pattern = $prefix . '%'; $query->bind_param('s', $pattern); $query->execute();
+  $result = $query->get_result(); $max = 0;
+  while ($row = $result->fetch_assoc()) {
+    if (preg_match('/^' . preg_quote($prefix, '/') . '([0-9]+)$/i', trim((string)$row['employeeId']), $matches)) $max = max($max, (int)$matches[1]);
+  }
+  $query->close();
+  return $prefix . str_pad((string)($max + 1), 2, '0', STR_PAD_LEFT);
+}
 if ($userID === '' || !ctype_digit($userID)) fail($conn, 'A valid user is required.');
 if ($action === 'update') {
-  $fullName = trim((string)($data['fullName'] ?? '')); $employeeId = trim((string)($data['employeeId'] ?? '')); $email = strtolower(trim((string)($data['email'] ?? ''))); $department = trim((string)($data['department'] ?? '')); $role = trim((string)($data['role'] ?? ''));
-  if ($fullName === '' || $employeeId === '' || $department === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !is_active_catalog_value($conn, 'user_role', $role)) fail($conn, 'Please provide valid account details.');
+  $fullName = trim((string)($data['fullName'] ?? '')); $email = strtolower(trim((string)($data['email'] ?? ''))); $department = trim((string)($data['department'] ?? '')); $role = trim((string)($data['role'] ?? ''));
+  if ($fullName === '' || $department === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !is_active_catalog_value($conn, 'user_role', $role) || employee_id_prefix_for_role($role) === null) fail($conn, 'Please provide valid account details.');
   $officeCheck = $conn->prepare('SELECT officeID FROM offices WHERE officeName = ? AND active = 1 LIMIT 1');
   if (!$officeCheck) fail($conn, 'Unable to validate the selected Office.', 500);
   $officeCheck->bind_param('s', $department); $officeCheck->execute(); $officeCheck->store_result();
   $validOffice = $officeCheck->num_rows === 1; $officeCheck->close();
   if (!$validOffice) fail($conn, 'Please select an active Office from the list.');
-  $employeeIdCheck = $conn->prepare('SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) AND userID <> ? LIMIT 1');
-  if (!$employeeIdCheck) fail($conn, 'Unable to verify the Employee ID.', 500);
-  $employeeIdCheck->bind_param('si', $employeeId, $userID);
-  $employeeIdCheck->execute();
-  $employeeIdCheck->store_result();
-  $duplicateEmployeeId = $employeeIdCheck->num_rows > 0;
-  $employeeIdCheck->close();
-  if ($duplicateEmployeeId) fail($conn, 'This Employee ID is already assigned to another account.', 409);
-
   $emailCheck = $conn->prepare('SELECT userID FROM users WHERE LOWER(email) = ? AND userID <> ? LIMIT 1');
   if (!$emailCheck) fail($conn, 'Unable to verify the email address.', 500);
   $emailCheck->bind_param('si', $email, $userID);
@@ -49,10 +56,20 @@ if ($action === 'update') {
   $duplicateEmail = $emailCheck->num_rows > 0;
   $emailCheck->close();
   if ($duplicateEmail) fail($conn, 'This email address is already used by another account.', 409);
-  $databaseRole = $role === 'IT Personnel' ? 'IT Support' : $role;
+  $databaseRole = $role === 'IT Personnel' ? 'Technician' : $role;
+  $conn->begin_transaction();
+  $current = $conn->prepare('SELECT employeeId FROM users WHERE userID = ? FOR UPDATE');
+  $current->bind_param('i', $userID); $current->execute(); $currentRow = $current->get_result()->fetch_assoc(); $current->close();
+  if (!$currentRow) { $conn->rollback(); fail($conn, 'User not found.', 404); }
+  $targetPrefix = employee_id_prefix_for_role($databaseRole);
+  $employeeId = (string)$currentRow['employeeId'];
+  if (!preg_match('/^' . preg_quote($targetPrefix, '/') . '[0-9]+$/i', $employeeId)) {
+    $employeeId = next_employee_id($conn, $databaseRole);
+  }
   $stmt = $conn->prepare('UPDATE users SET fullName = ?, employeeId = ?, email = ?, department = ?, role = ? WHERE userID = ?');
   if (!$stmt) fail($conn, 'Unable to prepare the account update.', 500);
   $stmt->bind_param('sssssi', $fullName, $employeeId, $email, $department, $databaseRole, $userID);
+  $transactionalUpdate = true;
 } elseif ($action === 'self_password') {
   $currentPassword = (string)($data['currentPassword'] ?? '');
   $password = (string)($data['password'] ?? '');
@@ -69,7 +86,7 @@ if ($action === 'update') {
 } elseif ($action === 'status') {
   $status = trim((string)($data['status'] ?? '')); if (!in_array($status, ['Active', 'Inactive'], true)) fail($conn, 'Invalid account status.'); $stmt = $conn->prepare('UPDATE users SET status = ? WHERE userID = ?'); $stmt->bind_param('si', $status, $userID);
 } else fail($conn, 'Invalid user-management action.');
-if (!$stmt || !$stmt->execute()) fail($conn, 'Unable to update the user.', 500);
+if (!$stmt || !$stmt->execute()) { if (!empty($transactionalUpdate)) $conn->rollback(); fail($conn, 'Unable to update the user.', 500); }
 if ($stmt->affected_rows === 0) {
   // MySQL reports zero affected rows both when the user does not exist and
   // when the submitted values already match the stored values. Treat the
@@ -84,4 +101,5 @@ if ($stmt->affected_rows === 0) {
   $checkUser->close();
   if (!$userExists) fail($conn, 'User not found.', 404);
 }
+$stmt && !empty($transactionalUpdate) ? $conn->commit() : null;
 $stmt->close(); $conn->close(); echo json_encode(['success' => true, 'message' => 'User updated successfully.']);

@@ -27,7 +27,7 @@
 
 .gr-grid{
   display:grid;
-  grid-template-columns:minmax(250px,280px) repeat(2,minmax(180px,220px)) minmax(130px,160px);
+  grid-template-columns:minmax(300px,1.25fr) repeat(2,minmax(240px,1fr)) minmax(180px,.75fr);
   gap:18px;
   margin-top:16px;
   margin-bottom:24px;

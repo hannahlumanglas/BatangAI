@@ -575,40 +575,6 @@ function ProfileMenu({
   )
 }
 
-function repairTextEncoding(value: string): string {
-  return value
-    .replace(/â€“/g, '–')
-    .replace(/â€”/g, '—')
-    .replace(/â€¦/g, '…')
-    .replace(/â€¹/g, '‹')
-    .replace(/â€º/g, '›')
-    .replace(/Ã—/g, '×')
-}
-
-function getBasicSelfHelpText(
-  troubleshooting: string | null,
-): string {
-  if (!troubleshooting) {
-    return 'No basic self-help guidance was recorded.'
-  }
-
-  const marker = 'IT Troubleshooting Suggestions:'
-  const markerIndex = troubleshooting.indexOf(marker)
-
-  if (markerIndex === -1) {
-    return repairTextEncoding(troubleshooting.replace(/^Basic Self-Help:\s*/i, '').replace(/\[Employee checked self-help steps: [^\]]*\]/i, '').trim())
-  }
-
-  return repairTextEncoding(
-    troubleshooting
-      .slice(0, markerIndex)
-      .replace(/^Basic Self-Help:\s*/i, '')
-      .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
-      .trim() ||
-    'No basic self-help guidance was recorded.'
-  )
-}
-
 /* ===========================================================
    PAGE
    =========================================================== */
@@ -1697,17 +1663,10 @@ function Incidents({
 
       {viewingIncident && (
         <IncidentDetailModal
-          incident={{
-            ...viewingIncident,
-            troubleshooting: viewingIncident.troubleshooting
-              ? [
-                  getBasicSelfHelpText(viewingIncident.troubleshooting),
-                  viewingIncident.troubleshooting.match(/\[Employee checked self-help steps: [^\]]*\]/i)?.[0] ?? '',
-                ].filter(Boolean).join('\n')
-              : null,
-          }}
+          incident={viewingIncident}
           onClose={closeViewing}
           showSelfHelpChecklist
+          showTechnicianChecklist
         />
       )}
     </div>

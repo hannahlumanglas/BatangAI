@@ -64,7 +64,7 @@
 :root[data-theme="dark"] :is(p, li, label, td, th, dt, dd, small, .topbar-title p, .incident-detail-field > span, .incident-detail-section h3, .incident-ai-block > span, .incident-resolution-field > span, .report-problem > span, .report-details p, .dm-details-list dt, .dm-details-list dd, .profile-card, .settings-card) {
   color: var(--text-primary) !important;
 }
-:root[data-theme="dark"] :is(.text-secondary, .ticket-date, .incident-detail-group-title, .incident-resolution-meta, .profile-identity-card small, .account-form label, .password-form label, .security-row span, .dm-empty) {
+:root[data-theme="dark"] :is(.text-secondary, .ticket-date, .incident-detail-group-title, .incident-resolution-meta, .profile-identity-card small, .account-form label, .password-form label, .dm-empty) {
   color: var(--text-secondary) !important;
 }
 

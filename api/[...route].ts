@@ -2,7 +2,7 @@ import { del } from '@vercel/blob'
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import bcrypt from 'bcryptjs'
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { VercelApiHandler, VercelRequest, VercelResponse } from '@vercel/node'
 import { execute, getPool, getRow, getRows } from '../server/db.js'
 
@@ -154,9 +154,36 @@ function canonicalRole(role: string): string | null {
     administrator: 'Administrator',
     secretary: 'Secretary',
     'it personnel': 'IT Personnel',
+    technician: 'IT Personnel',
+    'it support': 'IT Personnel',
     employee: 'Employee',
   }
   return roles[role.trim().toLowerCase()] ?? null
+}
+
+function employeeIdPrefix(role: string): string | null {
+  switch (canonicalRole(role)) {
+    case 'Employee': return 'EMP'
+    case 'Secretary': return 'SEC'
+    case 'IT Personnel': return 'ITS'
+    case 'Administrator': return 'ADM'
+    default: return null
+  }
+}
+
+async function nextEmployeeId(connection: PoolConnection, role: string): Promise<string> {
+  const prefix = employeeIdPrefix(role)
+  if (!prefix) throw new Error('Invalid account role for Employee ID generation.')
+  const [rows] = await connection.execute<RowDataPacket[]>(
+    'SELECT employeeId FROM users WHERE employeeId LIKE ? FOR UPDATE',
+    [`${prefix}%`],
+  )
+  const pattern = new RegExp(`^${prefix}(\\d+)$`, 'i')
+  const max = rows.reduce((highest, row) => {
+    const match = pattern.exec(String(row.employeeId ?? '').trim())
+    return match ? Math.max(highest, Number(match[1])) : highest
+  }, 0)
+  return `${prefix}${String(max + 1).padStart(2, '0')}`
 }
 
 function publicUser(user: UserRow): Omit<UserRow, 'password'> {
@@ -286,7 +313,7 @@ const handler: VercelApiHandler = async (req, res) => {
     res.setHeader('Access-Control-Allow-Credentials', 'true')
     res.setHeader('Vary', 'Origin')
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
 
@@ -346,6 +373,8 @@ const handler: VercelApiHandler = async (req, res) => {
       await analyzeIncident(req, res)
     } else if (route === 'upload_profile_photo') {
       await uploadProfilePhoto(req, res)
+    } else if (route === 'user_app_data') {
+      await userAppData(req, res)
     } else {
       errorResponse(res, 'API endpoint not found.', 404)
     }
@@ -355,6 +384,90 @@ const handler: VercelApiHandler = async (req, res) => {
       errorResponse(res, 'The server could not complete the request.', 500)
     }
   }
+}
+
+async function userAppData(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const user = await requireSessionUser(
+    req,
+    res,
+    ['Administrator', 'Secretary', 'IT Personnel', 'Employee'],
+    'You do not have permission to access saved user data.',
+  )
+  if (!user) return
+
+  await execute(`CREATE TABLE IF NOT EXISTS user_app_data (
+    userID BIGINT UNSIGNED NOT NULL,
+    dataKey VARCHAR(80) NOT NULL,
+    dataValue LONGTEXT NOT NULL,
+    updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (userID, dataKey)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`)
+
+  if (req.method === 'GET') {
+    const rows = await getRows<RowDataPacket & { dataKey: string; dataValue: string }>(
+      'SELECT dataKey, dataValue FROM user_app_data WHERE userID = ?',
+      [user.userID],
+    )
+    const data: Record<string, unknown> = {}
+    for (const row of rows) {
+      try {
+        data[row.dataKey] = JSON.parse(row.dataValue)
+      } catch {
+        data[row.dataKey] = null
+      }
+    }
+    send(res, 200, { success: true, data })
+    return
+  }
+
+  if (req.method === 'POST') {
+    const body = json(req)
+    const key = text(body?.key)
+    const value = body?.value
+    const allowedKeys = ['incident_report_draft', 'notification_read_ids', 'notification_initialized']
+    if (!allowedKeys.includes(key)) {
+      errorResponse(res, 'Invalid data key.')
+      return
+    }
+    if (key === 'incident_report_draft' && value !== null && !isRecord(value)) {
+      errorResponse(res, 'Invalid incident draft.')
+      return
+    }
+    if (key === 'notification_read_ids' && (!Array.isArray(value) || value.length > 1000
+      || !value.every((id) => typeof id === 'string' && id.length <= 200))) {
+      errorResponse(res, 'Invalid notification read state.')
+      return
+    }
+    if (key === 'notification_initialized' && typeof value !== 'boolean') {
+      errorResponse(res, 'Invalid notification state.')
+      return
+    }
+    const encoded = JSON.stringify(value)
+    if (typeof encoded !== 'string' || Buffer.byteLength(encoded, 'utf8') > 200_000) {
+      errorResponse(res, 'The data is too large to save.', 413)
+      return
+    }
+    await execute(
+      `INSERT INTO user_app_data (userID, dataKey, dataValue) VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE dataValue = VALUES(dataValue)`,
+      [user.userID, key, encoded],
+    )
+    send(res, 200, { success: true })
+    return
+  }
+
+  if (req.method === 'DELETE') {
+    const key = text(json(req)?.key)
+    if (key !== 'incident_report_draft') {
+      errorResponse(res, 'Invalid data key.')
+      return
+    }
+    await execute('DELETE FROM user_app_data WHERE userID = ? AND dataKey = ?', [user.userID, key])
+    send(res, 200, { success: true })
+    return
+  }
+
+  errorResponse(res, 'Method not allowed.', 405)
 }
 
 async function offices(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -574,9 +687,29 @@ async function getIncidents(req: VercelRequest, res: VercelResponse): Promise<vo
      ORDER BY incidents.createdAt DESC`,
     values,
   )
+  const subsByIncident = new Map<string, JsonRecord[]>()
+  if (incidents.length > 0) {
+    const placeholders = incidents.map(() => '?').join(', ')
+    const subs = await getRows<RowDataPacket>(
+      `SELECT isa.incidentID, isa.userID, technician.fullName, technician.profilePhoto
+       FROM incident_sub_assignments AS isa
+       JOIN users AS technician ON technician.userID = isa.userID
+       WHERE isa.incidentID IN (${placeholders})
+       ORDER BY technician.fullName ASC`,
+      incidents.map((incident) => String(incident.incidentID)),
+    )
+    for (const sub of subs) {
+      const incidentID = String(sub.incidentID)
+      const list = subsByIncident.get(incidentID) ?? []
+      const photo = typeof sub.profilePhoto === 'string' ? sub.profilePhoto.split(/[\\/]/).pop() : sub.profilePhoto
+      list.push({ userID: sub.userID, fullName: sub.fullName, profilePhoto: photo ?? null })
+      subsByIncident.set(incidentID, list)
+    }
+  }
   const normalized = incidents.map((incident) => ({
     ...incident,
     keywords: normalizedKeywords(incident.keywords),
+    subAssignments: subsByIncident.get(String(incident.incidentID)) ?? [],
   }))
   send(res, 200, { success: true, count: normalized.length, incidents: normalized })
 }
@@ -786,7 +919,7 @@ async function assignIncident(req: VercelRequest, res: VercelResponse): Promise<
     return
   }
   const personnel = await getRow<RowDataPacket & { userID: number; fullName: string }>(
-    "SELECT userID, fullName FROM users WHERE userID = ? AND role = 'IT Personnel' AND LOWER(status) = 'active' LIMIT 1",
+    "SELECT userID, fullName FROM users WHERE userID = ? AND role IN ('Technician', 'IT Personnel', 'IT Support') AND LOWER(status) = 'active' LIMIT 1",
     [assignedTo],
   )
   if (!personnel) {
@@ -879,11 +1012,9 @@ async function updateIncidentStatus(req: VercelRequest, res: VercelResponse): Pr
   }
   if (status === 'Resolved') {
     const notes = text(data?.resolutionNotes)
-    const checked = data?.technicianCheckedSteps
-    if (!Array.isArray(checked) || !notes) {
-      errorResponse(res, !Array.isArray(checked)
-        ? 'Complete every technician troubleshooting step before resolving this incident.'
-        : 'Resolution notes are required.')
+    const checked = Array.isArray(data?.technicianCheckedSteps) ? data.technicianCheckedSteps : []
+    if (!notes) {
+      errorResponse(res, 'Resolution notes are required.')
       return
     }
     const sections = incident.troubleshooting.split(/^\s*IT Troubleshooting Suggestions:\s*$/im)
@@ -895,18 +1026,13 @@ async function updateIncidentStatus(req: VercelRequest, res: VercelResponse): Pr
       .split(/\s+(?=(?:\d+[.)]|[-*•])\s+)/u)
       .map((step) => step.replace(/^\s*(?:\d+[.)]|[-*•])\s*/u, '').trim())
       .filter(Boolean)
-    const checkedSteps = [...new Set(checked.map(Number))].sort((a, b) => a - b)
-    if (
-      technicianSteps.length === 0
-      || checkedSteps.length !== technicianSteps.length
-      || checkedSteps.some((step, index) => !Number.isInteger(step) || step !== index)
-    ) {
-      errorResponse(res, 'Complete every technician troubleshooting step before resolving this incident.')
-      return
-    }
+    const checkedSteps = [...new Set(checked.map(Number))]
+      .filter((step) => Number.isInteger(step) && step >= 0 && step < technicianSteps.length)
+      .sort((a, b) => a - b)
     const troubleshooting = incident.troubleshooting
       .replace(/\s*\[IT checked troubleshooting steps: [^\]]*\]/gi, '')
-      .trimEnd() + `\n[IT checked troubleshooting steps: ${checkedSteps.join(',')}]`
+      .trimEnd()
+      + (checkedSteps.length ? `\n[IT checked troubleshooting steps: ${checkedSteps.join(',')}]` : '')
     await execute(
       `UPDATE incidents SET status = 'Resolved', resolvedAt = NOW(), resolvedBy = ?,
          resolutionNotes = ?, troubleshooting = ?,
@@ -958,8 +1084,8 @@ async function itPersonnel(req: VercelRequest, res: VercelResponse): Promise<voi
   }
   if (!(await requireSessionUser(req, res, ['Administrator', 'Secretary', 'IT Personnel'], 'You do not have permission to view Technician options.'))) return
   const personnel = await getRows<RowDataPacket>(
-    `SELECT userID, fullName, department, role, status
-     FROM users WHERE role IN ('IT Personnel', 'IT Support') AND LOWER(status) = 'active' ORDER BY fullName ASC`,
+    `SELECT userID, fullName, department, role, status, profilePhoto
+     FROM users WHERE role IN ('Technician', 'IT Personnel', 'IT Support') AND LOWER(status) = 'active' ORDER BY fullName ASC`,
   )
   send(res, 200, { success: true, personnel })
 }
@@ -1017,24 +1143,13 @@ async function createUser(req: VercelRequest, res: VercelResponse): Promise<void
   let employeeId = ''
   try {
     await connection.beginTransaction()
-    const pendingEmployeeId = `__PENDING__${randomBytes(16).toString('hex')}`
+    employeeId = await nextEmployeeId(connection, role)
     const [result] = await connection.execute<ResultSetHeader>(
       `INSERT INTO users (dateCreated, department, email, employeeId, fullName, password, role, status)
        VALUES (NOW(), ?, ?, ?, ?, ?, ?, 'Active')`,
-      [department, email, pendingEmployeeId, fullName, await hashPassword(password), role === 'Administrator' ? 'Admin' : role],
+      [department, email, employeeId, fullName, await hashPassword(password), role === 'Administrator' ? 'Admin' : role === 'IT Personnel' ? 'Technician' : role],
     )
     userID = result.insertId
-    const employeeIdBase = `EMP-${String(userID).padStart(4, '0')}`
-    employeeId = employeeIdBase
-    for (let suffix = 1; ; suffix += 1) {
-      const [matches] = await connection.execute<RowDataPacket[]>(
-        'SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) LIMIT 1',
-        [employeeId],
-      )
-      if (matches.length === 0) break
-      employeeId = `${employeeIdBase}-${suffix}`
-    }
-    await connection.execute('UPDATE users SET employeeId = ? WHERE userID = ?', [employeeId, userID])
     await connection.commit()
   } catch (error) {
     await connection.rollback()
@@ -1067,11 +1182,10 @@ async function updateUser(req: VercelRequest, res: VercelResponse): Promise<void
   }
   if (action === 'update') {
     const fullName = text(data?.fullName)
-    const employeeId = text(data?.employeeId)
     const email = text(data?.email).toLowerCase()
     const department = text(data?.department)
     const role = text(data?.role)
-    if (!fullName || !employeeId || !department || !validEmail(email)
+    if (!fullName || !department || !validEmail(email)
       || !(await isActiveCatalogValue('user_role', role)) || !canonicalRole(role)) {
       errorResponse(res, 'Please provide valid account details.')
       return
@@ -1084,26 +1198,42 @@ async function updateUser(req: VercelRequest, res: VercelResponse): Promise<void
       errorResponse(res, 'Please select an active Office from the list.')
       return
     }
-    const duplicateEmployee = await getRow<RowDataPacket>(
-      'SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) AND userID <> ? LIMIT 1',
-      [employeeId, userID],
-    )
     const duplicateEmail = await getRow<RowDataPacket>(
       'SELECT userID FROM users WHERE LOWER(email) = ? AND userID <> ? LIMIT 1',
       [email, userID],
     )
-    if (duplicateEmployee) {
-      errorResponse(res, 'This Employee ID is already assigned to another account.', 409)
-      return
-    }
     if (duplicateEmail) {
       errorResponse(res, 'This email address is already used by another account.', 409)
       return
     }
-    await execute(
-      'UPDATE users SET fullName = ?, employeeId = ?, email = ?, department = ?, role = ? WHERE userID = ?',
-      [fullName, employeeId, email, department, role === 'Administrator' ? 'Admin' : role, userID],
-    )
+    const connection = await getPool().getConnection()
+    try {
+      await connection.beginTransaction()
+      const [currentRows] = await connection.execute<RowDataPacket[]>(
+        'SELECT employeeId FROM users WHERE userID = ? FOR UPDATE', [userID],
+      )
+      if (currentRows.length === 0) {
+        await connection.rollback()
+        errorResponse(res, 'User not found.', 404)
+        return
+      }
+      const databaseRole = role === 'Administrator' ? 'Admin' : role === 'IT Personnel' ? 'Technician' : role
+      const prefix = employeeIdPrefix(databaseRole)
+      const currentEmployeeId = String(currentRows[0].employeeId ?? '')
+      const employeeId = prefix && new RegExp(`^${prefix}\\d+$`, 'i').test(currentEmployeeId)
+        ? currentEmployeeId
+        : await nextEmployeeId(connection, databaseRole)
+      await connection.execute(
+        'UPDATE users SET fullName = ?, employeeId = ?, email = ?, department = ?, role = ? WHERE userID = ?',
+        [fullName, employeeId, email, department, databaseRole, userID],
+      )
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
+    }
   } else if (action === 'self_password') {
     const currentPassword = typeof data?.currentPassword === 'string' ? data.currentPassword : ''
     const password = typeof data?.password === 'string' ? data.password : ''
@@ -1289,24 +1419,19 @@ async function changePassword(req: VercelRequest, res: VercelResponse): Promise<
 function formatDevice(row: RowDataPacket): JsonRecord {
   const lastPingTimestamp = row.lastPingAt ? new Date(row.lastPingAt).getTime() : Number.NaN
   const pingIsStale = !Number.isFinite(lastPingTimestamp)
-    || Date.now() - lastPingTimestamp > 120_000
+    || Date.now() - lastPingTimestamp > 600_000
   return {
     id: row.deviceID,
     name: row.name,
     type: row.deviceType,
     status: pingIsStale ? 'unknown' : row.monitoringStatus ?? 'unknown',
     ip: row.ipAddress,
-    mac: row.macAddress || '—',
+    mac: '',
     location: row.location,
     department: row.department,
     firmware: row.firmware || '—',
     registeredAt: row.createdAt,
     lastSeen: row.lastPingAt === null ? null : row.lastSeen,
-    throughput: null,
-    devicesConnected: null,
-    uptime: null,
-    downloadMbps: null,
-    uploadMbps: null,
     pingResponseTimeMs: row.pingResponseTimeMs,
     lastPingAt: row.lastPingAt,
     assignedUserId: row.assignedUserId === null ? null : String(row.assignedUserId),
@@ -1337,8 +1462,8 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
   const action = text(data.action)
   const deviceActor = await requireSessionUser(req, res, ['Administrator', 'IT Personnel'], 'Only Administrators or Technicians may manage device monitoring.')
   if (!deviceActor) return
-  if (['add', 'delete'].includes(action) && deviceActor.role !== 'Administrator') {
-    errorResponse(res, 'Only an Administrator may add or delete devices.', 403)
+  if (action === 'delete' && deviceActor.role !== 'Administrator') {
+    errorResponse(res, 'Only an Administrator may delete devices.', 403)
     return
   }
   const deviceID = text(data.deviceID)
@@ -1400,8 +1525,8 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
       message: pingRequest.status === 'pending'
         ? 'Waiting for the network monitoring agent.'
         : pingRequest.reachable
-          ? 'The probed IP and detected MAC match the registered device.'
-          : 'The device is offline, the probed IP differs, or the detected MAC does not match.',
+          ? 'The registered IP address is online.'
+          : 'The registered IP address is offline.',
     })
     return
   }
@@ -1429,7 +1554,7 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
   const name = text(data.name)
   const type = text(data.type)
   const ip = text(data.ip)
-  const mac = text(data.mac)
+  const mac = ''
   const location = text(data.location)
   const department = text(data.department)
   const firmware = text(data.firmware)
@@ -1452,10 +1577,6 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
   }
   if (!(await isActiveCatalogValue('device_type', type))) {
     errorResponse(res, 'Invalid device type.')
-    return
-  }
-  if (!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(mac)) {
-    errorResponse(res, 'A valid MAC address is required (e.g. AC:DE:48:00:11:22).')
     return
   }
   if (assignedUserId && !/^\d+$/.test(assignedUserId)) {
@@ -1592,26 +1713,18 @@ async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<voi
     errorResponse(res, 'A device ID, probed IP address, and reachability result are required.')
     return
   }
-  const neighborMacAddress = text(data.neighborMacAddress)
   await ensureDevicePingTable()
   await ensureDeviceStatusHistoryTable()
   const currentDevice = await getRow<RowDataPacket>(
-    'SELECT deviceID, name, ipAddress, macAddress, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1',
+    'SELECT deviceID, name, ipAddress, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1',
     [deviceID],
   )
   if (!currentDevice) {
     errorResponse(res, 'Device not found.', 404)
     return
   }
-  const normalizeMac = (value: unknown) => text(value).replace(/[^0-9a-f]/gi, '').toLowerCase()
-  const registeredMac = normalizeMac(currentDevice.macAddress)
   const ipMatches = reportedIpAddress === text(currentDevice.ipAddress)
-  const macMatches = registeredMac.length === 12
-    && normalizeMac(neighborMacAddress) === registeredMac
-  const reachable = data.reachable
-    && ipMatches
-    && registeredMac.length === 12
-    && macMatches
+  const reachable = data.reachable && ipMatches
   const responseTime = reachable && typeof data.responseTimeMs === 'number'
     && Number.isFinite(data.responseTimeMs) && data.responseTimeMs >= 0
     ? String(Math.round(data.responseTimeMs * 100) / 100)
@@ -1655,12 +1768,12 @@ async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<voi
     status,
     responseTimeMs: responseTime,
     message: reachable
-      ? 'The probed IP and detected MAC match the registered device.'
+      ? 'The registered IP address is online.'
       : !ipMatches
         ? 'The monitoring agent probed a different IP address than the one registered for this device.'
         : !data.reachable
           ? 'The registered IP did not respond to ping.'
-          : 'The IP responded, but its detected MAC address does not match the registered MAC.',
+          : 'The registered IP did not respond to ping.',
   })
 }
 

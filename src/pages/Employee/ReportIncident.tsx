@@ -13,6 +13,7 @@ import {
 import '../Admin/Dashboard.css'
 import './ReportIncident.css'
 import { API_BASE_URL } from '../../apiConfig'
+import { deleteUserAppData, loadUserAppData, saveUserAppData } from '../../utils/userAppData'
 import { useSystemOptions } from '../../hooks/useSystemOptions'
 import { parseSelfHelpSteps } from '../../utils/selfHelp'
 import { analyzeIncidentWithAI } from '../../utils/incidentAi'
@@ -160,10 +161,15 @@ function readIncidentReportDraft(key: string): IncidentReportDraft | null {
   try {
     const serializedDraft = localStorage.getItem(key)
     if (!serializedDraft) return null
+    return readIncidentReportDraftFromValue(JSON.parse(serializedDraft))
+  } catch (error) {
+    console.error('Unable to restore the incident report draft:', error)
+    return null
+  }
+}
 
-    const draft: unknown = JSON.parse(serializedDraft)
+function readIncidentReportDraftFromValue(draft: unknown): IncidentReportDraft | null {
     if (!draft || typeof draft !== 'object') return null
-
     const candidate = draft as Partial<IncidentReportDraft>
     const values = candidate.values
     if (
@@ -195,10 +201,6 @@ function readIncidentReportDraft(key: string): IncidentReportDraft | null {
     }
 
     return candidate as IncidentReportDraft
-  } catch (error) {
-    console.error('Unable to restore the incident report draft:', error)
-    return null
-  }
 }
 
 /*
@@ -551,6 +553,7 @@ function ReportIncident() {
   const [restoredDraft] = useState(() =>
     readIncidentReportDraft(draftStorageKey),
   )
+  const [databaseDraftLoaded, setDatabaseDraftLoaded] = useState(false)
   const discardDraftOnUnmount = useRef(false)
 
   const [sidebarCollapsed, setSidebarCollapsed] =
@@ -603,24 +606,60 @@ function ReportIncident() {
     useState<IncidentAnalysis | null>(() => restoredDraft?.aiAnalysis ?? null)
 
   useEffect(() => {
-    if (discardDraftOnUnmount.current) return
-
-    try {
-      localStorage.setItem(
-        draftStorageKey,
-        JSON.stringify({
-          version: 1,
-          values,
-          phase,
-          aiAnalysis,
-          issueResolved,
-          checkedSelfHelpSteps,
-        } satisfies IncidentReportDraft),
-      )
-    } catch (error) {
-      console.error('Unable to save the incident report draft:', error)
+    let active = true
+    const restoreDraft = async () => {
+      try {
+        const data = await loadUserAppData()
+        if (!active) return
+        const saved = readIncidentReportDraftFromValue(data.incident_report_draft)
+        if (saved) {
+          setValues(current => ({ ...current, ...saved.values, department: getInitialValues().department }))
+          setPhase(saved.phase)
+          setAiAnalysis(saved.aiAnalysis)
+          setIssueResolved(saved.issueResolved)
+          setCheckedSelfHelpSteps(saved.checkedSelfHelpSteps)
+        } else if (restoredDraft) {
+          // Migrate a draft from this browser to the authenticated database record.
+          await saveUserAppData('incident_report_draft', restoredDraft)
+          localStorage.removeItem(draftStorageKey)
+        }
+      } catch (error) {
+        console.error('Unable to restore the incident report draft from the database:', error)
+        if (active) setDraftSaveError('Database draft storage is unavailable. The draft remains saved in this browser.')
+      } finally {
+        if (active) setDatabaseDraftLoaded(true)
+      }
     }
+    void restoreDraft()
+    return () => { active = false }
+  }, [draftStorageKey, restoredDraft])
+
+  useEffect(() => {
+    if (!databaseDraftLoaded || discardDraftOnUnmount.current) return
+
+    const draft: IncidentReportDraft = {
+      version: 1,
+      values,
+      phase,
+      aiAnalysis,
+      issueResolved,
+      checkedSelfHelpSteps,
+    }
+    const timer = window.setTimeout(() => {
+      void saveUserAppData('incident_report_draft', draft)
+        .then(() => {
+          localStorage.removeItem(draftStorageKey)
+          setDraftSaveError('')
+        })
+        .catch(error => {
+          console.error('Unable to save the incident report draft to the database:', error)
+          try { localStorage.setItem(draftStorageKey, JSON.stringify(draft)) } catch { /* quota or privacy mode */ }
+          setDraftSaveError('Database draft storage is unavailable. The draft remains saved in this browser.')
+        })
+    }, 500)
+    return () => window.clearTimeout(timer)
   }, [
+    databaseDraftLoaded,
     aiAnalysis,
     checkedSelfHelpSteps,
     draftStorageKey,
@@ -657,23 +696,6 @@ function ReportIncident() {
 
       const analysis =
         await analyzeIncidentWithAI(values)
-
-      try {
-        localStorage.setItem(
-          draftStorageKey,
-          JSON.stringify({
-            version: 1,
-            values,
-            phase: 'result',
-            aiAnalysis: analysis,
-            issueResolved: '',
-            checkedSelfHelpSteps: [],
-          } satisfies IncidentReportDraft),
-        )
-      } catch (storageError) {
-        console.error('Unable to save the incident analysis draft:', storageError)
-        setDraftSaveError('Your AI analysis could not be saved in this browser.')
-      }
 
       setAiAnalysis(analysis)
       setPhase('result')
@@ -853,6 +875,9 @@ function ReportIncident() {
 
       discardDraftOnUnmount.current = true
       localStorage.removeItem(draftStorageKey)
+      void deleteUserAppData('incident_report_draft').catch(error => {
+        console.error('Unable to remove the submitted incident draft from the database:', error)
+      })
       setSubmitted(true)
 
       setValues(
@@ -884,6 +909,9 @@ function ReportIncident() {
   const closeReport = () => {
     discardDraftOnUnmount.current = true
     localStorage.removeItem(draftStorageKey)
+    void deleteUserAppData('incident_report_draft').catch(error => {
+      console.error('Unable to remove the discarded incident draft from the database:', error)
+    })
     setValues(
       getInitialValues(),
     )

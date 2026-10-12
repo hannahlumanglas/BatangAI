@@ -204,14 +204,8 @@ if ($status === "Resolved") {
     $resolutionNotes = trim(
         $data["resolutionNotes"] ?? ""
     );
-    $checkedTechnicianSteps = $data["technicianCheckedSteps"] ?? null;
-
-    if (!is_array($checkedTechnicianSteps)) {
-        http_response_code(400);
-        echo json_encode(["success" => false, "message" => "Complete every technician troubleshooting step before resolving this incident."]);
-        $conn->close();
-        exit;
-    }
+    $checkedTechnicianSteps = $data["technicianCheckedSteps"] ?? [];
+    if (!is_array($checkedTechnicianSteps)) $checkedTechnicianSteps = [];
 
     if ($resolutionNotes === "") {
         http_response_code(400);
@@ -306,16 +300,11 @@ if ($status === "Resolved") {
         return trim(preg_replace('/^\s*(?:\d+[.)]|[-*\x{2022}])\s*/u', '', $step));
     }, $technicianLines), function ($step) { return $step !== ""; }));
     $stepCount = count($technicianLines);
-    $checkedTechnicianSteps = array_values(array_unique(array_map('intval', $checkedTechnicianSteps)));
+    $checkedTechnicianSteps = array_values(array_unique(array_filter(array_map('intval', $checkedTechnicianSteps), function ($step) use ($stepCount) { return $step >= 0 && $step < $stepCount; })));
     sort($checkedTechnicianSteps);
-    if ($stepCount === 0 || count($checkedTechnicianSteps) !== $stepCount || $checkedTechnicianSteps !== range(0, $stepCount - 1)) {
-        http_response_code(400);
-        echo json_encode(["success" => false, "message" => "Complete every technician troubleshooting step before resolving this incident."]);
-        $conn->close();
-        exit;
-    }
     $troubleshooting = preg_replace('/\s*\[IT checked troubleshooting steps: [^\]]*\]/i', '', $troubleshooting);
-    $troubleshooting = rtrim($troubleshooting) . "\n[IT checked troubleshooting steps: " . implode(',', $checkedTechnicianSteps) . "]";
+    $troubleshooting = rtrim($troubleshooting);
+    if ($checkedTechnicianSteps) $troubleshooting .= "\n[IT checked troubleshooting steps: " . implode(',', $checkedTechnicianSteps) . "]";
     $savedSections = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
     $technicalTroubleshooting = trim((string)($savedSections[1] ?? ''));
 

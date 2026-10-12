@@ -476,6 +476,10 @@ function Profile({
     }
   }, [session, navigate])
 
+  useEffect(() => {
+    localStorage.removeItem('batangai-two-factor')
+  }, [])
+
   /*
   |--------------------------------------------------------------------------
   | Determine actual audience from logged-in user's role.
@@ -610,19 +614,6 @@ function Profile({
       ) === 'dark'
         ? 'dark'
         : 'light',
-    )
-
-  /*
-  |--------------------------------------------------------------------------
-  | Two-factor authentication.
-  |--------------------------------------------------------------------------
-  */
-  const [twoFactor, setTwoFactor] =
-    useState(
-      () =>
-        localStorage.getItem(
-          'batangai-two-factor',
-        ) === 'true',
     )
 
   /*
@@ -1034,28 +1025,6 @@ function Profile({
     } finally {
       setUpdatingPassword(false)
     }
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | Toggle 2FA.
-  |--------------------------------------------------------------------------
-  */
-  const toggle2FA = () => {
-    const next = !twoFactor
-
-    setTwoFactor(next)
-
-    localStorage.setItem(
-      'batangai-two-factor',
-      String(next),
-    )
-
-    setNotice(
-      next
-        ? 'Two-factor authentication enabled.'
-        : 'Two-factor authentication disabled.',
-    )
   }
 
   /*
@@ -1499,42 +1468,6 @@ function Profile({
                     Protect your account
                     and sign-in details.
                   </p>
-
-                </div>
-
-
-                {/* ======================================================
-                    TWO FACTOR
-                ====================================================== */}
-                <div className="security-row">
-
-                  <div>
-
-                    <strong>
-                      Two-factor authentication
-                    </strong>
-
-                    <span>
-                      Add a verification
-                      step when signing in.
-                    </span>
-
-                  </div>
-
-                  <button
-                    type="button"
-                    className={`security-switch${
-                      twoFactor
-                        ? ' enabled'
-                        : ''
-                    }`}
-                    onClick={toggle2FA}
-                    aria-pressed={
-                      twoFactor
-                    }
-                  >
-                    <i />
-                  </button>
 
                 </div>
 

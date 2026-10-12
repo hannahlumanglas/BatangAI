@@ -10,6 +10,7 @@
 2. Apply `migrations/add_sub_assignments.sql`.
 3. Apply `migrations/add_offices.sql`.
 4. Apply `migrations/add_system_catalogs.sql`.
+5. Apply `migrations/add_user_app_data.sql` to persist authenticated user drafts and notification read state.
 
 Use the compatibility migrations only when a deployment needs the specific
 legacy schema adjustment named by that migration. Keep private database dumps

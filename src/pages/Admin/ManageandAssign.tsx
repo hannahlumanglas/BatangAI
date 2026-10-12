@@ -227,7 +227,7 @@ type Incident = IncidentDetail & {
   aiSummary: string
   aiSteps: string[]
   aiCheckedSteps: number[]
-  subAssignments?: { userID: number | string; fullName: string }[]
+  subAssignments?: { userID: number | string; fullName: string; profilePhoto?: string | null }[]
 }
 
 type Personnel = {
@@ -238,6 +238,7 @@ type Personnel = {
   department: string
   role: string
   status: string
+  profilePhoto?: string | null
 }
 
 type ApiIncident = {
@@ -271,10 +272,8 @@ type ApiIncident = {
   resolutionNotes?: string | null
   resolvedAt?: string | null
   resolvedBy?: string | null
-  subAssignments?: { userID: number | string; fullName: string }[]
+  subAssignments?: { userID: number | string; fullName: string; profilePhoto?: string | null }[]
 }
-
-type DepartmentAssignment = { id: number; department: string; primaryUserID: string; primaryName: string; subs: { userID: number | string; fullName: string }[] }
 
 const statusTagClass: Record<Status, string> = {
   Pending: 'pending-tag',
@@ -948,7 +947,6 @@ function ManageAndAssign({
   const [selectedPersonnelId, setSelectedPersonnelId] =
     useState('')
   const [selectedSubIds, setSelectedSubIds] = useState<string[]>([])
-  const [departmentAssignments, setDepartmentAssignments] = useState<DepartmentAssignment[]>([])
 
   const [viewingId, setViewingId] =
     useState<string | null>(null)
@@ -1029,16 +1027,6 @@ function ManageAndAssign({
       )
 
       setItPersonnel(apiPersonnel)
-      if (!isIT) {
-        try {
-          const coverageResponse = await fetch(`${API_BASE_URL}/department_assignments.php`)
-          const coverageData = await coverageResponse.json()
-          if (coverageData.success) setDepartmentAssignments(coverageData.assignments || [])
-        } catch (coverageError) {
-          console.error('Department coverage loading error:', coverageError)
-          setDepartmentAssignments([])
-        }
-      }
     } catch (err) {
       console.error(
         'Manage & Assign loading error:',
@@ -1056,7 +1044,7 @@ function ManageAndAssign({
     } finally {
       setLoading(false)
     }
-  }, [currentUserId, isIT])
+  }, [currentUserId])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadData(), 0)
@@ -1150,10 +1138,7 @@ function ManageAndAssign({
     const existingAssignedId =
       incident?.assignedToUserId
 
-    const coverage = departmentAssignments.find(item => item.department.toLowerCase() === incident.department.toLowerCase())
-    if (coverage && itPersonnel.some(person => String(person.userID) === coverage.primaryUserID)) {
-      setSelectedPersonnelId(coverage.primaryUserID)
-    } else if (
+    if (
       existingAssignedId &&
       itPersonnel.some(
         person =>
@@ -1171,7 +1156,7 @@ function ManageAndAssign({
           : '',
       )
     }
-    setSelectedSubIds((coverage?.subs || []).map(sub => String(sub.userID)))
+    setSelectedSubIds((incident.subAssignments || []).map(sub => String(sub.userID)))
   }
 
   const closeAssign = () => {
@@ -1243,8 +1228,8 @@ function ManageAndAssign({
                   ),
                 subAssignments: selectedSubIds.map(id => {
                   const person = itPersonnel.find(item => String(item.userID) === id)
-                  return person ? { userID: person.userID, fullName: person.fullName } : null
-                }).filter((person): person is { userID: number | string; fullName: string } => person !== null),
+                  return person ? { userID: person.userID, fullName: person.fullName, profilePhoto: person.profilePhoto } : null
+                }).filter((person): person is { userID: number | string; fullName: string; profilePhoto: string | null | undefined } => person !== null),
                 // Assignment only puts the report in the selected IT user's
                 // queue. It becomes In Progress when that user takes action.
                 status: 'Pending',
@@ -1551,6 +1536,7 @@ function ManageAndAssign({
                 {(systemOptions.severity ?? []).map(severity => <option key={severity}>{severity}</option>)}
               </select>
             </label>
+
           </div>
 
           {/* Incident Table */}
@@ -1563,6 +1549,7 @@ function ManageAndAssign({
                 <col className="maa-col-severity" />
                 <col className="maa-col-status" />
                 <col className="maa-col-assigned" />
+                <col className="maa-col-subs" />
                 <col className="maa-col-actions" />
               </colgroup>
               <thead>
@@ -1572,6 +1559,7 @@ function ManageAndAssign({
                   <th>Severity</th>
                   <th>Status</th>
                   <th>Assigned To</th>
+                  <th>SUB</th>
                   <th />
                 </tr>
               </thead>
@@ -1580,7 +1568,7 @@ function ManageAndAssign({
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="maa-empty"
                     >
                       Loading incidents...
@@ -1649,8 +1637,19 @@ function ManageAndAssign({
                             ) : (
                               'Unassigned'
                             )}
-                            {(i.subAssignments || []).length > 0 && <small className="maa-sub-assigned">SUB: {(i.subAssignments || []).map(sub => sub.fullName).join(', ')}</small>}
                           </span>
+                        </td>
+
+                        <td>
+                          {(i.subAssignments || []).length > 0 ? (
+                            <div className="maa-sub-list">
+                              {i.subAssignments!.map(sub => (
+                                <PersonName key={String(sub.userID)} name={sub.fullName} profilePhoto={sub.profilePhoto} compact />
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="maa-no-subs">—</span>
+                          )}
                         </td>
 
                         <td>

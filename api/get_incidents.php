@@ -209,9 +209,12 @@ while ($stmt->fetch()) {
     }
 
     $incidentSubs = [];
-    $subsStmt = $conn->prepare("SELECT isa.userID, u.fullName FROM incident_sub_assignments isa JOIN users u ON u.userID = isa.userID WHERE isa.incidentID = ? ORDER BY u.fullName");
+    $subsStmt = $conn->prepare("SELECT isa.userID, u.fullName, u.profilePhoto FROM incident_sub_assignments isa JOIN users u ON u.userID = isa.userID WHERE isa.incidentID = ? ORDER BY u.fullName");
     $subsStmt->bind_param('s', $incidentID); $subsStmt->execute(); $subsResult = $subsStmt->get_result();
-    while ($subRow = $subsResult->fetch_assoc()) $incidentSubs[] = $subRow;
+    while ($subRow = $subsResult->fetch_assoc()) {
+        if (is_string($subRow['profilePhoto']) && str_contains($subRow['profilePhoto'], '/')) $subRow['profilePhoto'] = basename($subRow['profilePhoto']);
+        $incidentSubs[] = $subRow;
+    }
     $subsStmt->close();
 
     $incidents[] = [

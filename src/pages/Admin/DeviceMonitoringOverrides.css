@@ -31,11 +31,26 @@
   box-shadow: none;
 }
 
-.dm-device-tools .incident-new {
+.dm-toolbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
   margin-left: auto;
 }
 
 @media (max-width: 760px) {
+  .dm-toolbar-actions {
+    width: 100%;
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .dm-toolbar-actions .incident-new {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
   .dm-device-tools .incident-search {
     flex: 1 1 100%;
     width: 100%;

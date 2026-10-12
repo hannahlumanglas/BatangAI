@@ -57,7 +57,13 @@ function displayDuration(value: IncidentDetail['durationMinutes']) {
 
 function formatIncidentDateTime(value: string | null | undefined) {
   if (!value) return 'Not recorded'
-  const parsed = new Date(value.trim().replace(' ', 'T'))
+  const normalized = value.trim().replace(' ', 'T')
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
+  const parsed = new Date(
+    hasTimezone || /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+      ? normalized
+      : `${normalized}Z`,
+  )
   if (Number.isNaN(parsed.getTime())) return 'Not recorded'
   return new Intl.DateTimeFormat('en-PH', {
     month: 'short',
@@ -158,17 +164,24 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
               rows={4}
             />
           </div>}
+          {!onResolutionNotesDraftChange && incident.resolutionNotes && <div className="incident-ai-block incident-resolution-notes-editor">
+            <label htmlFor="incident-resolution-notes-readonly">Resolution Notes</label>
+            <textarea
+              id="incident-resolution-notes-readonly"
+              value={incident.resolutionNotes}
+              rows={4}
+              readOnly
+            />
+          </div>}
             </section>
           )}
 
-          {(incident.resolutionNotes || incident.resolvedBy || incident.resolvedAt || duration) && (
+          {(incident.resolvedBy || incident.resolvedAt || duration) && (
             <section className="incident-resolution-panel">
-              <h3>Resolution Information</h3>
               <div className="incident-resolution-grid">
-                {incident.resolutionNotes && <ResolutionField label="Resolution Notes" value={incident.resolutionNotes} />}
                 {incident.resolvedBy && <ResolutionField label="Resolved By" value={incident.resolvedBy} detail={incident.resolvedBy === incident.employeeName ? 'Reporter' : 'Technician'} />}
                 {incident.resolvedAt && <ResolutionField label="Resolution Date/Time" value={formatIncidentDateTime(incident.resolvedAt)} />}
-                {duration && <ResolutionField label="Troubleshooting Duration" value={duration} />}
+                {duration && <ResolutionField label="Duration Time" value={duration} />}
               </div>
             </section>
           )}

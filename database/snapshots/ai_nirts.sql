@@ -109,16 +109,11 @@ CREATE TABLE `devices` (
   `department` varchar(150) NOT NULL,
   `firmware` varchar(100) DEFAULT NULL,
   `assignedUserId` int(11) DEFAULT NULL,
-  `throughput` tinyint(3) unsigned DEFAULT NULL,
-  `devicesConnected` int(10) unsigned DEFAULT NULL,
   `createdAt` datetime NOT NULL DEFAULT current_timestamp(),
   `lastSeen` datetime DEFAULT NULL,
   `monitoringStatus` enum('unknown','online','offline') NOT NULL DEFAULT 'unknown',
   `pingResponseTimeMs` varchar(20) DEFAULT NULL,
-  `lastPingAt` datetime DEFAULT NULL,
-  `uptimeSeconds` bigint(20) unsigned DEFAULT NULL,
-  `downloadMbps` decimal(12,3) DEFAULT NULL,
-  `uploadMbps` decimal(12,3) DEFAULT NULL
+  `lastPingAt` datetime DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --

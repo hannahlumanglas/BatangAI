@@ -183,9 +183,33 @@ $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
  */
 
 $status = "Active";
-$databaseRole = $role === "IT Personnel" ? "IT Support" : $role;
-$pendingEmployeeId = "__PENDING__" . bin2hex(random_bytes(16));
+$databaseRole = $role === "IT Personnel" ? "Technician" : $role;
+$prefixByRole = [
+    'Employee' => 'EMP', 'Secretary' => 'SEC',
+    'IT Personnel' => 'ITS', 'IT Support' => 'ITS',
+    'Administrator' => 'ADM', 'Admin' => 'ADM',
+];
+$employeeIdPrefix = $prefixByRole[$role] ?? null;
+if ($employeeIdPrefix === null) {
+    http_response_code(400);
+    echo json_encode(["success" => false, "message" => "Invalid account role."]);
+    $conn->close();
+    exit;
+}
 $conn->begin_transaction();
+$idQuery = $conn->prepare('SELECT employeeId FROM users WHERE employeeId LIKE ? FOR UPDATE');
+$idPattern = $employeeIdPrefix . '%';
+$idQuery->bind_param('s', $idPattern);
+$idQuery->execute();
+$existingIds = $idQuery->get_result();
+$maxId = 0;
+while ($row = $existingIds->fetch_assoc()) {
+    if (preg_match('/^' . preg_quote($employeeIdPrefix, '/') . '([0-9]+)$/i', trim((string)$row['employeeId']), $matches)) {
+        $maxId = max($maxId, (int)$matches[1]);
+    }
+}
+$idQuery->close();
+$employeeId = $employeeIdPrefix . str_pad((string)($maxId + 1), 2, '0', STR_PAD_LEFT);
 
 $stmt = $conn->prepare("
     INSERT INTO users (
@@ -214,7 +238,7 @@ $stmt->bind_param(
     "sssssss",
     $department,
     $email,
-    $pendingEmployeeId,
+    $employeeId,
     $fullName,
     $hashedPassword,
     $databaseRole,
@@ -234,29 +258,6 @@ if (!$stmt->execute()) {
 }
 
 $newUserId = $conn->insert_id;
-$employeeIdBase = "EMP-" . str_pad((string)$newUserId, 4, "0", STR_PAD_LEFT);
-$employeeId = $employeeIdBase;
-$suffix = 1;
-do {
-    $checkEmployeeId = $conn->prepare("SELECT userID FROM users WHERE LOWER(TRIM(employeeId)) = LOWER(?) LIMIT 1");
-    $checkEmployeeId->bind_param("s", $employeeId);
-    $checkEmployeeId->execute();
-    $idExists = $checkEmployeeId->get_result()->num_rows > 0;
-    $checkEmployeeId->close();
-    if ($idExists) $employeeId = $employeeIdBase . "-" . $suffix++;
-} while ($idExists);
-$saveEmployeeId = $conn->prepare("UPDATE users SET employeeId = ? WHERE userID = ?");
-$saveEmployeeId->bind_param("si", $employeeId, $newUserId);
-if (!$saveEmployeeId->execute()) {
-    $saveEmployeeId->close();
-    $conn->rollback();
-    http_response_code(500);
-    echo json_encode(["success" => false, "message" => "Failed to save the generated Employee ID."]);
-    $stmt->close();
-    $conn->close();
-    exit;
-}
-$saveEmployeeId->close();
 $conn->commit();
 $createdAt = null;
 $dateStmt = $conn->prepare("SELECT dateCreated FROM users WHERE userID = ? LIMIT 1");

@@ -33,16 +33,11 @@ function ensureDevicesTable($conn) {
         department VARCHAR(150) NOT NULL,
         firmware VARCHAR(100) DEFAULT NULL,
         assignedUserId INT(11) DEFAULT NULL,
-        throughput TINYINT UNSIGNED DEFAULT NULL,
-        devicesConnected INT UNSIGNED DEFAULT NULL,
         createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         lastSeen DATETIME DEFAULT NULL,
         monitoringStatus ENUM('unknown', 'online', 'offline') NOT NULL DEFAULT 'unknown',
         pingResponseTimeMs VARCHAR(20) DEFAULT NULL,
         lastPingAt DATETIME DEFAULT NULL,
-        uptimeSeconds BIGINT UNSIGNED DEFAULT NULL,
-        downloadMbps DECIMAL(12,3) DEFAULT NULL,
-        uploadMbps DECIMAL(12,3) DEFAULT NULL,
         CONSTRAINT fk_devices_assigned_user FOREIGN KEY (assignedUserId) REFERENCES users(userID) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
 
@@ -59,9 +54,6 @@ function ensureDevicesTable($conn) {
         'monitoringStatus' => "ENUM('unknown', 'online', 'offline') NOT NULL DEFAULT 'unknown'",
         'pingResponseTimeMs' => 'VARCHAR(20) DEFAULT NULL',
         'lastPingAt' => 'DATETIME DEFAULT NULL',
-        'uptimeSeconds' => 'BIGINT UNSIGNED DEFAULT NULL',
-        'downloadMbps' => 'DECIMAL(12,3) DEFAULT NULL',
-        'uploadMbps' => 'DECIMAL(12,3) DEFAULT NULL',
     ];
     foreach ($columns as $column => $definition) {
         $existing = $conn->query("SHOW COLUMNS FROM devices LIKE '{$column}'");
@@ -76,21 +68,6 @@ function ensureDevicesTable($conn) {
     if ($lastSeenInfo && $lastSeenInfo['Null'] !== 'YES' && !$conn->query('ALTER TABLE devices MODIFY COLUMN lastSeen DATETIME DEFAULT NULL')) {
         respond(['success' => false, 'message' => 'Unable to upgrade device monitoring storage.'], 500);
     }
-    $legacyMetricTypes = [
-        'throughput' => 'TINYINT UNSIGNED',
-        'devicesConnected' => 'INT UNSIGNED',
-    ];
-    foreach ($legacyMetricTypes as $legacyMetric => $legacyType) {
-        $legacyColumn = $conn->query("SHOW COLUMNS FROM devices LIKE '{$legacyMetric}'");
-        $legacyInfo = $legacyColumn ? $legacyColumn->fetch_assoc() : null;
-        if ($legacyInfo && $legacyInfo['Null'] !== 'YES') {
-            if (!$conn->query("ALTER TABLE devices MODIFY COLUMN {$legacyMetric} {$legacyType} DEFAULT NULL")) {
-                respond(['success' => false, 'message' => 'Unable to upgrade legacy device metrics.'], 500);
-            }
-            $conn->query("UPDATE devices SET {$legacyMetric} = NULL WHERE {$legacyMetric} = 0");
-        }
-    }
-
     $historySql = "CREATE TABLE IF NOT EXISTS device_status_history (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         deviceID VARCHAR(40) NOT NULL,
@@ -106,51 +83,7 @@ function ensureDevicesTable($conn) {
     }
 }
 
-function formatUptime($uptimeSeconds) {
-    if ($uptimeSeconds === null) return null;
-    $seconds = max(0, (int)$uptimeSeconds);
-    $days = intdiv($seconds, 86400);
-    $hours = intdiv($seconds % 86400, 3600);
-    $minutes = intdiv($seconds % 3600, 60);
-    if ($days > 0) return $days . 'd ' . $hours . 'h ' . $minutes . 'm';
-    if ($hours > 0) return $hours . 'h ' . $minutes . 'm';
-    return $minutes . 'm';
-}
-
-function normalizeMacAddress($mac) {
-    $normalized = strtolower(preg_replace('/[^0-9a-f]/i', '', (string)$mac));
-    return strlen($normalized) === 12 ? $normalized : '';
-}
-
-function getNeighborMacAddress($ip) {
-    if (!function_exists('exec')) return null;
-
-    if (PHP_OS_FAMILY === 'Windows') {
-        $neighborPath = getenv('SystemRoot') . '\\System32\\arp.exe';
-        if (!is_executable($neighborPath)) return null;
-        $command = escapeshellarg($neighborPath) . ' -a ' . escapeshellarg($ip);
-    } else {
-        $neighborPath = is_executable('/usr/sbin/ip')
-            ? '/usr/sbin/ip'
-            : (is_executable('/usr/bin/ip') ? '/usr/bin/ip' : null);
-        if ($neighborPath === null) return null;
-        $command = escapeshellarg($neighborPath) . ' neigh show ' . escapeshellarg($ip);
-    }
-
-    $output = [];
-    exec($command, $output);
-    $ipPattern = '/(?<![0-9.])' . preg_quote($ip, '/') . '(?![0-9.])/';
-    foreach ($output as $line) {
-        // Match the complete IP token so (for example) .1 cannot match .130.
-        if (!preg_match($ipPattern, $line)) continue;
-        if (preg_match('/(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}/i', $line, $matches)) {
-            return strtoupper(str_replace('-', ':', $matches[0]));
-        }
-    }
-    return null;
-}
-
-function pingHost($ip, $expectedMac) {
+function pingHost($ip) {
     if (!filter_var($ip, FILTER_VALIDATE_IP) || !function_exists('exec')) {
         return ['available' => false, 'reachable' => false, 'responseTimeMs' => null];
     }
@@ -180,20 +113,10 @@ function pingHost($ip, $expectedMac) {
             break;
         }
     }
-    if (!$pingReachable) {
-        return ['available' => true, 'reachable' => false, 'pingReachable' => false, 'macAddress' => null, 'responseTimeMs' => null];
-    }
-
-    $actualMac = getNeighborMacAddress($ip);
-    $macMatches = $actualMac !== null
-        && normalizeMacAddress($actualMac) !== ''
-        && hash_equals(normalizeMacAddress($expectedMac), normalizeMacAddress($actualMac));
     return [
         'available' => true,
-        'reachable' => $macMatches,
-        'pingReachable' => true,
-        'macAddress' => $actualMac,
-        'responseTimeMs' => $macMatches ? $responseTimeMs : null,
+        'reachable' => $pingReachable,
+        'responseTimeMs' => $pingReachable ? $responseTimeMs : null,
     ];
 }
 
@@ -209,17 +132,11 @@ function deviceFromRow($row) {
         'type' => $row['deviceType'] ?? $row['type'] ?? 'Device',
         'status' => strtolower((string)($row['monitoringStatus'] ?? $row['status'] ?? 'unknown')),
         'ip' => $row['ipAddress'],
-        'mac' => $row['macAddress'] ?: '—',
         'location' => $row['location'],
         'department' => $row['department'],
         'firmware' => $row['firmware'] ?: '—',
         'registeredAt' => $row['createdAt'],
         'lastSeen' => $row['lastPingAt'] === null ? null : $row['lastSeen'],
-        'throughput' => null,
-        'devicesConnected' => null,
-        'uptime' => null,
-        'downloadMbps' => null,
-        'uploadMbps' => null,
         'pingResponseTimeMs' => $row['pingResponseTimeMs'],
         'lastPingAt' => $row['lastPingAt'],
         'assignedUserId' => $row['assignedUserId'] === null ? null : (string)$row['assignedUserId'],
@@ -270,9 +187,9 @@ if (!is_array($data)) {
 $sessionUser = require_role_session($conn, ['Administrator', 'IT Personnel'], 'Only signed-in Administrators or Technicians may manage device monitoring.');
 if ($sessionUser === null) { $conn->close(); exit; }
 $action = (string)($data['action'] ?? '');
-if (in_array($action, ['add', 'delete'], true) && $sessionUser['role'] !== 'Administrator') {
+if ($action === 'delete' && $sessionUser['role'] !== 'Administrator') {
     $conn->close();
-    respond(['success' => false, 'message' => 'Only an Administrator may add or delete devices.'], 403);
+    respond(['success' => false, 'message' => 'Only an Administrator may delete devices.'], 403);
 }
 ensureDevicesTable($conn);
 
@@ -283,7 +200,7 @@ if ($action === 'ping') {
         respond(['success' => false, 'message' => 'Device ID is required.'], 400);
     }
 
-    $lookup = $conn->prepare('SELECT ipAddress, macAddress, name, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1');
+    $lookup = $conn->prepare('SELECT ipAddress, name, monitoringStatus FROM devices WHERE deviceID = ? LIMIT 1');
     $lookup->bind_param('s', $deviceId);
     $lookup->execute();
     $deviceRow = $lookup->get_result()->fetch_assoc();
@@ -293,7 +210,7 @@ if ($action === 'ping') {
         respond(['success' => false, 'message' => 'Device not found.'], 404);
     }
 
-    $probeResult = pingHost($deviceRow['ipAddress'], $deviceRow['macAddress']);
+    $probeResult = pingHost($deviceRow['ipAddress']);
     if (!$probeResult['available']) {
         $conn->close();
         respond(['success' => false, 'message' => 'Ping is unavailable on this server.'], 501);
@@ -339,13 +256,7 @@ if ($action === 'ping') {
         'responseTimeMs' => $responseTime,
         'lastSeen' => $savedResult['lastSeen'],
         'lastPingAt' => $savedResult['lastPingAt'],
-        'message' => $reachable
-            ? 'IP and MAC address match.'
-            : ($probeResult['pingReachable']
-                ? ($probeResult['macAddress']
-                    ? 'The IP responded, but its MAC address does not match the registered device.'
-                    : 'The IP responded, but its MAC address could not be verified.')
-                : 'No ping response after 2 attempts.'),
+        'message' => $reachable ? 'The IP address is online.' : 'No ping response after 2 attempts.',
     ]);
 }
 
@@ -388,7 +299,7 @@ $type = trim((string)($data['type'] ?? ''));
 $status = 'Offline';
 $monitoringStatus = 'unknown';
 $ip = trim((string)($data['ip'] ?? ''));
-$mac = trim((string)($data['mac'] ?? ''));
+$mac = '';
 $location = trim((string)($data['location'] ?? ''));
 $department = trim((string)($data['department'] ?? ''));
 $firmware = trim((string)($data['firmware'] ?? ''));
@@ -411,15 +322,6 @@ if (!$officeCheck) { $conn->close(); respond(['success' => false, 'message' => '
 $officeCheck->bind_param('s', $department); $officeCheck->execute(); $officeCheck->store_result();
 $validOffice = $officeCheck->num_rows === 1; $officeCheck->close();
 if (!$validOffice) { $conn->close(); respond(['success' => false, 'message' => 'Select an active Office from the list.'], 400); }
-// Accept the MAC printed on some router labels, which may append a radio
-// identifier such as C416C877919B-A4(10). Store only the normalized MAC.
-$macCore = preg_replace('/-[0-9A-Fa-f]{2}\(\d+\)$/', '', $mac);
-$macHex = preg_replace('/[:-]/', '', (string)$macCore);
-if (!preg_match('/^[0-9A-Fa-f]{12}$/', $macHex)) {
-    $conn->close();
-    respond(['success' => false, 'message' => 'Enter 12 hexadecimal MAC characters. Router label formats such as C416C877919B-A4(10) are accepted.'], 400);
-}
-$mac = strtoupper(implode(':', str_split($macHex, 2)));
 if ($assignedUserId !== '' && !ctype_digit($assignedUserId)) {
     $conn->close();
     respond(['success' => false, 'message' => 'Invalid assigned user.'], 400);

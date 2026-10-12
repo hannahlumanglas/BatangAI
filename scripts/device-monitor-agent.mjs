@@ -3,7 +3,8 @@ import { setTimeout as delay } from 'node:timers/promises'
 
 const apiUrl = process.env.DEVICE_MONITOR_API_URL?.trim()
 const token = process.env.DEVICE_MONITOR_TOKEN?.trim()
-const intervalMs = Math.max(5_000, Number(process.env.DEVICE_MONITOR_INTERVAL_MS) || 15_000)
+const intervalMs = Math.max(5_000, Number(process.env.DEVICE_MONITOR_INTERVAL_MS) || 300_000)
+const requestPollMs = 5_000
 
 if (!apiUrl || !token || token.length < 32) {
   console.error('Set DEVICE_MONITOR_API_URL and DEVICE_MONITOR_TOKEN (at least 32 characters).')
@@ -80,50 +81,8 @@ function ping(ipAddress) {
   })
 }
 
-function getNeighborMacAddress(ipAddress) {
-  return new Promise((resolve) => {
-    const isWindows = process.platform === 'win32'
-    const executable = isWindows ? 'arp.exe' : 'ip'
-    const args = isWindows ? ['-a', ipAddress] : ['neigh', 'show', ipAddress]
-    let output = ''
-    let finished = false
-    let child
-    const finish = (macAddress) => {
-      if (finished) return
-      finished = true
-      clearTimeout(timeout)
-      resolve(macAddress)
-    }
-    const timeout = setTimeout(() => {
-      child?.kill()
-      finish(null)
-    }, 2_000)
-
-    try {
-      child = spawn(executable, args, { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
-      child.stdout.setEncoding('utf8')
-      child.stderr.setEncoding('utf8')
-      child.stdout.on('data', (chunk) => { output += chunk })
-      child.stderr.on('data', (chunk) => { output += chunk })
-      child.on('error', () => finish(null))
-      child.on('close', () => {
-        const escapedIp = ipAddress.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const ipPattern = new RegExp(`(?<![\\d.])${escapedIp}(?![\\d.])`)
-        const line = output.split(/\r?\n/).find((item) => ipPattern.test(item)) ?? ''
-        const match = line.match(/(?:[0-9a-f]{2}[:-]){5}[0-9a-f]{2}/i)
-        finish(match ? match[0].replaceAll('-', ':').toUpperCase() : null)
-      })
-    } catch {
-      finish(null)
-    }
-  })
-}
-
 async function monitorDevice(device) {
   const result = await ping(device.ipAddress)
-  const neighborMacAddress = result.reachable
-    ? await getNeighborMacAddress(device.ipAddress)
-    : null
   await request({
     method: 'POST',
     body: JSON.stringify({
@@ -131,20 +90,23 @@ async function monitorDevice(device) {
       ipAddress: device.ipAddress,
       reachable: result.reachable,
       responseTimeMs: result.responseTimeMs,
-      neighborMacAddress,
     }),
   })
 }
 
 async function run() {
-  console.log(`Monitoring agent started; checking registered devices every ${Math.round(intervalMs / 1000)} seconds.`)
+  console.log(`Monitoring agent started; checking registered devices every ${Math.round(intervalMs / 1000)} seconds and polling manual refresh requests every ${Math.round(requestPollMs / 1000)} seconds.`)
+  let lastAutomaticScanAt = 0
   while (true) {
     try {
       const data = await request()
       const requested = new Set(Array.isArray(data.requestedDeviceIDs) ? data.requestedDeviceIDs : [])
-      const devices = Array.isArray(data.devices)
-        ? [...data.devices].sort((a, b) => Number(requested.has(b.deviceID)) - Number(requested.has(a.deviceID)))
-        : []
+      const automaticScanDue = Date.now() - lastAutomaticScanAt >= intervalMs
+      const allDevices = Array.isArray(data.devices) ? data.devices : []
+      const devices = automaticScanDue
+        ? allDevices
+        : allDevices.filter((device) => requested.has(device.deviceID))
+      if (automaticScanDue) lastAutomaticScanAt = Date.now()
       for (let start = 0; start < devices.length; start += 10) {
         await Promise.all(devices.slice(start, start + 10).map(async (device) => {
           if (typeof device.deviceID !== 'string' || typeof device.ipAddress !== 'string') return
@@ -158,7 +120,7 @@ async function run() {
     } catch (error) {
       console.error(`Monitoring cycle failed: ${error.message}`)
     }
-    await delay(intervalMs)
+    await delay(requestPollMs)
   }
 }
 

@@ -17,7 +17,6 @@ import '../Admin/Dashboard.css'
 import './MyAssignments.css'
 import '../Admin/Incidents.css'
 import { API_BASE_URL } from '../../apiConfig'
-import { parseTechnicianSteps } from '../../utils/selfHelp'
 
 type Status = 'available' | 'in-progress' | 'solved'
 
@@ -394,7 +393,7 @@ function formatDate(
     return 'Unknown date'
   }
 
-  const date = new Date(dateValue)
+  const date = parseIncidentTimestamp(dateValue)
 
   if (Number.isNaN(date.getTime())) {
     return dateValue
@@ -413,7 +412,7 @@ function formatDateTime(
     return undefined
   }
 
-  const date = new Date(dateValue)
+  const date = parseIncidentTimestamp(dateValue)
 
   if (Number.isNaN(date.getTime())) {
     return dateValue
@@ -423,6 +422,18 @@ function formatDateTime(
     hour: 'numeric',
     minute: '2-digit',
   })
+}
+
+function parseIncidentTimestamp(value: string) {
+  const normalized = value.trim().replace(' ', 'T')
+  // MySQL DATETIME values have no timezone suffix. API timestamps are stored
+  // in UTC, so make that explicit before the browser converts them to local time.
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
+  return new Date(
+    hasTimezone || /^\d{4}-\d{2}-\d{2}$/.test(normalized)
+      ? normalized
+      : `${normalized}Z`,
+  )
 }
 
 function formatDuration(
@@ -493,8 +504,6 @@ function MyAssignments() {
   const [error, setError] = useState('')
   const [actionLoading, setActionLoading] =
     useState<string | null>(null)
-  const [resolutionTicket, setResolutionTicket] =
-    useState<Ticket | null>(null)
   const [resolutionNotes, setResolutionNotes] =
     useState('')
   const [resolutionLoading, setResolutionLoading] =
@@ -794,27 +803,6 @@ function MyAssignments() {
     setResolutionNotes(ticket.resolutionNotes || ticket.incidentDetail.resolutionNotes || '')
   }
 
-  const openResolution = (ticket: Ticket, preserveDraft = false) => {
-    const technicianSteps = parseTechnicianSteps(ticket.troubleshooting || '')
-    if (!technicianSteps.length || ticket.technicianCheckedSteps.length !== technicianSteps.length) {
-      alert('Please complete every technician troubleshooting step in View Report & AI before resolving this incident.')
-      return
-    }
-    setResolutionTicket(ticket)
-    if (!preserveDraft) {
-      setResolutionNotes(ticket.resolutionNotes || ticket.incidentDetail.resolutionNotes || '')
-    }
-  }
-
-  const closeResolution = () => {
-    if (resolutionLoading) {
-      return
-    }
-
-    setResolutionTicket(null)
-    setResolutionNotes('')
-  }
-
   const updateTechnicianStep = (ticketId: string, index: number, checked: boolean) => {
     const update = (ticket: Ticket): Ticket => {
       if (ticket.id !== ticketId) return ticket
@@ -831,15 +819,15 @@ function MyAssignments() {
     setSelected(current => current ? update(current) : current)
   }
 
-  const resolveIncident = async () => {
-    if (
-      !resolutionTicket ||
-      resolutionLoading
-    ) {
+  const resolveIncident = async (
+    resolutionTarget: Ticket,
+    notesDraft: string,
+  ) => {
+    if (resolutionLoading) {
       return
     }
 
-    const notes = resolutionNotes.trim()
+    const notes = notesDraft.trim()
 
     if (!notes) {
       alert(
@@ -859,12 +847,12 @@ function MyAssignments() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            incidentID: resolutionTicket.id,
+            incidentID: resolutionTarget.id,
             status: 'Resolved',
             actorUserId: currentUserId,
             resolvedBy: currentUserName,
             resolutionNotes: notes,
-            technicianCheckedSteps: resolutionTicket.technicianCheckedSteps,
+            technicianCheckedSteps: resolutionTarget.technicianCheckedSteps,
           }),
         },
       )
@@ -892,11 +880,11 @@ function MyAssignments() {
         durationMinutes !== null &&
         durationMinutes !== undefined
           ? formatDuration(durationMinutes)
-          : resolutionTicket.duration
+          : resolutionTarget.duration
 
       setTickets(current =>
         current.map(ticket =>
-          ticket.id === resolutionTicket.id
+          ticket.id === resolutionTarget.id
             ? {
                 ...ticket,
                 status: 'solved',
@@ -921,7 +909,7 @@ function MyAssignments() {
 
       setSelected(current =>
         current &&
-        current.id === resolutionTicket.id
+        current.id === resolutionTarget.id
           ? {
               ...current,
               status: 'solved',
@@ -943,12 +931,8 @@ function MyAssignments() {
           : current,
       )
 
-      setResolutionTicket(null)
       setResolutionNotes('')
-
-      alert(
-        'Incident resolved successfully.',
-      )
+      setSelected(null)
 
       await loadAssignments()
     } catch (err) {
@@ -1130,7 +1114,7 @@ function MyAssignments() {
                   tickets={available}
                   onView={viewTicket}
                   onTakeAction={takeAction}
-                  onResolve={openResolution}
+                  onResolve={viewTicket}
                   actionLoading={actionLoading}
                   resolutionLoading={resolutionLoading}
                 />
@@ -1143,7 +1127,7 @@ function MyAssignments() {
                   tickets={inProgress}
                   onView={viewTicket}
                   onTakeAction={takeAction}
-                  onResolve={openResolution}
+                  onResolve={viewTicket}
                   actionLoading={actionLoading}
                   resolutionLoading={resolutionLoading}
                 />
@@ -1156,7 +1140,7 @@ function MyAssignments() {
                   tickets={solved}
                   onView={viewTicket}
                   onTakeAction={takeAction}
-                  onResolve={openResolution}
+                  onResolve={viewTicket}
                   actionLoading={actionLoading}
                   resolutionLoading={resolutionLoading}
                 />
@@ -1173,7 +1157,7 @@ function MyAssignments() {
             setSelected(null)
           }
           onTakeAction={takeAction}
-          onResolve={(ticket) => openResolution(ticket, true)}
+          onResolve={(ticket) => void resolveIncident(ticket, resolutionNotes)}
           onTechnicianStepChange={(index, checked) => updateTechnicianStep(selected.id, index, checked)}
           actionLoading={actionLoading}
           resolutionLoading={resolutionLoading}
@@ -1182,18 +1166,6 @@ function MyAssignments() {
         />
       )}
 
-      {resolutionTicket && (
-        <ResolutionModal
-          ticket={resolutionTicket}
-          resolutionNotes={resolutionNotes}
-          setResolutionNotes={
-            setResolutionNotes
-          }
-          onClose={closeResolution}
-          onResolve={resolveIncident}
-          loading={resolutionLoading}
-        />
-      )}
     </div>
   )
 }
@@ -1372,154 +1344,6 @@ function ReportModal({
     />
   )
 }
-function ResolutionModal({
-  ticket,
-  resolutionNotes,
-  setResolutionNotes,
-  onClose,
-  onResolve,
-  loading,
-}: {
-  ticket: Ticket
-  resolutionNotes: string
-  setResolutionNotes: (value: string) => void
-  onClose: () => void
-  onResolve: () => void
-  loading: boolean
-}) {
-  return (
-    <div
-      className="assignment-modal-backdrop"
-      role="presentation"
-      onMouseDown={event => {
-        if (
-          event.target ===
-            event.currentTarget &&
-          !loading
-        ) {
-          onClose()
-        }
-      }}
-    >
-      <section
-        className="assignment-report"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="resolution-title"
-      >
-        <header>
-          <div>
-            <h2 id="resolution-title">
-              Resolve Incident
-            </h2>
-            <p className="person-line-label">
-              {ticket.id} â€” {ticket.title}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            aria-label="Close resolution form"
-            disabled={loading}
-            onClick={onClose}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-              <path d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
-        </header>
-
-        <div className="report-body">
-          <section className="report-problem">
-            <span>INCIDENT</span>
-
-            <p>
-              <strong>
-                Reported by:
-              </strong>{' '}
-              {ticket.reporter}
-            </p>
-
-            <p>
-              <strong>
-                Problem:
-              </strong>{' '}
-              {ticket.description ||
-                'No problem description provided.'}
-            </p>
-
-            <p>
-              <strong>
-                Current status:
-              </strong>{' '}
-              In Progress
-            </p>
-          </section>
-
-          <section className="report-problem">
-            <span>
-              RESOLUTION NOTES
-            </span>
-
-            <textarea
-              value={resolutionNotes}
-              onChange={event =>
-                setResolutionNotes(
-                  event.target.value,
-                )
-              }
-              placeholder="Describe the troubleshooting performed, solution applied, or replacement made..."
-              rows={7}
-              disabled={loading}
-              autoFocus
-            />
-          </section>
-
-          <section className="ai-solution">
-            <header>
-              <strong>
-                &#x2713; Ready to Resolve
-              </strong>
-              <span>
-                Technician
-              </span>
-            </header>
-
-            <p>
-              Submitting this form will mark
-              the incident as Resolved and
-              record the resolution time.
-            </p>
-          </section>
-        </div>
-
-        <footer>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            disabled={
-              loading ||
-              !resolutionNotes.trim()
-            }
-            onClick={onResolve}
-          >
-            {loading
-              ? 'Resolving...'
-              : '&#x2713; Submit Resolution'}
-          </button>
-        </footer>
-      </section>
-    </div>
-  )
-}
-
 export default MyAssignments
 
 

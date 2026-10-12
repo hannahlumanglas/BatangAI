@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getAuthSession } from '../../auth'
 import { API_BASE_URL } from '../../apiConfig'
+import { loadUserAppData, saveUserAppData } from '../../utils/userAppData'
 
 type IncidentNotificationSource = {
   incidentID: string | number
@@ -117,10 +118,15 @@ export function AdminNotifications() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const databaseStateLoaded = useRef(false)
+  const notificationsInitialized = useRef(false)
 
   const saveReadIds = useCallback((next: Set<string>) => {
     setReadIds(next)
     localStorage.setItem(readStorageKey(), JSON.stringify([...next]))
+    void saveUserAppData('notification_read_ids', [...next]).catch(saveError => {
+      console.error('Unable to save notification read state to the database:', saveError)
+    })
   }, [])
 
   const loadNotifications = useCallback(async (signal?: AbortSignal) => {
@@ -141,9 +147,37 @@ export function AdminNotifications() {
         return
       }
 
+      if (!databaseStateLoaded.current) {
+        try {
+          const savedData = await loadUserAppData(signal)
+          if (signal?.aborted) return
+          const savedIds = savedData.notification_read_ids
+          if (Array.isArray(savedIds)) {
+            const ids = savedIds.filter((id): id is string => typeof id === 'string')
+            setReadIds(new Set(ids))
+            localStorage.setItem(readStorageKey(), JSON.stringify(ids))
+          } else {
+            const legacyIds = loadReadIds()
+            setReadIds(legacyIds)
+            if (legacyIds.size) void saveUserAppData('notification_read_ids', [...legacyIds])
+          }
+          notificationsInitialized.current = savedData.notification_initialized === true
+            || localStorage.getItem(initializedStorageKey()) === 'true'
+          if (notificationsInitialized.current && savedData.notification_initialized !== true) {
+            void saveUserAppData('notification_initialized', true)
+          }
+        } catch (storageError) {
+          console.error('Unable to restore notification state from the database:', storageError)
+          setReadIds(loadReadIds())
+          notificationsInitialized.current = localStorage.getItem(initializedStorageKey()) === 'true'
+        } finally {
+          databaseStateLoaded.current = true
+        }
+      }
+
       const response = await fetch(
         `${INCIDENTS_URL}?userID=${encodeURIComponent(String(userId))}`,
-        { signal, cache: 'no-store' },
+        { signal, cache: 'no-store', credentials: 'include' },
       )
       const data = await response.json() as {
         success?: boolean
@@ -171,12 +205,16 @@ export function AdminNotifications() {
           ? eventIncidents.map(notificationForEmployee)
           : eventIncidents.map(notificationForReport)
 
-      if (!localStorage.getItem(initializedStorageKey())) {
+      if (!notificationsInitialized.current) {
         saveReadIds(new Set([
           ...loadReadIds(),
           ...eventNotifications.map(notification => notification.id),
         ]))
         localStorage.setItem(initializedStorageKey(), 'true')
+        notificationsInitialized.current = true
+        void saveUserAppData('notification_initialized', true).catch(saveError => {
+          console.error('Unable to save notification initialization state:', saveError)
+        })
       }
 
       setNotifications(eventNotifications.slice(0, 6))
