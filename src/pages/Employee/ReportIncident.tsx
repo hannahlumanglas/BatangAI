@@ -389,7 +389,7 @@ export function IncidentDescriptionFields({
         <h3>Problem Description</h3>
       </div>
 
-      <div className="incident-form-grid incident-form-grid--single">
+      <div className="incident-form-grid incident-form-grid--single incident-description-grid">
         <label className="incident-field">
           <span className="incident-field-label">
             Affected Issue / Service <em>*</em>

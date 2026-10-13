@@ -1872,22 +1872,44 @@ Connection Type: ${fields.connectionType}
 Affected Service: ${fields.affectedService}
 Description: ${fields.description}`
 
-  const models = ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-flash-lite-latest']
+  const models = ['gemini-3.1-flash-lite']
   let response: Response | undefined
   for (const model of models) {
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { responseMimeType: 'application/json' },
-        }),
-        signal: AbortSignal.timeout(55_000),
-      },
-    )
-    if (response.ok || [400, 401, 403].includes(response.status)) break
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { responseMimeType: 'application/json' },
+            }),
+            signal: AbortSignal.timeout(30_000),
+          },
+        )
+      } catch (error) {
+        const timedOut = error instanceof Error && error.name === 'TimeoutError'
+        send(res, 503, {
+          success: false,
+          aiAvailable: false,
+          message: timedOut
+            ? 'Gemini took too long to respond. Please try the analysis again.'
+            : 'The API server could not connect to Gemini. Check the server\'s internet connection and try again.',
+        })
+        return
+      }
+      if (response.ok || [400, 401, 403].includes(response.status)) break
+      if (![408, 429, 500, 502, 503, 504].includes(response.status) || attempt === 2) break
+      const retryAfterSeconds = Number(response.headers.get('retry-after'))
+      const backoffMs = 1000 * (2 ** attempt) + Math.floor(Math.random() * 250)
+      const retryDelayMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+        ? Math.min(retryAfterSeconds * 1000, 10_000)
+        : backoffMs
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+    }
+    if (response?.ok || [400, 401, 403].includes(response?.status ?? 0)) break
   }
   if (!response?.ok) {
     const status = response?.status ?? 503
@@ -1895,7 +1917,9 @@ Description: ${fields.description}`
       ? 'Gemini rejected the API key. Check GEMINI_API_KEY on the API server.'
       : status === 429
         ? 'Gemini API rate limit or usage quota reached. Please try again later.'
-        : 'Gemini is temporarily unavailable. Please try again shortly.'
+        : status === 503
+          ? 'Gemini is temporarily overloaded. Please wait a moment and try again.'
+          : 'Gemini is temporarily unavailable. Please try again shortly.'
     send(res, 503, { success: false, aiAvailable: false, message })
     return
   }

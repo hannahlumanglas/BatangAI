@@ -70,8 +70,9 @@ if (!$apiKey) {
 }
 
 /**
- * Send a JSON request to Gemini. PHP's cURL extension is optional on some
- * XAMPP/PHP installations, so use the HTTP stream wrapper when it is absent.
+ * Send a JSON request to Gemini. Use PHP's HTTP stream wrapper only when cURL
+ * is unavailable; retrying a failed cURL request through another transport can
+ * double the wait without fixing a server-side connection or timeout problem.
  */
 function geminiPostJson(string $url, string $jsonBody, string $apiKey): array
 {
@@ -86,7 +87,7 @@ function geminiPostJson(string $url, string $jsonBody, string $apiKey): array
             ],
             CURLOPT_POSTFIELDS => $jsonBody,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT => 60,
+            CURLOPT_TIMEOUT => 30,
         ]);
 
         $response = curl_exec($ch);
@@ -103,13 +104,15 @@ function geminiPostJson(string $url, string $jsonBody, string $apiKey): array
             "header" => "Content-Type: application/json\r\n"
                 . "x-goog-api-key: " . $apiKey . "\r\n",
             "content" => $jsonBody,
-            "timeout" => 60,
+            "timeout" => 30,
             "ignore_errors" => true,
         ],
     ]);
 
     $response = @file_get_contents($url, false, $context);
-    $error = $response === false ? "PHP HTTP stream request failed." : "";
+    $error = $response === false
+        ? "PHP HTTP stream request failed."
+        : "";
     $httpCode = 0;
     foreach ($http_response_header ?? [] as $header) {
         if (preg_match('/^HTTP\/\S+\s+(\d{3})/', $header, $matches)) {
@@ -296,19 +299,14 @@ if ($jsonRequestBody === false) {
 }
 
 $models = [
-    "gemini-3.8-flash",
-    "gemini-3.5-flash-lite",
-    "gemini-3.5-flash",
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
-    "gemini-flash-lite-latest",
+    "gemini-3.1-flash-lite",
 ];
 $response = false;
 $curlError = "";
 $httpCode = 0;
 $responseData = null;
-foreach ($models as $modelIndex => $model) {
-    $maxAttempts = $modelIndex === 0 ? 2 : 1;
+foreach ($models as $model) {
+    $maxAttempts = 3;
     for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
         [$response, $curlError, $httpCode] = geminiPostJson(
             "https://generativelanguage.googleapis.com/v1beta/models/" . $model . ":generateContent",
@@ -328,14 +326,20 @@ foreach ($models as $modelIndex => $model) {
             break 2;
         }
 
-        $isTransientFailure = $response === false
-            || in_array($httpCode, [408, 429, 500, 502, 503, 504], true);
+        $isTransientFailure = is_string($response)
+            && in_array($httpCode, [408, 429, 500, 502, 503, 504], true);
         if (!$isTransientFailure || $attempt === $maxAttempts) {
             break;
         }
 
-        error_log(sprintf("Gemini transient failure for %s (HTTP %d); retrying.", $model, $httpCode));
-        usleep(750000 + random_int(0, 250000));
+        $retryDelayMs = (1000 * (2 ** ($attempt - 1))) + random_int(0, 250);
+        error_log(sprintf(
+            "Gemini transient failure for %s (HTTP %d); retrying in %d ms.",
+            $model,
+            $httpCode,
+            $retryDelayMs
+        ));
+        usleep($retryDelayMs * 1000);
     }
 
     $failedData = is_string($response) ? json_decode($response, true) : null;
@@ -348,6 +352,10 @@ foreach ($models as $modelIndex => $model) {
         $httpCode,
         $curlError !== "" ? $curlError : ($failedMessage !== "" ? $failedMessage : "upstream returned an error")
     ));
+
+    if ($response === false) {
+        break;
+    }
 
     if (in_array($httpCode, [400, 401, 403], true)) {
         break;
@@ -377,10 +385,15 @@ if ($response === false) {
     http_response_code(503);
     error_log("Gemini analysis failed: upstream connection error: " . ($curlError !== "" ? $curlError : "unknown cURL error"));
 
+    $isTimeout = stripos($curlError, "timed out") !== false || stripos($curlError, "timeout") !== false;
+    $failureMessage = $isTimeout
+        ? "Gemini took too long to respond. Please try the analysis again."
+        : "The API server could not connect to Gemini. Check the server's internet connection and try again.";
+
     echo json_encode([
         "success" => false,
         "aiAvailable" => false,
-        "message" => "The API server could not connect to Gemini. Check the server's internet connection and try again.",
+        "message" => $failureMessage,
     ]);
 
     exit;
@@ -425,7 +438,7 @@ if ($httpCode < 200 || $httpCode >= 300) {
         $failureMessage = "Gemini could not find an available model for this API key. Check model access on the API server.";
     } elseif ($httpCode === 503) {
         if (stripos($upstreamMessage, "high demand") !== false) {
-            $failureMessage = "Gemini is experiencing high demand across its available models. Please wait a moment and try the analysis again.";
+            $failureMessage = "Gemini is temporarily overloaded. Please wait a moment and try the analysis again.";
         } else {
             $failureMessage = "Gemini is temporarily unavailable across its available models. Please try the analysis again shortly.";
         }
