@@ -86,7 +86,7 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
   const technicianSteps = parseTechnicianSteps(troubleshooting)
   const savedTechnicianMatch = troubleshooting.match(/\[IT checked troubleshooting steps: ([^\]]*)\]/i)
   const savedTechnicianSteps = new Set((savedTechnicianMatch?.[1] || '').split(',').map(value => Number(value.trim())).filter(index => Number.isInteger(index) && index >= 0))
-  const keywords = (incident.keywords || []).filter(keyword => typeof keyword === 'string')
+
   const keywordExtraction = [
     ['Reporter', incident.employeeName],
     ['Office', incident.department],
