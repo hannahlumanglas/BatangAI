@@ -1005,7 +1005,16 @@
   border-radius:9px;
 }
 .incident-filter-select select{width:100%;min-width:0;font-weight:500}
-.incident-filters>.incident-filter-select:nth-of-type(3){min-width:176px}
+.incident-filters > label.incident-filter-select:last-of-type{
+  flex:0 0 180px;
+  width:180px;
+  min-width:176px;
+}
+.incident-filters > label.incident-filter-select:last-of-type select{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
 .incidents-table-card td.incident-actions{
   justify-content:center;
   gap:12px;

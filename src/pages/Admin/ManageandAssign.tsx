@@ -227,7 +227,6 @@ type Incident = IncidentDetail & {
   aiSummary: string
   aiSteps: string[]
   aiCheckedSteps: number[]
-  subAssignments?: { userID: number | string; fullName: string; profilePhoto?: string | null }[]
 }
 
 type Personnel = {
@@ -272,7 +271,6 @@ type ApiIncident = {
   resolutionNotes?: string | null
   resolvedAt?: string | null
   resolvedBy?: string | null
-  subAssignments?: { userID: number | string; fullName: string; profilePhoto?: string | null }[]
 }
 
 const statusTagClass: Record<Status, string> = {
@@ -718,14 +716,13 @@ function mapIncident(item: ApiIncident): Incident {
     department: item.department || '—',
     severity: mapSeverity(item.severity),
     status: mapStatus(item.status),
-    subAssignments: item.subAssignments || [],
     assigned: item.assigned || (item.assignedToName ? 'Yes' : 'No'),
     assignedToName: item.assignedToName || null,
     affectedIssue: item.affectedIssue || 'Not specified',
     classification: item.classification || null,
     keywords: item.keywords || null,
     connectionType: item.connectionType || null,
-    createdAt: `${dateTime.date} at ${dateTime.time}`,
+    createdAt: item.createdAt || null,
     issueCategory: item.issueCategory || null,
     resolutionNotes: item.resolutionNotes || null,
     resolvedAt: item.resolvedAt || null,
@@ -946,7 +943,6 @@ function ManageAndAssign({
 
   const [selectedPersonnelId, setSelectedPersonnelId] =
     useState('')
-  const [selectedSubIds, setSelectedSubIds] = useState<string[]>([])
 
   const [viewingId, setViewingId] =
     useState<string | null>(null)
@@ -1074,7 +1070,7 @@ function ManageAndAssign({
     ? incidents.filter(
         incident =>
           currentUserId !== null &&
-          (String(incident.assignedToUserId || '') === String(currentUserId) || (incident.subAssignments || []).some(sub => String(sub.userID) === String(currentUserId))),
+          String(incident.assignedToUserId || '') === String(currentUserId),
       )
     : incidents
 
@@ -1156,7 +1152,6 @@ function ManageAndAssign({
           : '',
       )
     }
-    setSelectedSubIds((incident.subAssignments || []).map(sub => String(sub.userID)))
   }
 
   const closeAssign = () => {
@@ -1164,7 +1159,6 @@ function ManageAndAssign({
 
     setAssigningId(null)
     setSelectedPersonnelId('')
-    setSelectedSubIds([])
   }
 
   const confirmAssign = async () => {
@@ -1201,7 +1195,6 @@ function ManageAndAssign({
             assignedToName:
               selectedPersonnel.fullName,
             actorUserId: currentUserId,
-            subUserIDs: selectedSubIds,
           }),
         },
       )
@@ -1226,10 +1219,6 @@ function ManageAndAssign({
                   String(
                     selectedPersonnel.userID,
                   ),
-                subAssignments: selectedSubIds.map(id => {
-                  const person = itPersonnel.find(item => String(item.userID) === id)
-                  return person ? { userID: person.userID, fullName: person.fullName, profilePhoto: person.profilePhoto } : null
-                }).filter((person): person is { userID: number | string; fullName: string; profilePhoto: string | null | undefined } => person !== null),
                 // Assignment only puts the report in the selected IT user's
                 // queue. It becomes In Progress when that user takes action.
                 status: 'Pending',
@@ -1240,7 +1229,6 @@ function ManageAndAssign({
 
       setAssigningId(null)
       setSelectedPersonnelId('')
-      setSelectedSubIds([])
     } catch (err) {
       console.error(
         'Assignment error:',
@@ -1549,18 +1537,16 @@ function ManageAndAssign({
                 <col className="maa-col-severity" />
                 <col className="maa-col-status" />
                 <col className="maa-col-assigned" />
-                <col className="maa-col-subs" />
                 <col className="maa-col-actions" />
               </colgroup>
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Client</th>
-                  <th>Severity</th>
-                  <th>Status</th>
-                  <th>Assigned To</th>
-                  <th>SUB</th>
-                  <th />
+                  <th scope="col">ID</th>
+                  <th scope="col">Client</th>
+                  <th scope="col" className="maa-heading-center">Severity</th>
+                  <th scope="col" className="maa-heading-center">Status</th>
+                  <th scope="col">Assigned To</th>
+                  <th scope="col" className="maa-heading-actions" aria-label="Actions" />
                 </tr>
               </thead>
 
@@ -1568,7 +1554,7 @@ function ManageAndAssign({
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={6}
                       className="maa-empty"
                     >
                       Loading incidents...
@@ -1578,9 +1564,9 @@ function ManageAndAssign({
                   <>
                     {filtered.map(i => (
                       <tr key={i.id}>
-                        <td>{i.id}</td>
+                        <td className="maa-cell-id" title={i.id}>{i.id}</td>
 
-                        <td>
+                        <td className="maa-cell-client">
                           <strong>
                             <PersonName
                               name={i.reporter}
@@ -1594,7 +1580,7 @@ function ManageAndAssign({
                           </small>
                         </td>
 
-                        <td>
+                        <td className="maa-cell-center">
                           <span
                             className={`tag ${
                               i.severity ? severityTagClass[i.severity] : ''
@@ -1604,7 +1590,7 @@ function ManageAndAssign({
                           </span>
                         </td>
 
-                        <td>
+                        <td className="maa-cell-center">
                           <span
                             className={`tag ${
                               statusTagClass[
@@ -1616,7 +1602,7 @@ function ManageAndAssign({
                           </span>
                         </td>
 
-                        <td>
+                        <td className="maa-cell-assigned">
                           <span
                             className={
                               i.assignedTo
@@ -1640,19 +1626,7 @@ function ManageAndAssign({
                           </span>
                         </td>
 
-                        <td>
-                          {(i.subAssignments || []).length > 0 ? (
-                            <div className="maa-sub-list">
-                              {i.subAssignments!.map(sub => (
-                                <PersonName key={String(sub.userID)} name={sub.fullName} profilePhoto={sub.profilePhoto} compact />
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="maa-no-subs">—</span>
-                          )}
-                        </td>
-
-                        <td>
+                        <td className="maa-cell-actions">
                           <div className="maa-actions">
                             <button
                               type="button"
@@ -1752,12 +1726,7 @@ function ManageAndAssign({
 
               <select
                 value={selectedPersonnelId}
-                onChange={e =>
-                  {
-                    setSelectedPersonnelId(e.target.value)
-                    setSelectedSubIds(current => current.filter(id => id !== e.target.value))
-                  }
-                }
+                onChange={e => setSelectedPersonnelId(e.target.value)}
                 disabled={
                   savingAssignment ||
                   itPersonnel.length === 0
@@ -1783,19 +1752,6 @@ function ManageAndAssign({
                 )}
               </select>
             </label>
-
-            <div className="maa-sub-picker">
-              <div className="maa-sub-picker-heading"><strong>SUB Technicians</strong><button type="button" className="maa-btn-secondary" onClick={() => setSelectedSubIds(current => [...current, ''])} disabled={savingAssignment}>+ Add SUB</button></div>
-              {selectedSubIds.map((subID, index) => (
-                <div className="maa-sub-row" key={`sub-${index}`}>
-                  <select value={subID} onChange={e => setSelectedSubIds(current => current.map((id, row) => row === index ? e.target.value : id))} disabled={savingAssignment}>
-                    <option value="">Select SUB technician</option>
-                    {itPersonnel.filter(person => person.status.toLowerCase() === 'active' && String(person.userID) !== selectedPersonnelId && (String(person.userID) === subID || !selectedSubIds.includes(String(person.userID)))).map(person => <option key={person.userID} value={String(person.userID)}>{person.fullName}</option>)}
-                  </select>
-                  <button type="button" className="maa-remove-sub" aria-label="Remove SUB" onClick={() => setSelectedSubIds(current => current.filter((_, row) => row !== index))} disabled={savingAssignment}>Remove</button>
-                </div>
-              ))}
-            </div>
 
             <div className="maa-modal-footer">
               <button

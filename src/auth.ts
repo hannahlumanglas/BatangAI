@@ -159,18 +159,22 @@ export function getProfilePhotoUrl(
     )
   }
 
-  // Already a complete URL or Base64 image
-  if (
-    profilePhoto.startsWith('http://') ||
-    profilePhoto.startsWith('https://') ||
-    profilePhoto.startsWith('data:')
-  ) {
+  // Preserve embedded images; stored URLs are routed through private storage below.
+  if (profilePhoto.startsWith('data:')) {
     return profilePhoto
   }
 
   // Uploaded photos live on the same shared server as the API.  Using
   // localhost here would point every teammate to their own computer.
-  return `${PROFILE_PHOTOS_BASE_URL}/${encodeURIComponent(profilePhoto)}`
+  if (import.meta.env.DEV) {
+    const fileName = profilePhoto.split(/[\\/]/).pop() || profilePhoto
+    return `${PROFILE_PHOTOS_BASE_URL}/${encodeURIComponent(fileName)}`
+  }
+
+  const pathname = profilePhoto.startsWith('profile_photos/')
+    ? profilePhoto
+    : `profile_photos/${profilePhoto.split(/[\\/]/).pop() || profilePhoto}`
+  return `${API_BASE_URL}/profile_photo?pathname=${encodeURIComponent(pathname)}`
 }
 
 /**

@@ -21,6 +21,7 @@ import {
   IncidentDetailsFields,
 } from '../Employee/ReportIncident'
 import { analyzeIncidentWithAI } from '../../utils/incidentAi'
+import { useAppDialog } from '../../components/AppDialog'
 import type {
   IncidentAnalysis,
   IncidentFormValues,
@@ -585,6 +586,7 @@ function Incidents({
   audience?: 'administrator' | 'secretary' | 'it'
 }) {
   const { options } = useSystemOptions()
+  const { showAlert, showConfirm } = useAppDialog()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -961,11 +963,11 @@ function Incidents({
     setActionMenuId(null)
 
     if (incident.status !== 'Pending') {
-      alert('Only pending incidents can be deleted. Incidents already being worked on or resolved must be managed by a Technician or an Administrator.')
+      void showAlert('Only pending incidents can be deleted. Incidents already being worked on or resolved must be managed by a Technician or an Administrator.')
       return
     }
 
-    if (!window.confirm(`Delete incident ${incident.incidentID}? This cannot be undone.`)) {
+    if (!await showConfirm(`Delete incident ${incident.incidentID}? This cannot be undone.`, 'Delete incident?')) {
       return
     }
 
@@ -996,7 +998,7 @@ function Incidents({
       setIncidents(current => current.filter(item => item.incidentID !== incident.incidentID))
     } catch (error) {
       console.error('Delete incident error:', error)
-      alert(error instanceof Error ? error.message : 'Failed to delete the incident.')
+      void showAlert(error instanceof Error ? error.message : 'Failed to delete the incident.')
     } finally {
       setDeletingId(null)
     }
@@ -1500,7 +1502,7 @@ function Incidents({
                                         null,
                                       )
 
-                                      alert(
+                                      void showAlert(
                                         'Edit Incident will be connected to the database in the Manage & Assign module.',
                                       )
                                     }}

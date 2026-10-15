@@ -5,9 +5,10 @@ import { put } from '@vercel/blob'
 
 const mysqlUrl = process.env.MYSQL_URL
 const blobToken = process.env.BLOB_READ_WRITE_TOKEN
+const oidcToken = process.env.VERCEL_OIDC_TOKEN
 
-if (!mysqlUrl || !blobToken) {
-  throw new Error('Set MYSQL_URL and BLOB_READ_WRITE_TOKEN before migrating profile photos.')
+if (!mysqlUrl || (!blobToken && !oidcToken)) {
+  throw new Error('Set MYSQL_URL and Vercel Blob authentication before migrating profile photos.')
 }
 
 const connection = await createConnection(mysqlUrl)
@@ -59,16 +60,21 @@ try {
   )
   let migrated = 0
   let skipped = 0
+  let alreadyPrivate = 0
 
   for (const user of users) {
     const profilePhoto = String(user.profilePhoto)
+    if (profilePhoto.startsWith('profile_photos/')) {
+      alreadyPrivate += 1
+      continue
+    }
     const fileName = basename(profilePhoto.split('?')[0])
     let contents
     try {
       contents = await loadImage(profilePhoto)
     } catch (error) {
       if (error && typeof error === 'object' && error.code === 'ENOENT') {
-        console.warn(`Skipped a missing profile-photo file: ${fileName}`)
+        console.warn('Skipped a missing profile-photo file.')
         skipped += 1
         continue
       }
@@ -82,19 +88,19 @@ try {
     const migratedName = `user_${user.userID}_${Date.now()}.${imageType.extension}`
 
     const blob = await put(`profile_photos/${migratedName}`, contents, {
-      access: 'public',
+      access: 'private',
       addRandomSuffix: true,
       contentType: imageType.contentType,
-      token: blobToken,
+      ...(blobToken ? { token: blobToken } : {}),
     })
     await connection.execute(
       'UPDATE users SET profilePhoto = ? WHERE userID = ?',
-      [blob.url, user.userID],
+      [blob.pathname, user.userID],
     )
     migrated += 1
   }
 
-  console.log(`Profile-photo migration complete: ${migrated} migrated, ${skipped} missing.`)
+  console.log(`Profile-photo migration complete: ${migrated} migrated, ${alreadyPrivate} already private, ${skipped} missing.`)
 } finally {
   await connection.end()
 }

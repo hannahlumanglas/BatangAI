@@ -92,10 +92,7 @@ if (strcasecmp($role, "Employee") === 0) {
 } elseif (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all') {
 
     $sql .= "
-        WHERE incidents.assignedTo = ? OR EXISTS (
-            SELECT 1 FROM incident_sub_assignments isa
-            WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
-        )
+        WHERE incidents.assignedTo = ?
         ORDER BY incidents.createdAt DESC
     ";
 
@@ -138,7 +135,7 @@ if (
     strcasecmp($role, "Employee") === 0 ||
     (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all')
 ) {
-    if (strcasecmp($role, "IT Personnel") === 0) $stmt->bind_param("ss", $userID, $userID);
+    if (strcasecmp($role, "IT Personnel") === 0) $stmt->bind_param("s", $userID);
     else $stmt->bind_param("s", $userID);
 }
 
@@ -208,15 +205,6 @@ while ($stmt->fetch()) {
         $decodedKeywords = [];
     }
 
-    $incidentSubs = [];
-    $subsStmt = $conn->prepare("SELECT isa.userID, u.fullName, u.profilePhoto FROM incident_sub_assignments isa JOIN users u ON u.userID = isa.userID WHERE isa.incidentID = ? ORDER BY u.fullName");
-    $subsStmt->bind_param('s', $incidentID); $subsStmt->execute(); $subsResult = $subsStmt->get_result();
-    while ($subRow = $subsResult->fetch_assoc()) {
-        if (is_string($subRow['profilePhoto']) && str_contains($subRow['profilePhoto'], '/')) $subRow['profilePhoto'] = basename($subRow['profilePhoto']);
-        $incidentSubs[] = $subRow;
-    }
-    $subsStmt->close();
-
     $incidents[] = [
         "incidentID" => $incidentID,
         "affectedIssue" => $affectedIssue,
@@ -245,8 +233,7 @@ while ($stmt->fetch()) {
         "resolutionNotes" => $resolutionNotes,
         "startedAt" => $startedAt,
         "reporterProfilePhoto" => is_string($reporterProfilePhoto) ? basename($reporterProfilePhoto) : $reporterProfilePhoto,
-        "assignedToProfilePhoto" => is_string($assignedToProfilePhoto) ? basename($assignedToProfilePhoto) : $assignedToProfilePhoto,
-        "subAssignments" => $incidentSubs
+        "assignedToProfilePhoto" => is_string($assignedToProfilePhoto) ? basename($assignedToProfilePhoto) : $assignedToProfilePhoto
     ];
 }
 

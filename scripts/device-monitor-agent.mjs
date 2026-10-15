@@ -109,7 +109,11 @@ async function run() {
       if (automaticScanDue) lastAutomaticScanAt = Date.now()
       for (let start = 0; start < devices.length; start += 10) {
         await Promise.all(devices.slice(start, start + 10).map(async (device) => {
-          if (typeof device.deviceID !== 'string' || typeof device.ipAddress !== 'string') return
+          if (
+            (typeof device.deviceID !== 'string' && typeof device.deviceID !== 'number')
+            || typeof device.ipAddress !== 'string'
+          ) return
+          device.deviceID = String(device.deviceID)
           try {
             await monitorDevice(device)
           } catch (error) {

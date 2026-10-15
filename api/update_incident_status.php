@@ -65,17 +65,13 @@ $assignmentStmt = $conn->prepare(
     "SELECT incidentID, status
      FROM incidents
      WHERE incidentID = ?
-       AND (assignedTo = ? OR EXISTS (
-           SELECT 1 FROM incident_sub_assignments isa
-           WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
-       ))
+       AND assignedTo = ?
      LIMIT 1"
 );
 
 $assignmentStmt->bind_param(
-    "sss",
+    "ss",
     $incidentID,
-    $actorUserId,
     $actorUserId
 );
 

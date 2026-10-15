@@ -14,6 +14,7 @@ import {
 import { API_BASE_URL } from '../../apiConfig'
 import { useOffices } from '../../hooks/useOffices'
 import { useSystemOptions } from '../../hooks/useSystemOptions'
+import { useAppDialog } from '../../components/AppDialog'
 
 /* --------- API ---------- */
 const USERS_API_URL = `${API_BASE_URL}/users.php`
@@ -1555,6 +1556,7 @@ function ProfileMenu({
 function UserManagement() {
   const navigate =
     useNavigate()
+  const { showAlert, showConfirm } = useAppDialog()
   const [sidebarCollapsed, setSidebarCollapsed] =
     useState(false)
   const {
@@ -1816,16 +1818,16 @@ function UserManagement() {
   const handleToggleUserStatus = async (user: User) => {
     const nextStatus: UserStatus = user.status === 'Active' ? 'Inactive' : 'Active'
     const verb = nextStatus === 'Inactive' ? 'disable' : 're-enable'
-    if (!window.confirm(`Are you sure you want to ${verb} ${user.name}'s account?`)) return
+    if (!await showConfirm(`Are you sure you want to ${verb} ${user.name}'s account?`, `${verb === 'disable' ? 'Disable' : 'Re-enable'} account?`)) return
 
     const adminUserID = session?.user?.userID
     if (adminUserID === undefined || adminUserID === null || String(adminUserID).trim() === '') {
-      window.alert('Administrator session not found. Please log in again.')
+      void showAlert('Administrator session not found. Please log in again.')
       return
     }
     const targetUserID = user.userID
     if (targetUserID === undefined || targetUserID === null || String(targetUserID).trim() === '') {
-      window.alert('Unable to identify the selected user.')
+      void showAlert('Unable to identify the selected user.')
       return
     }
 
@@ -1839,9 +1841,9 @@ function UserManagement() {
       if (!response.ok || !data.success) throw new Error(data.message || 'Unable to update the account status.')
       const updatedStatus: UserStatus = data.user?.status === 'Inactive' ? 'Inactive' : 'Active'
       setUsers(current => current.map(item => item.id === user.id ? { ...item, status: updatedStatus } : item))
-      window.alert(data.message || `${user.name}'s account is now ${updatedStatus}.`)
+      void showAlert(data.message || `${user.name}'s account is now ${updatedStatus}.`)
     } catch (requestError) {
-      window.alert(requestError instanceof Error ? requestError.message : 'Unable to update the account status. Please try again.')
+      void showAlert(requestError instanceof Error ? requestError.message : 'Unable to update the account status. Please try again.')
     }
   }
   /* AFTER CREATE */

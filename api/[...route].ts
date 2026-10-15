@@ -1,4 +1,4 @@
-import { del } from '@vercel/blob'
+import { del, get } from '@vercel/blob'
 import { handleUpload, type HandleUploadBody } from '@vercel/blob/client'
 import bcrypt from 'bcryptjs'
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
@@ -373,6 +373,8 @@ const handler: VercelApiHandler = async (req, res) => {
       await analyzeIncident(req, res)
     } else if (route === 'upload_profile_photo') {
       await uploadProfilePhoto(req, res)
+    } else if (route === 'profile_photo') {
+      await profilePhoto(req, res)
     } else if (route === 'user_app_data') {
       await userAppData(req, res)
     } else {
@@ -661,11 +663,8 @@ async function getIncidents(req: VercelRequest, res: VercelResponse): Promise<vo
     where = 'WHERE incidents.userId = ?'
     values = [userID]
   } else if (role === 'IT Personnel' && requestedScope !== 'all') {
-    where = `WHERE (incidents.assignedTo = ? OR EXISTS (
-      SELECT 1 FROM incident_sub_assignments isa
-      WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
-    ))`
-    values = [userID, userID]
+    where = 'WHERE incidents.assignedTo = ?'
+    values = [userID]
   }
   const incidents = await getRows<RowDataPacket>(
     `SELECT incidents.incidentID, incidents.affectedIssue, incidents.classification,
@@ -687,29 +686,9 @@ async function getIncidents(req: VercelRequest, res: VercelResponse): Promise<vo
      ORDER BY incidents.createdAt DESC`,
     values,
   )
-  const subsByIncident = new Map<string, JsonRecord[]>()
-  if (incidents.length > 0) {
-    const placeholders = incidents.map(() => '?').join(', ')
-    const subs = await getRows<RowDataPacket>(
-      `SELECT isa.incidentID, isa.userID, technician.fullName, technician.profilePhoto
-       FROM incident_sub_assignments AS isa
-       JOIN users AS technician ON technician.userID = isa.userID
-       WHERE isa.incidentID IN (${placeholders})
-       ORDER BY technician.fullName ASC`,
-      incidents.map((incident) => String(incident.incidentID)),
-    )
-    for (const sub of subs) {
-      const incidentID = String(sub.incidentID)
-      const list = subsByIncident.get(incidentID) ?? []
-      const photo = typeof sub.profilePhoto === 'string' ? sub.profilePhoto.split(/[\\/]/).pop() : sub.profilePhoto
-      list.push({ userID: sub.userID, fullName: sub.fullName, profilePhoto: photo ?? null })
-      subsByIncident.set(incidentID, list)
-    }
-  }
   const normalized = incidents.map((incident) => ({
     ...incident,
     keywords: normalizedKeywords(incident.keywords),
-    subAssignments: subsByIncident.get(String(incident.incidentID)) ?? [],
   }))
   send(res, 200, { success: true, count: normalized.length, incidents: normalized })
 }
@@ -776,7 +755,7 @@ async function createIncident(req: VercelRequest, res: VercelResponse): Promise<
        department, description, deviceType, employeeName, issueCategory,
        location, severity, status, summary, troubleshooting, userId, assigned,
        assignedAt, assignedTo, assignedToName, startedAt, resolvedAt, resolvedBy
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'No',
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0,
        NULL, NULL, NULL, NULL, ?, ?)`,
     [
       incidentID,
@@ -828,7 +807,7 @@ async function updateIncident(req: VercelRequest, res: VercelResponse): Promise<
   const setParts: string[] = []
   const values: (string | null)[] = []
   for (const field of fields) {
-    if (!data || !Object.hasOwn(data, field)) continue
+    if (!data || !Object.prototype.hasOwnProperty.call(data, field)) continue
     const value = text(data[field])
     const optionGroup = ({ severity: 'severity', issueCategory: 'issue_category', deviceType: 'device_type', connectionType: 'connection_type' } as Record<string, string>)[field]
     if (optionGroup && !(await isActiveCatalogValue(optionGroup, value))) {
@@ -984,11 +963,8 @@ async function updateIncidentStatus(req: VercelRequest, res: VercelResponse): Pr
   const incident = await getRow<RowDataPacket & {
     status: string; assignedTo: number | string; startedAt: string | null; troubleshooting: string
   }>(
-    `SELECT status, assignedTo, startedAt, troubleshooting FROM incidents
-     WHERE incidentID = ? AND (assignedTo = ? OR EXISTS (
-       SELECT 1 FROM incident_sub_assignments isa WHERE isa.incidentID = incidents.incidentID AND isa.userID = ?
-     )) LIMIT 1`,
-    [incidentID, actorUserId, actorUserId],
+    'SELECT status, assignedTo, startedAt, troubleshooting FROM incidents WHERE incidentID = ? AND assignedTo = ? LIMIT 1',
+    [incidentID, actorUserId],
   )
   if (!incident) {
     errorResponse(res, 'This incident is not assigned to the current Technician account.', 403)
@@ -1423,10 +1399,10 @@ function formatDevice(row: RowDataPacket): JsonRecord {
   return {
     id: row.deviceID,
     name: row.name,
-    type: row.deviceType,
+    type: row.deviceType ?? row.type,
     status: pingIsStale ? 'unknown' : row.monitoringStatus ?? 'unknown',
     ip: row.ipAddress,
-    mac: '',
+    mac: row.macAddress ?? '',
     location: row.location,
     department: row.department,
     firmware: row.firmware || '—',
@@ -1445,7 +1421,7 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
     const rows = await getRows<RowDataPacket>(
       `SELECT d.*, u.fullName AS assignedUserName
        FROM devices d LEFT JOIN users u ON u.userID = d.assignedUserId
-       ORDER BY d.createdAt DESC, d.id DESC`,
+       ORDER BY d.createdAt DESC, d.deviceID DESC`,
     )
     send(res, 200, { success: true, devices: rows.map(formatDevice) })
     return
@@ -1468,6 +1444,14 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
   }
   const deviceID = text(data.deviceID)
   if (action === 'ping') {
+    if (!process.env.DEVICE_MONITOR_TOKEN || process.env.DEVICE_MONITOR_TOKEN.length < 32) {
+      errorResponse(
+        res,
+        'Device monitoring is not configured. Add DEVICE_MONITOR_TOKEN in Vercel and run the monitoring agent on an always-on computer inside the device network.',
+        503,
+      )
+      return
+    }
     if (!deviceID) {
       errorResponse(res, 'Device ID is required.')
       return
@@ -1604,10 +1588,10 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
     }
     try {
       await execute(
-        `UPDATE devices SET name = ?, deviceType = ?, ipAddress = ?, macAddress = ?,
+        `UPDATE devices SET name = ?, type = ?, ipAddress = ?,
            location = ?, department = ?, firmware = ?, assignedUserId = ?
          WHERE deviceID = ?`,
-        [name, type, ip, mac, location, department, firmware || null, assignedUserId || null, deviceID],
+        [name, type, ip, location, department, firmware || null, assignedUserId || null, deviceID],
       )
       const updated = await getRow<RowDataPacket>(
         `SELECT d.*, u.fullName AS assignedUserName FROM devices d
@@ -1625,16 +1609,35 @@ async function devices(req: VercelRequest, res: VercelResponse): Promise<void> {
     return
   }
   try {
-    const [insert] = await getPool().execute<ResultSetHeader>(
-      `INSERT INTO devices (name, deviceType, status, ipAddress, macAddress, location,
-         department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs,
-         lastPingAt, lastSeen)
-       VALUES (?, ?, 'offline', ?, ?, ?, ?, ?, ?, 'unknown', NULL, NULL, NULL)`,
-      [name, type, ip, mac, location, department, firmware || null, assignedUserId || null],
-    )
-    const insertedId = insert.insertId
-    const id = `DEV-${String(insertedId).padStart(3, '0')}`
-    await execute('UPDATE devices SET deviceID = ? WHERE id = ?', [id, insertedId])
+    const connection = await getPool().getConnection()
+    let id = ''
+    try {
+      await connection.beginTransaction()
+      const [sequenceRows] = await connection.execute<RowDataPacket[]>(
+        'SELECT nextID FROM device_id_sequence WHERE id = 1 FOR UPDATE',
+      )
+      const nextID = Number(sequenceRows[0]?.nextID)
+      if (!Number.isSafeInteger(nextID) || nextID < 1) {
+        throw new Error('Device ID sequence is not initialized.')
+      }
+      id = String(nextID)
+      await connection.execute(
+        'UPDATE device_id_sequence SET nextID = nextID + 1 WHERE id = 1',
+      )
+      await connection.execute(
+        `INSERT INTO devices (deviceID, addedBy, name, type, status, ipAddress, macAddress, location,
+           department, firmware, assignedUserId, monitoringStatus, pingResponseTimeMs,
+           lastPingAt, lastSeen)
+         VALUES (?, ?, ?, ?, 'Offline', ?, ?, ?, ?, ?, ?, 'unknown', NULL, NULL, NULL)`,
+        [id, deviceActor.userID, name, type, ip, mac, location, department, firmware || null, assignedUserId || null],
+      )
+      await connection.commit()
+    } catch (error) {
+      await connection.rollback()
+      throw error
+    } finally {
+      connection.release()
+    }
     const created = await getRow<RowDataPacket>(
       `SELECT d.*, u.fullName AS assignedUserName FROM devices d
        LEFT JOIN users u ON u.userID = d.assignedUserId WHERE d.deviceID = ? LIMIT 1`,
@@ -1684,7 +1687,7 @@ async function deviceAgent(req: VercelRequest, res: VercelResponse): Promise<voi
   if (req.method === 'GET') {
     await ensureDevicePingTable()
     const rows = await getRows<RowDataPacket>(
-      'SELECT deviceID, ipAddress, macAddress FROM devices ORDER BY createdAt ASC, id ASC',
+      'SELECT deviceID, ipAddress, macAddress FROM devices ORDER BY createdAt ASC, deviceID ASC',
     )
     const requestedRows = await getRows<RowDataPacket>(
       `SELECT DISTINCT deviceID FROM device_ping_requests
@@ -1873,6 +1876,25 @@ Affected Service: ${fields.affectedService}
 Description: ${fields.description}`
 
   const models = ['gemini-3.1-flash-lite']
+  const responseSchema = {
+    type: 'OBJECT',
+    properties: {
+      classification: { type: 'STRING' },
+      keywords: { type: 'ARRAY', items: { type: 'STRING' }, minItems: 1 },
+      summary: { type: 'STRING' },
+      possibleInterpretation: { type: 'STRING' },
+      basicSelfHelp: { type: 'STRING' },
+      itTroubleshooting: { type: 'STRING' },
+    },
+    required: [
+      'classification',
+      'keywords',
+      'summary',
+      'possibleInterpretation',
+      'basicSelfHelp',
+      'itTroubleshooting',
+    ],
+  }
   let response: Response | undefined
   for (const model of models) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -1884,7 +1906,10 @@ Description: ${fields.description}`
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
             body: JSON.stringify({
               contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { responseMimeType: 'application/json' },
+              generationConfig: {
+                responseMimeType: 'application/json',
+                responseSchema,
+              },
             }),
             signal: AbortSignal.timeout(30_000),
           },
@@ -1970,10 +1995,6 @@ async function uploadProfilePhoto(req: VercelRequest, res: VercelResponse): Prom
     errorResponse(res, 'Method not allowed.', 405)
     return
   }
-  if (!process.env.BLOB_READ_WRITE_TOKEN) {
-    errorResponse(res, 'Profile photo storage is not configured.', 503)
-    return
-  }
   const body: HandleUploadBody = req.body
   const result = await handleUpload({
     body,
@@ -2025,12 +2046,19 @@ async function uploadProfilePhoto(req: VercelRequest, res: VercelResponse): Prom
       if (!tokenPayload || !/^\d+$/.test(tokenPayload)) {
         throw new Error('Uploaded profile photo did not include a valid user ID.')
       }
-      const imageResponse = await fetch(blob.url)
-      if (!imageResponse.ok) {
-        await del(blob.url)
+      const image = await get(blob.pathname, { access: 'private' })
+      if (!image || image.statusCode !== 200) {
+        await del(blob.pathname)
         throw new Error('Unable to verify the uploaded profile photo.')
       }
-      const bytes = new Uint8Array(await imageResponse.arrayBuffer())
+      const reader = image.stream.getReader()
+      const parts: Uint8Array[] = []
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (value) parts.push(value)
+      }
+      const bytes = Buffer.concat(parts)
       const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
       const isPng = bytes.length >= 8
         && bytes[0] === 0x89 && bytes[1] === 0x50
@@ -2041,13 +2069,51 @@ async function uploadProfilePhoto(req: VercelRequest, res: VercelResponse): Prom
         && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF'
         && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
       if (!isJpeg && !isPng && !isWebp) {
-        await del(blob.url)
+        await del(blob.pathname)
         throw new Error('The uploaded file is not a valid JPG, PNG, or WEBP image.')
       }
-      await execute('UPDATE users SET profilePhoto = ? WHERE userID = ?', [blob.url, tokenPayload])
+      await execute('UPDATE users SET profilePhoto = ? WHERE userID = ?', [blob.pathname, tokenPayload])
     },
   })
   res.status(200).json(result)
+}
+
+async function profilePhoto(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== 'GET') {
+    errorResponse(res, 'Method not allowed.', 405)
+    return
+  }
+  const user = await requireSessionUser(
+    req,
+    res,
+    ['Administrator', 'Secretary', 'IT Personnel', 'Employee'],
+    'Please log in to view this profile photo.',
+  )
+  if (!user) return
+
+  const pathname = text(queryValue(req, 'pathname'))
+  if (!/^profile_photos\/[A-Za-z0-9_.-]+\.(?:jpe?g|png|webp)$/i.test(pathname)) {
+    res.status(404).end()
+    return
+  }
+  const blob = await get(pathname, { access: 'private' })
+  if (!blob || blob.statusCode !== 200) {
+    res.status(404).end()
+    return
+  }
+
+  res.setHeader('Content-Type', blob.blob.contentType)
+  res.setHeader('Content-Length', String(blob.blob.size))
+  res.setHeader('Cache-Control', 'private, no-store')
+  res.setHeader('Vary', 'Cookie')
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  const reader = blob.stream.getReader()
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    if (value) res.write(Buffer.from(value))
+  }
+  res.status(200).end()
 }
 
 export default handler

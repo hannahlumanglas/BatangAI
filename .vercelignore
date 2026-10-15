@@ -1,2 +1,7 @@
 api/*.php
 api/.env.local
+local-secrets/
+database/snapshots/
+uploads/profile_photos/
+.env*
+**/.env*

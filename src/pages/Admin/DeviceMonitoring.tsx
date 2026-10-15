@@ -19,6 +19,7 @@ import './DeviceMonitoring.css'
 import './DeviceMonitoringOverrides.css'
 import { API_BASE_URL } from '../../apiConfig'
 import { useOffices } from '../../hooks/useOffices'
+import { useAppDialog } from '../../components/AppDialog'
 
 const NETWORK_DEVICE_TYPES = ['Router', 'Switch', 'Access Point'] as const
 
@@ -553,6 +554,7 @@ type UserOption = {
   userID: string | number
   fullName: string
   employeeId: string
+  department: string
   role: string
   status: string
 }
@@ -574,20 +576,24 @@ function deviceIcon(type: DeviceType): IconName {
 function formatDeviceDateTime(value: string | null | undefined): string {
   if (!value) return 'Never'
 
-  // MySQL DATETIME values have no timezone suffix. Parse them as local time
-  // so browsers don't interpret the SQL space-separated form inconsistently.
+  // MySQL DATETIME values have no timezone suffix, while API Date values are
+  // serialized as ISO strings. Preserve local wall time for the former and
+  // let Date convert the latter into the browser's local timezone.
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/)
-  if (!match) return value
-
-  const [, year, month, day, hour, minute, second = '0'] = match
-  const date = new Date(
-    Number(year),
-    Number(month) - 1,
-    Number(day),
-    Number(hour),
-    Number(minute),
-    Number(second),
-  )
+  let date: Date
+  if (match) {
+    const [, year, month, day, hour, minute, second = '0'] = match
+    date = new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+    )
+  } else {
+    date = new Date(value)
+  }
 
   if (Number.isNaN(date.getTime())) return value
 
@@ -765,6 +771,8 @@ function AddDeviceModal({
   const selectedDepartment = department || offices[0] || ''
   const [assignedUserId, setAssignedUserId] =
     useState(String(initialDevice?.assignedUserId ?? ''))
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+  const selectedUser = users.find(user => String(user.userID) === assignedUserId)
   const [firmware, setFirmware] = useState(
     initialDevice?.firmware === '—' ? '' : initialDevice?.firmware ?? '',
   )
@@ -1013,27 +1021,42 @@ function AddDeviceModal({
                 User <span>(optional)</span>
               </label>
 
-              <select
-                id="dev-user"
-                value={assignedUserId}
-                onChange={e =>
-                  setAssignedUserId(e.target.value)
-                }
-              >
-                <option value="">
-                  No assigned user
-                </option>
-
-                {users.map(user => (
-                  <option
-                    key={user.userID}
-                    value={user.userID}
-                  >
-                    {user.fullName} —{' '}
-                    {user.employeeId}
-                  </option>
-                ))}
-              </select>
+              <div className={`dm-user-picker${userDropdownOpen ? ' is-open' : ''}`}>
+                <button
+                  id="dev-user"
+                  type="button"
+                  className="dm-user-picker-trigger"
+                  aria-haspopup="listbox"
+                  aria-expanded={userDropdownOpen}
+                  onClick={() => setUserDropdownOpen(open => !open)}
+                >
+                  <span>{selectedUser
+                    ? `${selectedUser.fullName} • ${selectedUser.employeeId} • ${selectedUser.department}`
+                    : 'No assigned user'}</span>
+                  <i aria-hidden="true" />
+                </button>
+                {userDropdownOpen && (
+                  <div className="dm-user-picker-options" role="listbox" aria-labelledby="dev-user">
+                    <button type="button" role="option" aria-selected={!assignedUserId}
+                      className={!assignedUserId ? 'selected' : ''}
+                      onClick={() => { setAssignedUserId(''); setUserDropdownOpen(false) }}>
+                      No assigned user
+                    </button>
+                    {users.map(user => {
+                      const value = String(user.userID)
+                      const selected = value === assignedUserId
+                      return (
+                        <button key={value} type="button" role="option" aria-selected={selected}
+                          className={selected ? 'selected' : ''}
+                          onClick={() => { setAssignedUserId(value); setUserDropdownOpen(false) }}>
+                          <strong>{user.fullName}</strong>
+                          <span>{user.employeeId} - {user.department}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="dm-field">
@@ -1095,6 +1118,7 @@ function DeviceMonitoring({
   audience?: 'administrator' | 'it'
 }) {
   const navigate = useNavigate()
+  const { showAlert, showConfirm } = useAppDialog()
   const isIT = audience === 'it'
 
   const roleNavigation = isIT
@@ -1493,7 +1517,7 @@ function DeviceMonitoring({
       if (failures.length > 0) {
         const firstError = failures[0].status === 'rejected' ? failures[0].reason : null
         const detail = firstError instanceof Error ? ` ${firstError.message}` : ''
-        window.alert(`Could not refresh ${failures.length} of ${deviceList.length} devices.${detail}`)
+        void showAlert(`Could not refresh ${failures.length} of ${deviceList.length} devices.${detail}`)
       }
     } finally {
       setRefreshingAll(false)
@@ -1501,7 +1525,7 @@ function DeviceMonitoring({
   }
 
   const deleteDevice = async (device: Device) => {
-    if (!window.confirm(`Delete ${device.name} (${device.id})? This cannot be undone.`)) return
+    if (!await showConfirm(`Delete ${device.name} (${device.id})? This cannot be undone.`, 'Delete device?')) return
     setDeletingId(device.id)
     try {
       const response = await fetch(DEVICES_URL, {
@@ -1516,7 +1540,7 @@ function DeviceMonitoring({
       setDeviceList(list => list.filter(item => item.id !== device.id))
       setExpandedId(current => current === device.id ? null : current)
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to delete device.')
+      void showAlert(error instanceof Error ? error.message : 'Unable to delete device.')
     } finally {
       setDeletingId(null)
     }

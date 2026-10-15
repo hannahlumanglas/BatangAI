@@ -881,7 +881,7 @@ function Profile({
           `profile_photos/${file.name}`,
           file,
           {
-            access: 'public',
+            access: 'private',
             contentType: file.type,
             handleUploadUrl: `${API_BASE_URL}/upload_profile_photo.php`,
             clientPayload: JSON.stringify({
@@ -889,7 +889,7 @@ function Profile({
             }),
           },
         )
-        uploadedProfilePhoto = blob.url
+        uploadedProfilePhoto = blob.pathname
       }
 
       /*

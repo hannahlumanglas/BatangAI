@@ -94,22 +94,21 @@
 
 /* ---------- Table ---------- */
 
-.maa-table-card { padding:0; overflow:hidden; }
+.maa-table-card { padding:0; overflow-x:auto; overflow-y:hidden; }
 
-.maa-table-card table { width:100%; border-collapse:collapse; table-layout:fixed; color:var(--text-primary); font-size:var(--font-table); text-align:left; }
+.maa-table-card table { width:100%; min-width:1120px; border-collapse:separate; border-spacing:0; table-layout:fixed; color:var(--text-primary); font-size:var(--font-table); text-align:left; }
 
-/* Keep every incident field in its own predictable lane, with more room between them. */
-.maa-col-id { width:14%; }
-.maa-col-reporter { width:18%; }
+/* Column widths total 100%, so headers, body cells and actions share the same grid. */
+.maa-col-id { width:18%; }
+.maa-col-reporter { width:23%; }
 .maa-col-severity { width:12%; }
-.maa-col-status { width:14%; }
-.maa-col-assigned { width:15%; }
-.maa-col-subs { width:17%; }
-.maa-col-actions { width:10%; }
+.maa-col-status { width:12%; }
+.maa-col-assigned { width:17%; }
+.maa-col-actions { width:18%; }
 
 .maa-table-card th {
   height:48px;
-  padding:0 26px;
+  padding:12px 14px !important;
   background:var(--hover-bg);
   color:var(--success);
   font-size:10px;
@@ -118,12 +117,20 @@
   letter-spacing:.05em;
 }
 
-.maa-table-card td { padding:16px 26px; border-top:1px solid var(--border-color); vertical-align:middle; font-size:10px; }
+.maa-table-card td { height:72px; padding:12px 14px !important; border-top:1px solid var(--border-color); vertical-align:middle; font-size:12px; line-height:1.35; }
 
 .maa-table-card td:first-child { color:var(--text-heading); font-weight:700; }
 
-.maa-table-card td strong { display:block; color:var(--text-heading); font-size:10px; font-weight:700; }
-.maa-table-card td small { color:var(--text-secondary); font-size:10px; }
+.maa-cell-id { overflow:hidden; color:var(--text-heading); font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.maa-cell-client > strong { display:flex; min-width:0; min-height:28px; align-items:center; color:var(--text-heading); font-size:12px; font-weight:700; }
+.maa-cell-client > strong .person-name { min-width:0; }
+.maa-cell-client > small { display:block; overflow:hidden; margin:3px 0 0 33px; color:var(--text-secondary); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.maa-cell-center { text-align:center; }
+.maa-heading-center { text-align:center !important; }
+.maa-heading-actions { text-align:right !important; }
+.maa-cell-assigned { padding-left:14px !important; text-align:center; }
+.maa-table-card th:nth-child(5) { padding-left:14px !important; text-align:center !important; }
+.maa-cell-center .tag { display:inline-flex; align-items:center; justify-content:center; }
 
 /* Severity shown as a dot + plain colored text (no pill background), matching the
    All Incidents reference design. Status keeps its filled pill from the shared .tag styles. */
@@ -152,21 +159,22 @@
 .maa-table-card td .tag.medium-tag { color:var(--warning); }
 .maa-table-card td .tag.low-tag { color:var(--success); }
 
-.maa-assigned { display:inline-flex; align-items:center; max-width:100%; color:var(--text-primary); font-size:10px; font-weight:600; }
-.maa-assigned .person-name { min-width:0; }
+.maa-assigned { display:inline-flex; align-items:center; max-width:100%; color:var(--text-primary); font-size:12px; font-weight:600; }
+.maa-assigned .person-name { min-width:0; align-items:center; }
 .maa-unassigned { display:inline-flex; align-items:center; min-height:28px; padding:0 10px; color:var(--text-secondary); font-size:12px; font-style:normal; font-weight:600; background:var(--hover-bg); border:1px solid var(--border-color); border-radius:999px; }
 
 .maa-empty { padding:40px 21px; color:var(--text-secondary); font-size:var(--font-body); text-align:center; }
 
 /* ---------- Row actions ---------- */
 
-.maa-actions { display:flex; align-items:center; justify-content:flex-end; gap:12px; white-space:nowrap; }
+.maa-actions { display:flex; width:100%; align-items:center; justify-content:flex-end; gap:8px; white-space:nowrap; }
 
 .maa-view-btn {
   display:grid;
   place-items:center;
   width:36px;
   height:36px;
+  flex:0 0 36px;
   color:var(--text-secondary);
   background:var(--card-bg);
   border:1px solid var(--border-color);
@@ -183,7 +191,8 @@
   align-items:center;
   gap:8px;
   height:36px;
-  padding:0 16px;
+  flex:0 0 auto;
+  padding:0 12px;
   color:var(--on-primary);
   font:inherit;
   font-size:var(--font-button);
@@ -193,6 +202,7 @@
   border-radius:8px;
   cursor:pointer;
   transition:filter .15s ease;
+  white-space:nowrap;
 }
 
 .maa-assign-btn .admin-icon { width:16px; height:16px; }
@@ -268,16 +278,6 @@
 }
 
 .maa-modal-footer { display:flex; justify-content:flex-end; gap:10px; margin-top:4px; }
-
-.maa-sub-picker { display:grid; gap:9px; }
-.maa-sub-picker-heading { display:flex; align-items:center; justify-content:space-between; color:var(--text-heading); font-size:13px; }
-.maa-sub-row { display:flex; align-items:center; gap:8px; }
-.maa-sub-row select { flex:1; height:43px; padding:0 12px; color:var(--text-heading); font:inherit; background:var(--input-bg); border:1px solid var(--border-color); border-radius:9px; }
-.maa-remove-sub { padding:8px 10px; color:var(--text-secondary); background:var(--hover-bg); border:1px solid var(--border-color); border-radius:8px; cursor:pointer; }
-.maa-sub-list { display:flex; flex-direction:column; align-items:flex-start; gap:4px; }
-.maa-sub-list .person-name { max-width:100%; gap:7px; color:var(--text-secondary); font-size:10px; }
-.maa-sub-list .person-name-label { overflow:visible; text-overflow:clip; }
-.maa-no-subs { color:var(--text-secondary); }
 
 .maa-detail-action {
   display:flex;
@@ -533,10 +533,6 @@
 
 @media(max-width:900px){
   .maa-stats { grid-template-columns:repeat(3,1fr); gap:10px; }
-  .maa-table-card { overflow-x:auto; }
-  .maa-table-card table { min-width:760px; }
-  .maa-table-card th,
-  .maa-table-card td { padding-right:18px; padding-left:18px; }
 }
 
 @media(max-width:650px){

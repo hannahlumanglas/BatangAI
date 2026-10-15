@@ -5,6 +5,7 @@ import logo from '../../assets/logo.png'
 import { AdminNotifications } from '../Admin/AdminNotifications'
 import { PersonName } from '../../components/PersonName'
 import { IncidentDetailModal, type IncidentDetail } from '../../components/IncidentDetailModal'
+import { useAppDialog } from '../../components/AppDialog'
 import {
   getAuthSession,
   getCurrentUserId,
@@ -426,13 +427,17 @@ function formatDateTime(
 
 function parseIncidentTimestamp(value: string) {
   const normalized = value.trim().replace(' ', 'T')
-  // MySQL DATETIME values have no timezone suffix. API timestamps are stored
-  // in UTC, so make that explicit before the browser converts them to local time.
   const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
+  const localDateTime = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/)
+  if (hasTimezone || !localDateTime) return new Date(normalized)
   return new Date(
-    hasTimezone || /^\d{4}-\d{2}-\d{2}$/.test(normalized)
-      ? normalized
-      : `${normalized}Z`,
+    Number(localDateTime[1]),
+    Number(localDateTime[2]) - 1,
+    Number(localDateTime[3]),
+    Number(localDateTime[4]),
+    Number(localDateTime[5]),
+    Number(localDateTime[6] || 0),
+    Number((localDateTime[7] || '0').padEnd(3, '0')),
   )
 }
 
@@ -492,6 +497,7 @@ function normalizeTroubleshootingText(value: unknown): string {
 function MyAssignments() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { showAlert } = useAppDialog()
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const ticketsRef = useRef<Ticket[]>([])
@@ -788,7 +794,7 @@ function MyAssignments() {
         err,
       )
 
-      alert(
+      void showAlert(
         err instanceof Error
           ? err.message
           : 'Failed to take action on this incident.',
@@ -830,7 +836,7 @@ function MyAssignments() {
     const notes = notesDraft.trim()
 
     if (!notes) {
-      alert(
+      void showAlert(
         'Please enter the resolution notes before resolving this incident.',
       )
       return
@@ -941,7 +947,7 @@ function MyAssignments() {
         err,
       )
 
-      alert(
+      void showAlert(
         err instanceof Error
           ? err.message
           : 'Failed to resolve this incident.',

@@ -95,6 +95,16 @@
 .employee-report-error { margin:0; color:#b42318; font-size:var(--font-body); font-weight:600; }
 .employee-report-success .admin-icon { width:18px; height:18px; }
 
+.employee-report-loading-overlay { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:24px; background:rgba(16,24,40,.38); backdrop-filter:blur(3px); }
+.employee-report-loading-card { display:flex; width:min(100%,400px); flex-direction:column; align-items:center; padding:34px 30px 28px; color:var(--text-primary); background:var(--card-bg); border:1px solid var(--card-border); border-radius:20px; box-shadow:0 24px 70px rgba(16,24,40,.22); text-align:center; }
+.employee-report-loading-card .employee-report-spinner { width:42px; height:42px; margin-bottom:20px; border:4px solid color-mix(in srgb,var(--primary) 16%,transparent); border-top-color:var(--primary); }
+.employee-report-loading-card h2 { margin:0 0 9px; color:var(--text-heading); font-size:20px; line-height:1.3; }
+.employee-report-loading-card p { margin:0; color:var(--text-secondary); font-size:var(--font-body); line-height:1.55; }
+.employee-report-loading-note { margin-top:18px; color:var(--text-muted); font-size:var(--font-secondary); }
+.employee-report-loading { display:flex; align-items:center; justify-content:center; gap:10px; min-height:48px; padding:10px 16px; color:var(--text-secondary); background:color-mix(in srgb,var(--primary) 5%,var(--card-bg)); border:1px solid var(--border-color); border-radius:12px; font-size:var(--font-body); font-weight:600; }
+.employee-report-spinner { width:19px; height:19px; flex:0 0 auto; border:2px solid color-mix(in srgb,var(--primary) 22%,transparent); border-top-color:var(--primary); border-radius:50%; animation:employee-report-spin .75s linear infinite; }
+@keyframes employee-report-spin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .employee-report-spinner { animation-duration:1.8s; } }
 .employee-ai-result { display:grid; gap:16px; }
 .employee-self-help { padding:18px 20px; border:1px solid var(--border-color); border-radius:12px; }
 .employee-self-help h3 { margin:0 0 14px; color:var(--text-heading); font-size:var(--font-card-title); text-transform:uppercase; }

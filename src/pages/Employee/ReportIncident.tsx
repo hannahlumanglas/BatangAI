@@ -17,6 +17,7 @@ import { deleteUserAppData, loadUserAppData, saveUserAppData } from '../../utils
 import { useSystemOptions } from '../../hooks/useSystemOptions'
 import { parseSelfHelpSteps } from '../../utils/selfHelp'
 import { analyzeIncidentWithAI } from '../../utils/incidentAi'
+import { useAppDialog } from '../../components/AppDialog'
 
 type IconName =
   | 'report'
@@ -318,7 +319,7 @@ export function IncidentDetailsFields({
           >
             <option value="">Select a device type</option>
 
-            {(options.device_type ?? []).map(item => (
+            {(options.device_type ?? []).filter(item => item !== 'Tablet').map(item => (
               <option key={item}>{item}</option>
             ))}
           </select>
@@ -549,6 +550,7 @@ function ThemeToggle({
 
 function ReportIncident() {
   const navigate = useNavigate()
+  const { showAlert } = useAppDialog()
   const draftStorageKey = `batangai-incident-report-draft-${getCurrentUserId()}`
   const [restoredDraft] = useState(() =>
     readIncidentReportDraft(draftStorageKey),
@@ -569,6 +571,8 @@ function ReportIncident() {
 
   const [analyzing, setAnalyzing] =
     useState(false)
+
+  const analysisRequestActive = useRef(false)
 
   const [submitError, setSubmitError] =
     useState('')
@@ -681,7 +685,7 @@ function ReportIncident() {
   ) => {
     event.preventDefault()
 
-    if (analyzing) {
+    if (analysisRequestActive.current || analyzing) {
       return
     }
 
@@ -692,6 +696,7 @@ function ReportIncident() {
     setCheckedSelfHelpSteps([])
 
     try {
+      analysisRequestActive.current = true
       setAnalyzing(true)
 
       const analysis =
@@ -711,6 +716,7 @@ function ReportIncident() {
           : 'AI assistance is currently unavailable. Please try again.',
       )
     } finally {
+      analysisRequestActive.current = false
       setAnalyzing(false)
     }
   }
@@ -844,7 +850,7 @@ function ReportIncident() {
           responseText,
         )
 
-        alert(
+        void showAlert(
           'The server returned an invalid response. Please check your PHP API.',
         )
 
@@ -1080,11 +1086,19 @@ function ReportIncident() {
                     >
                       <Icon name="sparkle" />
 
-                      {analyzing
-                        ? 'Analyzing with BatangAI…'
-                        : 'Analyze with BatangAI'}
+                      Analyze with BatangAI
                     </button>
                   </footer>
+
+                  {analyzing && (
+                    <div className="employee-report-loading-overlay" role="status" aria-live="polite" aria-busy="true">
+                      <div className="employee-report-loading-card">
+                        <span className="employee-report-spinner" aria-hidden="true" />
+                        <h2>Generating response</h2>
+                        <span className="employee-report-loading-note">This may take a few moments.</span>
+                      </div>
+                    </div>
+                  )}
 
                   {analysisError && (
                     <div
@@ -1133,11 +1147,6 @@ function ReportIncident() {
                         ))}
                       </ol>
                     ) : <p>No troubleshooting steps were provided. You can still submit the report for IT assistance.</p>}
-                    {parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length > 0 && (
-                      <p className="employee-self-help-progress" aria-live="polite">
-                        {checkedSelfHelpSteps.length} of {parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length} steps completed
-                      </p>
-                    )}
                   </section>
 
                   <section className="employee-resolution-choice" aria-labelledby="employee-resolution-title">
@@ -1202,6 +1211,13 @@ function ReportIncident() {
                             : 'Submit Incident'}
                     </button>
                   </div>
+
+                  {submitting && (
+                    <div className="employee-report-loading" role="status" aria-live="polite" aria-busy="true">
+                      <span className="employee-report-spinner" aria-hidden="true" />
+                      <span>Processing your incident report...</span>
+                    </div>
+                  )}
                 </section>
               )}
 

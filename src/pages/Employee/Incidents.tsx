@@ -9,6 +9,7 @@ import { AdminNotifications } from '../Admin/AdminNotifications'
 import { ProfileMenu } from './Profile'
 import { getAuthSession } from '../../auth'
 import { IncidentDetailModal } from '../../components/IncidentDetailModal'
+import { useAppDialog } from '../../components/AppDialog'
 
 import {
   IncidentDetailsFields,
@@ -445,6 +446,7 @@ function getEmployeeTroubleshooting(
 
 function Incidents() {
   const navigate = useNavigate()
+  const { showAlert } = useAppDialog()
 
   const [
     sidebarCollapsed,
@@ -753,7 +755,7 @@ function Incidents() {
     setMenuOpenId(null)
 
     if (incident.status === 'Resolved' || incident.status === 'Closed') {
-      alert('Resolved incidents cannot be edited.')
+      void showAlert('Resolved incidents cannot be edited.')
       return
     }
 
@@ -761,7 +763,7 @@ function Incidents() {
       incident.status !==
       'Pending'
     ) {
-      alert(
+      void showAlert(
         'This incident is already being worked on, so it can no longer be edited. Please contact a Technician or the Administrator for changes.',
       )
 

@@ -59,11 +59,18 @@ function formatIncidentDateTime(value: string | null | undefined) {
   if (!value) return 'Not recorded'
   const normalized = value.trim().replace(' ', 'T')
   const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized)
-  const parsed = new Date(
-    hasTimezone || /^\d{4}-\d{2}-\d{2}$/.test(normalized)
-      ? normalized
-      : `${normalized}Z`,
-  )
+  const localDateTime = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,3}))?)?$/)
+  const parsed = !hasTimezone && localDateTime
+    ? new Date(
+        Number(localDateTime[1]),
+        Number(localDateTime[2]) - 1,
+        Number(localDateTime[3]),
+        Number(localDateTime[4]),
+        Number(localDateTime[5]),
+        Number(localDateTime[6] || 0),
+        Number((localDateTime[7] || '0').padEnd(3, '0')),
+      )
+    : new Date(normalized)
   if (Number.isNaN(parsed.getTime())) return 'Not recorded'
   return new Intl.DateTimeFormat('en-PH', {
     month: 'short',

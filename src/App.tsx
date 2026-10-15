@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import AppRouter from './routes/AppRouter'
+import { AppDialogProvider } from './components/AppDialog'
 import {
   getAuthSession,
   getCurrentUserProfilePhoto,
@@ -74,7 +75,11 @@ function App() {
       window.removeEventListener('pointerdown', hidePointerFocus)
     }
   }, [])
-  return <AppRouter />
+  return (
+    <AppDialogProvider>
+      <AppRouter />
+    </AppDialogProvider>
+  )
 }
 
 export default App
