@@ -44,7 +44,7 @@ export function parseTechnicianSteps(value: string): string[] {
   const normalized = value
     .replace(/\r\n?/g, '\n')
     .split(/^\s*IT Troubleshooting Suggestions:\s*$/im)[1]
-    ?.replace(/\[IT checked troubleshooting steps: [^\]]*\]/i, '')
+    ?.replace(/\[IT (?:manually )?checked troubleshooting steps: [^\]]*\]/i, '')
     .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
     .trim() ?? ''
 

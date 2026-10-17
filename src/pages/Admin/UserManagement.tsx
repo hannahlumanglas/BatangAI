@@ -274,6 +274,7 @@ const navigation: {
     icon: 'assign',
     path: '/admin/manage-assign',
   },
+  { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },
   {
     label: 'Device Monitoring',
     icon: 'devices',

@@ -154,6 +154,15 @@ function AppRouter() {
         />
 
         <Route
+          path="/admin/my-assignments"
+          element={
+            <ProtectedRoute role="Administrator">
+              <ITPersonnelAssignments audience="administrator" />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/secretary"
           element={
             <Navigate to="/secretary/incidents" replace />

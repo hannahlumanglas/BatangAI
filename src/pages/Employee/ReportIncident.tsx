@@ -228,6 +228,7 @@ export function IncidentDetailsFields({
   onChange,
   departmentEditable = false,
   showSeverity = false,
+  severityReadOnly = false,
 }: {
   values: IncidentFormValues
   onChange: (
@@ -236,6 +237,7 @@ export function IncidentDetailsFields({
   ) => void
   departmentEditable?: boolean
   showSeverity?: boolean
+  severityReadOnly?: boolean
 }) {
   const { options, loading } = useSystemOptions()
   return (
@@ -351,11 +353,12 @@ export function IncidentDetailsFields({
         {showSeverity && (
           <label className="incident-field">
             <span className="incident-field-label">
-              Severity <em>*</em>
+              Severity {!severityReadOnly && <em>*</em>}
             </span>
             <select
-              required
-              disabled={loading}
+              required={!severityReadOnly}
+              disabled={loading || severityReadOnly}
+              title={severityReadOnly ? 'Severity can only be changed by an Administrator or Secretary' : undefined}
               value={values.severity}
               onChange={e => onChange('severity', e.target.value)}
             >
@@ -777,6 +780,7 @@ function ReportIncident() {
         `${API_BASE_URL}/create_incident.php`,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type':
               'application/json',

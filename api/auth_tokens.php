@@ -11,6 +11,16 @@ function start_auth_session(): void
         return;
     }
 
+    $sessionSavePath = trim((string)(getenv('SESSION_SAVE_PATH') ?: ''));
+    if ($sessionSavePath !== '') {
+        if (!is_dir($sessionSavePath) && !@mkdir($sessionSavePath, 0700, true) && !is_dir($sessionSavePath)) {
+            throw new RuntimeException('Unable to prepare private session storage.');
+        }
+        if (!is_writable($sessionSavePath) || ini_set('session.save_path', $sessionSavePath) === false) {
+            throw new RuntimeException('Unable to use private session storage.');
+        }
+    }
+
     ini_set('session.use_strict_mode', '1');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.gc_maxlifetime', (string)session_lifetime_seconds());

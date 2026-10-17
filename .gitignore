@@ -27,5 +27,4 @@ api/gemini_config.php
 # Local database exports, credentials, and copied profile photos
 /local-secrets/
 /uploads/profile_photos/
-.vercel
 .env*

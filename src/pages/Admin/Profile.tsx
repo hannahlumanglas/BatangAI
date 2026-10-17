@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { JSX } from 'react'
-import { upload } from '@vercel/blob/client'
 import { useNavigate } from 'react-router-dom'
 import {
   getAuthSession,
@@ -568,6 +567,8 @@ function Profile({
   const [editing, setEditing] =
     useState(false)
 
+  const [savingAccount, setSavingAccount] = useState(false)
+
   const [notice, setNotice] =
     useState('')
 
@@ -696,6 +697,11 @@ function Profile({
             icon: 'assign',
           },
           {
+            label: 'My Assignments',
+            path: '/admin/my-assignments',
+            icon: 'assign',
+          },
+          {
             label: 'Device Monitoring',
             path: '/admin/device-monitoring',
             icon: 'devices',
@@ -777,21 +783,69 @@ function Profile({
   | Save profile information.
   |--------------------------------------------------------------------------
   */
-  const saveAccount = () => {
-    localStorage.setItem(
-      accountKey(),
-      JSON.stringify(account),
-    )
+  const saveAccount = async () => {
+    const currentSession = getAuthSession()
+    if (!currentSession?.user) {
+      setNotice('You are not logged in.')
+      return
+    }
 
-    setEditing(false)
+    const fullName = account.name.trim()
+    const email = account.email.trim().toLowerCase()
+    const department = account.department.trim()
+    if (!fullName || !email || !department) {
+      setNotice('Please complete your name, email address, and office.')
+      return
+    }
 
-    setNotice(
-      'Your account information has been updated.',
-    )
+    setSavingAccount(true)
+    setNotice('')
+    try {
+      const response = await fetch(UPDATE_USER_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update',
+          userID: String(currentSession.user.userID),
+          fullName,
+          email,
+          department,
+          role: currentSession.user.role,
+        }),
+      })
+
+      let result: { success?: boolean; message?: string }
+      try {
+        result = await response.json()
+      } catch {
+        throw new Error('The account service returned an invalid response.')
+      }
+      if (!response.ok || result.success !== true) {
+        throw new Error(result.message || 'Unable to save your account information.')
+      }
+
+      const updatedAccount = { ...account, name: fullName, email, department }
+      saveAuthSession({
+        ...currentSession,
+        user: {
+          ...currentSession.user,
+          fullName,
+          email,
+          department,
+        },
+      })
+      localStorage.setItem(accountKey(), JSON.stringify(updatedAccount))
+      setAccountOverride(updatedAccount)
+      setEditing(false)
+      setNotice('Your account information has been updated.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to save your account information.')
+    } finally {
+      setSavingAccount(false)
+    }
   }
 
-  // The PHP development server keeps its existing upload flow; Vercel uses
-  // direct Blob uploads to avoid serverless request-body limits.
+  // Upload profile photos through the PHP API in local and hosted environments.
   const uploadAvatar = async (file: File) => {
 
     const currentSession = getAuthSession()
@@ -851,46 +905,29 @@ function Profile({
     )
 
     try {
-      let uploadedProfilePhoto: string
-      if (import.meta.env.DEV) {
-        const formData = new FormData()
-        formData.append('userID', String(currentSession.user.userID))
-        formData.append('profilePhoto', file)
-        const response = await fetch(
-          `${API_BASE_URL}/upload_profile_photo.php`,
-          { method: 'POST', body: formData },
-        )
-        const payload: unknown = await response.json()
-        if (!payload || typeof payload !== 'object') {
-          throw new Error('The upload service returned an invalid response.')
-        }
-        const result = payload as Record<string, unknown>
-        if (!response.ok || result.success !== true) {
-          throw new Error(
-            typeof result.message === 'string'
-              ? result.message
-              : 'Failed to upload profile photo.',
-          )
-        }
-        if (typeof result.profilePhoto !== 'string') {
-          throw new Error('The upload service returned no profile photo.')
-        }
-        uploadedProfilePhoto = result.profilePhoto
-      } else {
-        const blob = await upload(
-          `profile_photos/${file.name}`,
-          file,
-          {
-            access: 'private',
-            contentType: file.type,
-            handleUploadUrl: `${API_BASE_URL}/upload_profile_photo.php`,
-            clientPayload: JSON.stringify({
-              userID: currentSession.user.userID,
-            }),
-          },
-        )
-        uploadedProfilePhoto = blob.pathname
+      const formData = new FormData()
+      formData.append('userID', String(currentSession.user.userID))
+      formData.append('profilePhoto', file)
+      const response = await fetch(
+        `${API_BASE_URL}/upload_profile_photo.php`,
+        { method: 'POST', body: formData },
+      )
+      const payload: unknown = await response.json()
+      if (!payload || typeof payload !== 'object') {
+        throw new Error('The upload service returned an invalid response.')
       }
+      const result = payload as Record<string, unknown>
+      if (!response.ok || result.success !== true) {
+        throw new Error(
+          typeof result.message === 'string'
+            ? result.message
+            : 'Failed to upload profile photo.',
+        )
+      }
+      if (typeof result.profilePhoto !== 'string') {
+        throw new Error('The upload service returned no profile photo.')
+      }
+      const uploadedProfilePhoto = result.profilePhoto
 
       /*
       |--------------------------------------------------------------------------
@@ -1317,15 +1354,10 @@ function Profile({
                   <button
                     type="button"
                     className="profile-edit-button"
-                    onClick={() =>
-                      editing
-                        ? saveAccount()
-                        : setEditing(true)
-                    }
+                    onClick={() => editing ? void saveAccount() : setEditing(true)}
+                    disabled={savingAccount}
                   >
-                    {editing
-                      ? 'Save changes'
-                      : 'Edit information'}
+                    {savingAccount ? 'Saving...' : editing ? 'Save changes' : 'Edit information'}
                   </button>
 
                 </div>
@@ -1346,7 +1378,7 @@ function Profile({
                         {label === 'Office' ? (
                           <select
                             value={value}
-                            disabled={!editing}
+                            disabled={!editing || savingAccount}
                             onChange={event => setAccount(current => ({ ...current, department: event.target.value }))}
                           >
                             {!offices.includes(value) && value && <option value={value}>{value}</option>}
@@ -1355,7 +1387,7 @@ function Profile({
                         ) : (
                           <input
                             value={value}
-                            disabled={!editing || label === 'Employee ID' || label === 'Role'}
+                            disabled={!editing || savingAccount || label === 'Employee ID' || label === 'Role'}
                             onChange={event => {
                               const newValue = event.target.value
                               setAccount(current => ({

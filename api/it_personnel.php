@@ -36,7 +36,7 @@ $sql = "
         status,
         profilePhoto
     FROM users
-    WHERE role IN ('Technician', 'IT Personnel', 'IT Support') AND LOWER(status) = 'active'
+    WHERE role IN ('Technician', 'IT Personnel', 'IT Support', 'Administrator') AND LOWER(status) = 'active'
     ORDER BY fullName ASC
 ";
 

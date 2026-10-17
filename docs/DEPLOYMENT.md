@@ -1,89 +1,52 @@
-# Vercel migration
+# InfinityFree deployment
 
-The app currently uses a React/Vite frontend, PHP endpoints, MySQL, and local
-profile-photo files. Vercel runs the frontend and the Node.js API functions in
-this repository; MySQL and Blob are separate managed services connected to it.
-The legacy PHP files remain available for the current InfinityFree deployment.
+The production site is a Vite-built React frontend served as static files,
+with the existing PHP endpoints under `/api` and MySQL hosted by InfinityFree.
 
-## Vercel project setup
+## 1. Prepare the InfinityFree account
 
-1. Create a Vercel project from this Git repository. Keep the Vite defaults:
-   build command `npm run build`, output directory `dist`, and install command
-   `npm install`.
-2. Create a managed MySQL database that accepts connections from Vercel and
-   copy its connection URL into the Vercel environment variable `MYSQL_URL`.
-   Do not add this value to `VITE_*` variables or commit it.
-3. Set `SESSION_SECRET` to a random value with at least 32 characters.
-   Set `DEVICE_MONITOR_TOKEN` to a separate random value with at least 32
-   characters for the device monitoring agent. Optionally set `GEMINI_API_KEY`
-   to enable incident analysis.
-4. Create a Vercel Blob store and add its `BLOB_READ_WRITE_TOKEN` to the
-   project environment variables.
-5. Deploy a preview first and verify login, incident reporting, assignment,
-   status updates, user administration, device records, and photo uploads
-   before changing the production domain.
+1. Create a MySQL database in the hosting control panel. Copy the database
+   host, database name, username, and password exactly as displayed there.
+2. Import the SQL snapshot and migrations into that database using the
+   provided phpMyAdmin; see [Database setup](../database/README.md).
+3. Confirm the account supports the PHP version used by this project and the
+   `mysqli` extension.
 
-## Data migration and cutover
+## 2. Configure the PHP API
 
-1. Export the production database from InfinityFree using phpMyAdmin. Keep the
-   export private; it contains account and incident information.
-2. Keep the SQL dump under the git-ignored `local-secrets` directory. Add the
-   TiDB connection details to the git-ignored `local-secrets/tidb-credentials.json`
-   file and download the TiDB-recommended CA certificate to
-   `local-secrets/isrgrootx1.pem`. Run `node scripts/import-tidb-dump.mjs` to
-   import the dump over a TLS-verified MySQL connection and apply
-   `database/migrations/vercel_migration.sql`. The importer stops if the target database
-   is not empty and never prints SQL data or credentials.
-   Then apply `database/migrations/add_sub_assignments.sql` to create department coverage
-   and incident SUB assignment tables, followed by `database/migrations/add_offices.sql`
-   to seed the Office catalog used by account, device, and incident workflows.
-   Apply `database/migrations/add_system_catalogs.sql` to configure the issue categories,
-   device types, connection types, severities, statuses, and account roles used
-   by the application forms.
-3. Download the current `uploads/profile_photos` directory from InfinityFree
-   into this repository's `uploads/profile_photos` directory. Do not commit the
-   downloaded files.
-4. With `MYSQL_URL` pointing at the imported destination database and
-   `BLOB_READ_WRITE_TOKEN` set, run
-   `node scripts/migrate-profile-photos.mjs`. Review the migrated/missing
-   counts before deploying.
-5. Set the Vercel custom domain and update its DNS records as directed by
-   Vercel. Keep InfinityFree available until the Vercel deployment and data
-   have been verified.
+1. On your computer, copy `api/.env.local.example` to `api/.env.local`.
+2. Replace `DB_HOST`, `DB_NAME`, `DB_USER`, and `DB_PASSWORD` with the
+   InfinityFree database values. Keep `DB_PORT=3306` unless the control panel
+   specifies another port. Set `GEMINI_API_KEY` only if incident analysis is
+   enabled.
+3. Keep `CORS_ALLOWED_ORIGINS` empty for same-origin production traffic.
+4. Upload this configured file into the deployed `api/` folder using the
+   hosting file manager or FTP. It is excluded from Git. Do not publish its
+   contents or place credentials in the frontend.
 
-Existing password hashes remain usable; accounts may need to sign in again
-because the new Vercel host cannot reuse cookies issued for the InfinityFree
-domain. Vercel serverless functions cannot ping private/LAN devices because
-they do not run inside the city network. For remote monitoring, run the
-BatangAI device agent on a computer that stays on inside the device network:
+## 3. Build and upload the site
 
-1. Install Node.js on an always-on computer inside the client's local network.
-   It must have VLAN routes to the registered device IP addresses and
-   permission to send ICMP ping requests; firewalls must allow those requests
-   and replies.
-2. Add the same `DEVICE_MONITOR_TOKEN` value to the agent computer's environment.
-   Keep it private and do not commit it. The API accepts agent requests only
-   with this bearer token.
-3. Set `DEVICE_MONITOR_API_URL` on that computer to
-   `https://<your-domain>/api/device_agent` and run `npm run device-monitor`
-   from this repository. In PowerShell, set the values for the current session
-   with `$env:DEVICE_MONITOR_API_URL = 'https://<your-domain>/api/device_agent'`
-   and `$env:DEVICE_MONITOR_TOKEN = '<same secret as Vercel>'` before running
-   the command. The agent checks only devices registered in BatangAI, reports
-   their results to the API, scans all devices every 5 minutes by default, and
-   checks for manual Refresh requests every 5 seconds.
-   `DEVICE_MONITOR_INTERVAL_MS` can change that interval (minimum 5 seconds).
-4. Keep the agent running. The Device Monitoring page refreshes saved status
-   every 15 seconds. Use Refresh on a device to request an immediate check;
-   it does not change the automatic five-minute scan schedule. If the agent is stopped, a device's status becomes unknown
-   after ten minutes; if it cannot reach a device, it records it as offline.
-5. The Device Online/Offline History Report records the agent's first observed
-   status for each device and each later status change. It cannot recreate
-   status history from before monitoring was enabled.
+1. From the project folder run `npm install`, then `npm run build`.
+2. Upload the **contents** of `dist/` to the website document root (usually
+   `htdocs/`). Do not upload the `dist` folder as a nested directory.
+3. Upload the PHP files from `api/` and `api/.env.local` into `htdocs/api/`.
+   Do not upload `.env.local.example`.
+4. Upload the project's `uploads/` directory and ensure PHP can write to
+   `uploads/profile_photos/`. Do not upload private SQL dumps or local secrets.
+5. Ensure the root `.htaccess` is uploaded beside `index.html`. It serves
+   existing PHP and static files directly and sends frontend routes to React.
+6. Open the site over HTTPS and verify sign-in, an API-backed page, incident
+   creation, and profile-photo upload.
 
-The agent sends results to BatangAI over outbound HTTPS. The client's public IP
-is not used to ping private device addresses, and the devices do not need to be
-exposed to the internet. Vercel cannot ping those private addresses directly.
+## Database and file updates
 
-Never send account passwords, database credentials, or API keys in chat. Add
-them only in the Vercel project environment settings.
+Back up the MySQL database and `uploads/profile_photos/` before changing the
+schema or replacing hosted files. Apply any required SQL migrations through
+phpMyAdmin, then upload the new frontend build and PHP changes. Keep
+`api/.env.local` private and outside source control.
+
+## Hosting limits
+
+InfinityFree shared hosting runs the PHP API and static frontend. Private
+network device checks need to run from a computer connected to that network;
+see [local device monitoring](REMOTE_DEVICE_MONITORING.md).

@@ -1,14 +1,17 @@
-RewriteEngine On
+Options -Indexes
 
-# Keep environment files and other hidden files private.
-<FilesMatch "^\.">
+# Keep environment and hidden files private.
+<FilesMatch "^\.|\.env($|\.)">
     Require all denied
 </FilesMatch>
 
-# Do not rewrite existing files or directories
+# PHP endpoints and assets are served directly; frontend paths go to React.
+RewriteEngine On
+RewriteRule ^local-secrets(?:/|$) - [F,L]
+RewriteCond %{REQUEST_URI} ^/api/ [NC]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ - [R=404,L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
-
-# Send all other routes to React
 RewriteRule ^ index.html [L]

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { FormEvent, JSX, MouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import logo from '../../assets/logo.png'
 import {
@@ -197,6 +198,11 @@ const navigation: {
     path: '/admin/manage-assign',
   },
   {
+    label: 'My Assignments',
+    icon: 'assign',
+    path: '/admin/my-assignments',
+  },
+  {
     label: 'Device Monitoring',
     icon: 'devices',
     path: '/admin/device-monitoring',
@@ -281,6 +287,18 @@ const initialIncidentFormValues: IncidentFormValues = {
   connectionType: '',
   affectedService: '',
   description: '',
+}
+
+function buildIncidentSummary(values: IncidentFormValues): string {
+  const report = [values.affectedService.trim(), values.description.trim()].filter(Boolean).join(': ')
+  const details = [
+    values.department && `office: ${values.department.trim()}`,
+    values.location && `location: ${values.location.trim()}`,
+    values.issueCategory && `category: ${values.issueCategory.trim()}`,
+    values.deviceType && `device: ${values.deviceType.trim()}`,
+    values.connectionType && `connection: ${values.connectionType.trim()}`,
+  ].filter(Boolean)
+  return details.length ? `${report} (${details.join('; ')}).` : report
 }
 
 /* ===========================================================
@@ -913,6 +931,7 @@ function Incidents({
 
   const [actionMenuId, setActionMenuId] =
     useState<string | null>(null)
+  const [actionMenuPosition, setActionMenuPosition] = useState({ top: 0, right: 0 })
 
   useEffect(() => {
     if (actionMenuId === null) {
@@ -925,7 +944,7 @@ function Incidents({
       const target = event.target
       if (
         target instanceof Element &&
-        target.closest('.incident-more-menu')
+        target.closest('.incident-more-menu, .incident-row-menu')
       ) {
         return
       }
@@ -1004,6 +1023,122 @@ function Incidents({
     }
   }
 
+  const [editingIncident, setEditingIncident] = useState<Incident | null>(null)
+  const [editValues, setEditValues] = useState<IncidentFormValues>(initialIncidentFormValues)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState('')
+
+  const openEditIncident = (incident: Incident) => {
+    setActionMenuId(null)
+    if (incident.status === 'Resolved' || incident.status === 'Closed') return
+    setEditValues({
+      severity: incident.severity ?? '',
+      department: incident.department,
+      location: incident.location,
+      issueCategory: incident.issueCategory,
+      deviceType: incident.deviceType ?? '',
+      connectionType: incident.connectionType ?? '',
+      affectedService: incident.affectedIssue,
+      description: incident.description,
+    })
+    setEditError('')
+    setEditingIncident(incident)
+  }
+
+  const closeEditIncident = () => {
+    if (savingEdit) return
+    setEditingIncident(null)
+    setEditError('')
+  }
+
+  const handleEditIncidentFieldChange = (field: keyof IncidentFormValues, value: string) => {
+    setEditValues(current => ({ ...current, [field]: value }))
+  }
+
+  const handleSaveIncidentEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!editingIncident || savingEdit) return
+
+    setSavingEdit(true)
+    setEditError('')
+    let analysis: IncidentAnalysis | null = null
+    try {
+      try {
+        analysis = await analyzeIncidentWithAI(editValues)
+      } catch (analysisError) {
+        console.warn('AI analysis refresh failed; saving edited incident details with a generated summary.', analysisError)
+      }
+
+      const summary = analysis?.summary ?? buildIncidentSummary(editValues)
+      const userId = getCurrentUserId()
+      if (userId === null) throw new Error('Your login session could not be verified. Please log in again.')
+
+      const troubleshooting = analysis
+        ? `Basic Self-Help:\n${analysis.basicSelfHelp}\n\nIT Troubleshooting Suggestions:\n${analysis.itTroubleshooting}`
+        : editingIncident.troubleshooting
+
+      const response = await fetch(`${API_BASE_URL}/update_incident.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          incidentID: editingIncident.incidentID,
+          actorUserId: String(userId),
+          department: editValues.department,
+          location: editValues.location,
+          issueCategory: editValues.issueCategory,
+          deviceType: editValues.deviceType,
+          connectionType: editValues.connectionType,
+          affectedIssue: editValues.affectedService,
+          description: editValues.description,
+          severity: editValues.severity,
+          classification: analysis?.classification ?? editingIncident.classification,
+          keywords: analysis?.keywords ?? editingIncident.keywords ?? [],
+          summary,
+          troubleshooting: troubleshooting ?? '',
+        }),
+      })
+
+      const responseText = await response.text()
+      let result: { success?: boolean; message?: string }
+      try {
+        result = JSON.parse(responseText)
+      } catch {
+        console.error('Invalid JSON from update_incident.php:', responseText)
+        throw new Error('The server returned an invalid response.')
+      }
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || 'Failed to update the incident.')
+      }
+
+      setIncidents(current => current.map(incident => incident.incidentID === editingIncident.incidentID
+        ? {
+            ...incident,
+            department: editValues.department,
+            location: editValues.location,
+            issueCategory: editValues.issueCategory,
+            deviceType: editValues.deviceType,
+            connectionType: editValues.connectionType,
+            affectedIssue: editValues.affectedService,
+            description: editValues.description,
+            severity: editValues.severity || null,
+            classification: analysis?.classification ?? incident.classification,
+            keywords: analysis?.keywords ?? incident.keywords,
+            summary,
+            troubleshooting: troubleshooting ?? incident.troubleshooting,
+          }
+        : incident))
+      setEditingIncident(null)
+      if (!analysis) {
+        void showAlert('Incident changes were saved. The AI service was unavailable, so the summary was updated from the report information.')
+      }
+    } catch (error) {
+      console.error('Save incident edit error:', error)
+      setEditError(error instanceof Error ? error.message : 'Failed to update the incident.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   /* =========================================================
      NEW INCIDENT MODAL
      ========================================================= */
@@ -1020,6 +1155,7 @@ function Incidents({
     )
 
   const [analyzingNewIncident, setAnalyzingNewIncident] = useState(false)
+  const [submittingNewIncident, setSubmittingNewIncident] = useState(false)
   const [newIncidentAnalysis, setNewIncidentAnalysis] =
     useState<IncidentAnalysis | null>(null)
   const [newIncidentAnalysisError, setNewIncidentAnalysisError] = useState('')
@@ -1064,6 +1200,10 @@ function Incidents({
         if (isNewIncidentOpen) {
           closeNewIncident()
         }
+
+        if (editingIncident && !savingEdit) {
+          setEditingIncident(null)
+        }
       }
     }
 
@@ -1081,6 +1221,8 @@ function Incidents({
   }, [
     viewingId,
     isNewIncidentOpen,
+    editingIncident,
+    savingEdit,
   ])
 
   const handleSubmitNewIncident = async (
@@ -1088,23 +1230,70 @@ function Incidents({
   ) => {
     event.preventDefault()
 
-    if (analyzingNewIncident) {
+    if (analyzingNewIncident || submittingNewIncident) {
       return
     }
 
-    setAnalyzingNewIncident(true)
     setNewIncidentAnalysisError('')
+    if (!newIncidentAnalysis) {
+      setAnalyzingNewIncident(true)
+      try {
+        const analysis = await analyzeIncidentWithAI(values)
+        setNewIncidentAnalysis(analysis)
+      } catch (error) {
+        setNewIncidentAnalysisError(
+          error instanceof Error
+            ? error.message
+            : 'AI assistance is currently unavailable. Please try again.',
+        )
+      } finally {
+        setAnalyzingNewIncident(false)
+      }
+      return
+    }
+
+    const userId = getCurrentUserId()
+    if (userId === null || user.role !== 'Administrator') {
+      setNewIncidentAnalysisError('Only a signed-in Administrator can submit this incident report.')
+      return
+    }
+
+    setSubmittingNewIncident(true)
     try {
-      const analysis = await analyzeIncidentWithAI(values)
-      setNewIncidentAnalysis(analysis)
+      const response = await fetch(`${API_BASE_URL}/create_incident.php`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          userId: String(userId),
+          resolvedByUser: false,
+          affectedIssue: values.affectedService,
+          description: values.description,
+          issueCategory: values.issueCategory,
+          deviceType: values.deviceType,
+          connectionType: values.connectionType,
+          location: values.location,
+          severity: values.severity || null,
+          classification: newIncidentAnalysis.classification,
+          keywords: newIncidentAnalysis.keywords,
+          summary: newIncidentAnalysis.summary,
+          troubleshooting: `Basic Self-Help:\n${newIncidentAnalysis.basicSelfHelp}\n\nIT Troubleshooting Suggestions:\n${newIncidentAnalysis.itTroubleshooting}`,
+        }),
+      })
+      const data = await response.json() as { success?: boolean; message?: string }
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to submit the incident report.')
+      }
+
+      setIsNewIncidentOpen(false)
+      setNewIncidentAnalysis(null)
+      setValues({ ...initialIncidentFormValues, department: getAuthSession()?.user.department?.trim() ?? '' })
+      await fetchIncidents()
+      void showAlert('Incident report submitted successfully.')
     } catch (error) {
-      setNewIncidentAnalysisError(
-        error instanceof Error
-          ? error.message
-          : 'AI assistance is currently unavailable. Please try again.',
-      )
+      setNewIncidentAnalysisError(error instanceof Error ? error.message : 'Failed to submit the incident report.')
     } finally {
-      setAnalyzingNewIncident(false)
+      setSubmittingNewIncident(false)
     }
   }
 
@@ -1238,7 +1427,7 @@ function Incidents({
               />
             </label>
 
-            {!isIT && <button
+            {user.role === 'Administrator' && <button
               className="incident-new"
               type="button"
               onClick={openNewIncident}
@@ -1261,8 +1450,12 @@ function Incidents({
                   )
                 }
               >
-                {['All Status', ...(options.incident_status ?? [])].map(
-                  option => (
+                {[
+                  'All Status',
+                  ...(options.incident_status ?? []).filter(
+                    option => option !== 'Closed',
+                  ),
+                ].map(option => (
                     <option
                       key={option}
                       value={option}
@@ -1285,8 +1478,12 @@ function Incidents({
                   )
                 }
               >
-                {['All Severity', ...(options.severity ?? [])].map(
-                  option => (
+                {[
+                  'All Severity',
+                  ...(options.severity ?? []).filter(
+                    option => option.toLowerCase() !== 'critical',
+                  ),
+                ].map(option => (
                     <option
                       key={option}
                       value={option}
@@ -1477,34 +1674,32 @@ function Incidents({
                                   actionMenuId ===
                                   incident.incidentID
                                 }
-                                onClick={() =>
-                                  setActionMenuId(
-                                    current =>
-                                      current ===
-                                      incident.incidentID
-                                        ? null
-                                        : incident.incidentID,
-                                  )
-                                }
+                                onClick={event => {
+                                  if (actionMenuId === incident.incidentID) {
+                                    setActionMenuId(null)
+                                    return
+                                  }
+                                  const rect = event.currentTarget.getBoundingClientRect()
+                                  const menuHeight = 88
+                                  setActionMenuPosition({
+                                    top: window.innerHeight - rect.bottom < menuHeight + 12
+                                      ? Math.max(8, rect.top - menuHeight - 6)
+                                      : rect.bottom + 6,
+                                    right: Math.max(8, window.innerWidth - rect.right),
+                                  })
+                                  setActionMenuId(incident.incidentID)
+                                }}
                               >
                                 <Icon name="more" />
                               </button>
 
-                              {actionMenuId ===
-                                incident.incidentID && (
-                                <div className="incident-row-menu">
+                              {actionMenuId === incident.incidentID && createPortal(<div className="incident-row-menu" style={{ top: actionMenuPosition.top, right: actionMenuPosition.right }}>
                                   <button
                                     type="button"
                                     disabled={incident.status === 'Resolved' || incident.status === 'Closed'}
                                     title={incident.status === 'Resolved' || incident.status === 'Closed' ? 'Resolved incidents cannot be edited.' : undefined}
                                     onClick={() => {
-                                      setActionMenuId(
-                                        null,
-                                      )
-
-                                      void showAlert(
-                                        'Edit Incident will be connected to the database in the Manage & Assign module.',
-                                      )
+                                      openEditIncident(incident)
                                     }}
                                   >
                                     Edit
@@ -1519,8 +1714,7 @@ function Incidents({
                                   >
                                     Delete
                                   </button>
-                                </div>
-                              )}
+                                </div>, document.body)}
                             </div>}
                           </td>
 
@@ -1649,15 +1843,59 @@ function Incidents({
                   <button
                     className="btn-primary btn-block"
                     type="submit"
-                    disabled={analyzingNewIncident}
+                    disabled={analyzingNewIncident || submittingNewIncident}
                   >
-                    {analyzingNewIncident ? 'Analyzing with BatangAI…' : 'Analyze with BatangAI'}
+                    {analyzingNewIncident ? 'Analyzing with BatangAI…' : submittingNewIncident ? 'Submitting...' : newIncidentAnalysis ? 'Submit Incident Report' : 'Analyze with BatangAI'}
                   </button>
                 </footer>
               </form>
             </div>
           </div>
         )}
+
+      {editingIncident && (
+        <div
+          className="modal-overlay"
+          onMouseDown={event => {
+            if (event.target === event.currentTarget) closeEditIncident()
+          }}
+        >
+          <section
+            className="new-incident-modal edit-incident-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-incident-title"
+          >
+            <header className="new-incident-header">
+              <div>
+                <h2 id="edit-incident-title">Edit Incident</h2>
+              </div>
+              <button className="modal-close" type="button" aria-label="Close dialog" onClick={closeEditIncident} disabled={savingEdit}>×</button>
+            </header>
+
+            <form className="new-incident-body" onSubmit={event => void handleSaveIncidentEdit(event)}>
+              <div className="incident-form">
+                <IncidentDetailsFields
+                  values={editValues}
+                  onChange={handleEditIncidentFieldChange}
+                  departmentEditable
+                  showSeverity
+                />
+                <IncidentDescriptionFields
+                  values={editValues}
+                  onChange={handleEditIncidentFieldChange}
+                />
+                {editError && <p className="incident-field-error" role="alert">{editError}</p>}
+              </div>
+
+              <footer className="new-incident-footer">
+                <button className="btn-secondary btn-block" type="button" onClick={closeEditIncident} disabled={savingEdit}>Cancel</button>
+                <button className="btn-primary btn-block" type="submit" disabled={savingEdit}>{savingEdit ? 'Saving...' : 'Save Changes'}</button>
+              </footer>
+            </form>
+          </section>
+        </div>
+      )}
 
       {/* =====================================================
           REAL DATABASE INCIDENT DETAIL

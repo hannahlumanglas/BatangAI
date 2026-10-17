@@ -55,14 +55,25 @@ type AssignmentIncident = IncidentDetail & {
 }
 
 type IconName =
+  | 'dashboard'
   | 'incidents'
   | 'assign'
   | 'devices'
+  | 'users'
+  | 'reports'
   | 'profile'
   | 'menu'
 
 function Icon({ name }: { name: IconName }) {
   const paths: Record<IconName, JSX.Element> = {
+    dashboard: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </>
+    ),
     incidents: (
       <>
         <rect x="5" y="4" width="14" height="17" rx="2" />
@@ -80,6 +91,17 @@ function Icon({ name }: { name: IconName }) {
       <>
         <rect x="3" y="4" width="18" height="13" rx="1.5" />
         <path d="M8 21h8M12 17v4" />
+      </>
+    ),
+    users: (
+      <>
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M16 11a3 3 0 1 0 0-6M16 14c2.8 0 4.4 1.8 4.7 4" />
+      </>
+    ),
+    reports: (
+      <>
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
       </>
     ),
     profile: (
@@ -131,6 +153,21 @@ const navigation: {
     icon: 'profile',
     path: '/it/profile',
   },
+]
+
+const administratorNavigation: {
+  label: string
+  icon: Exclude<IconName, 'menu'>
+  path: string
+}[] = [
+  { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
+  { label: 'All Incident Reports', icon: 'incidents', path: '/admin/incidents' },
+  { label: 'Manage & Assign', icon: 'assign', path: '/admin/manage-assign' },
+  { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },
+  { label: 'Device Monitoring', icon: 'devices', path: '/admin/device-monitoring' },
+  { label: 'User Management', icon: 'users', path: '/admin/user-management' },
+  { label: 'Generate Reports', icon: 'reports', path: '/admin/generate-reports' },
+  { label: 'Profile', icon: 'profile', path: '/admin/profile' },
 ]
 
 function ThemeToggle() {
@@ -265,7 +302,7 @@ function ITProfileMenu({
 
   const goProfile = () => {
     setOpen(false)
-    navigate('/it/profile')
+    navigate(currentUser?.role === 'Administrator' ? '/admin/profile' : '/it/profile')
   }
 
   const initials = currentUserName
@@ -308,7 +345,7 @@ function ITProfileMenu({
 
         <div>
           <strong>{currentUserName}</strong>
-          <span>Technician</span>
+          <span>{currentUser?.role === 'Administrator' ? 'Administrator' : 'Technician'}</span>
         </div>
 
         <span
@@ -494,7 +531,11 @@ function normalizeTroubleshootingText(value: unknown): string {
   return ''
 }
 
-function MyAssignments() {
+function MyAssignments({ audience = 'technician' }: { audience?: 'administrator' | 'technician' }) {
+  const isAdministrator = audience === 'administrator'
+  const pageNavigation = isAdministrator
+    ? administratorNavigation
+    : navigation
   const navigate = useNavigate()
   const location = useLocation()
   const { showAlert } = useAppDialog()
@@ -525,13 +566,14 @@ function MyAssignments() {
 
       if (currentUserId === null) {
         setError(
-          'No logged-in Technician account was found.',
+          'Your login session could not be verified.',
         )
         return
       }
 
       const response = await fetch(
-        `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}`,
+        `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId))}${isAdministrator ? '&scope=assigned' : ''}`,
+        { credentials: 'include' },
       )
 
       if (!response.ok) {
@@ -579,8 +621,8 @@ function MyAssignments() {
             id: incident.incidentID,
             incidentDetail: incident,
             technicianCheckedSteps: (() => {
-              const match = troubleshooting.match(/\[IT checked troubleshooting steps: ([^\]]*)\]/i)
-              return (match?.[1] || '').split(',').map((item: string) => Number(item.trim())).filter((index: number) => Number.isInteger(index) && index >= 0)
+              const match = troubleshooting.match(/\[IT manually checked troubleshooting steps: ([^\]]*)\]/i)
+              return (match?.[1] || '').split(',').map((item: string) => item.trim()).filter((item: string) => item !== '').map(Number).filter((index: number) => Number.isInteger(index) && index >= 0)
             })(),
 
             title:
@@ -682,7 +724,7 @@ function MyAssignments() {
     } finally {
       setLoading(false)
     }
-  }, [currentUserId, currentUserName])
+  }, [currentUserId, currentUserName, isAdministrator])
 
   const routeState = location.state as { openIncidentId?: unknown } | null
   const requestedIncidentId = routeState?.openIncidentId
@@ -738,6 +780,7 @@ function MyAssignments() {
         `${API_BASE_URL}/update_incident_status.php`,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -809,7 +852,10 @@ function MyAssignments() {
     setResolutionNotes(ticket.resolutionNotes || ticket.incidentDetail.resolutionNotes || '')
   }
 
-  const updateTechnicianStep = (ticketId: string, index: number, checked: boolean) => {
+  const updateTechnicianStep = async (ticketId: string, index: number, checked: boolean) => {
+    const ticket = ticketsRef.current.find(item => item.id === ticketId)
+    if (!ticket || ticket.status !== 'in-progress') return
+
     const update = (ticket: Ticket): Ticket => {
       if (ticket.id !== ticketId) return ticket
       const next = checked
@@ -823,6 +869,32 @@ function MyAssignments() {
       return next
     })
     setSelected(current => current ? update(current) : current)
+
+    const updatedSteps = checked
+      ? [...new Set([...ticket.technicianCheckedSteps, index])].sort((a, b) => a - b)
+      : ticket.technicianCheckedSteps.filter(step => step !== index)
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/update_incident_status.php`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          incidentID: ticketId,
+          status: 'Update Technician Checklist',
+          actorUserId: currentUserId,
+          technicianCheckedSteps: updatedSteps,
+        }),
+      })
+      const data = await response.json() as { success?: boolean; message?: string }
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to save technician troubleshooting progress.')
+      }
+    } catch (error) {
+      console.error('Save technician troubleshooting progress error:', error)
+      await loadAssignments()
+      void showAlert(error instanceof Error ? error.message : 'Failed to save technician troubleshooting progress.')
+    }
   }
 
   const resolveIncident = async (
@@ -849,6 +921,7 @@ function MyAssignments() {
         `${API_BASE_URL}/update_incident_status.php`,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -984,9 +1057,9 @@ function MyAssignments() {
 
         <nav
           className="sidebar-nav"
-          aria-label="Technician navigation"
+          aria-label={isAdministrator ? 'Administrator navigation' : 'Technician navigation'}
         >
-          {navigation.map(item => (
+          {pageNavigation.map(item => (
             <button
               key={item.label}
               className={
@@ -1338,11 +1411,18 @@ function ReportModal({
 
   return (
     <IncidentDetailModal
-      incident={ticket.incidentDetail}
+      incident={{
+        ...ticket.incidentDetail,
+        status: ticket.status === 'in-progress'
+          ? 'In Progress'
+          : ticket.status === 'solved'
+            ? 'Resolved'
+            : ticket.incidentDetail.status,
+      }}
       onClose={onClose}
       footer={footer}
       showSelfHelpChecklist
-      showTechnicianChecklist
+      showTechnicianChecklist={ticket.status !== 'available'}
       checkedTechnicianSteps={ticket.technicianCheckedSteps}
       onTechnicianStepChange={onTechnicianStepChange}
       resolutionNotesDraft={ticket.status === 'in-progress' ? resolutionNotesDraft : undefined}

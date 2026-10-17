@@ -26,7 +26,7 @@ if (!$data) {
 
 $incidentID = trim($data["incidentID"] ?? "");
 $status = trim($data["status"] ?? "");
-$actor = require_role_session($conn, ['IT Personnel'], 'Only the assigned Technician may update incident status.');
+$actor = require_role_session($conn, ['IT Personnel', 'Administrator'], 'Only the assigned Technician or Administrator may update incident status.');
 if ($actor === null) { $conn->close(); exit; }
 $actorUserId = (string)$actor['userID'];
 $requestedActor = trim((string)($data['actorUserId'] ?? ''));
@@ -95,6 +95,57 @@ if (!$assignment) {
 
 $currentStatus = strtolower(trim((string) $assignment["status"]));
 $requestedStatus = strtolower($status);
+
+if ($status === "Update Technician Checklist") {
+    if ($currentStatus !== "in progress") {
+        http_response_code(409);
+        echo json_encode(["success" => false, "message" => "Take action on this incident before updating technician troubleshooting steps."]);
+        $conn->close();
+        exit;
+    }
+
+    $stepsStmt = $conn->prepare("SELECT technicalTroubleshootingSuggestions FROM incidents WHERE incidentID = ? LIMIT 1");
+    $stepsStmt->bind_param("s", $incidentID);
+    $stepsStmt->execute();
+    $stepsRow = $stepsStmt->get_result()->fetch_assoc();
+    $stepsStmt->close();
+
+    if (!$stepsRow) {
+        http_response_code(404);
+        echo json_encode(["success" => false, "message" => "Incident not found."]);
+        $conn->close();
+        exit;
+    }
+
+    $technicalText = (string)($stepsRow["technicalTroubleshootingSuggestions"] ?? "");
+    $technicalText = preg_replace('/\[IT (?:manually )?checked troubleshooting steps: [^\]]*\]/i', '', $technicalText);
+    $technicalLines = preg_split('/\s+(?=(?:\d+[.)]|[-*\x{2022}])\s+)/u', trim($technicalText));
+    $technicalLines = array_values(array_filter(array_map(function ($step) {
+        return trim(preg_replace('/^\s*(?:\d+[.)]|[-*\x{2022}])\s*/u', '', $step));
+    }, $technicalLines ?: []), function ($step) { return $step !== ""; }));
+    $stepCount = count($technicalLines);
+    $checkedSteps = $data["technicianCheckedSteps"] ?? [];
+    if (!is_array($checkedSteps)) $checkedSteps = [];
+    $checkedSteps = array_values(array_unique(array_filter(array_map('intval', $checkedSteps), function ($step) use ($stepCount) {
+        return $step >= 0 && $step < $stepCount;
+    })));
+    sort($checkedSteps);
+    if ($checkedSteps) $technicalText = rtrim($technicalText) . "\n[IT manually checked troubleshooting steps: " . implode(',', $checkedSteps) . "]";
+
+    $saveStmt = $conn->prepare("UPDATE incidents SET technicalTroubleshootingSuggestions = ? WHERE incidentID = ? AND assignedTo = ? AND status = 'In Progress'");
+    $saveStmt->bind_param("sss", $technicalText, $incidentID, $actorUserId);
+    if (!$saveStmt->execute()) {
+        http_response_code(500);
+        echo json_encode(["success" => false, "message" => "Failed to save technician troubleshooting progress."]);
+        $saveStmt->close();
+        $conn->close();
+        exit;
+    }
+    $saveStmt->close();
+    echo json_encode(["success" => true, "technicianCheckedSteps" => $checkedSteps]);
+    $conn->close();
+    exit;
+}
 
 if (
     ($requestedStatus === "in progress" && $currentStatus !== "pending") ||
@@ -290,7 +341,7 @@ if ($status === "Resolved") {
     $sections = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
     $technicianText = trim($sections[1] ?? "");
     $technicianText = preg_replace('/\[Employee checked self-help steps: [^\]]*\]/i', '', $technicianText);
-    $technicianText = preg_replace('/\[IT checked troubleshooting steps: [^\]]*\]/i', '', $technicianText);
+    $technicianText = preg_replace('/\[IT (?:manually )?checked troubleshooting steps: [^\]]*\]/i', '', $technicianText);
     $technicianLines = preg_split('/\s+(?=(?:\d+[.)]|[-*\x{2022}])\s+)/u', trim((string)$technicianText));
     $technicianLines = array_values(array_filter(array_map(function ($step) {
         return trim(preg_replace('/^\s*(?:\d+[.)]|[-*\x{2022}])\s*/u', '', $step));
@@ -298,9 +349,9 @@ if ($status === "Resolved") {
     $stepCount = count($technicianLines);
     $checkedTechnicianSteps = array_values(array_unique(array_filter(array_map('intval', $checkedTechnicianSteps), function ($step) use ($stepCount) { return $step >= 0 && $step < $stepCount; })));
     sort($checkedTechnicianSteps);
-    $troubleshooting = preg_replace('/\s*\[IT checked troubleshooting steps: [^\]]*\]/i', '', $troubleshooting);
+    $troubleshooting = preg_replace('/\s*\[IT (?:manually )?checked troubleshooting steps: [^\]]*\]/i', '', $troubleshooting);
     $troubleshooting = rtrim($troubleshooting);
-    if ($checkedTechnicianSteps) $troubleshooting .= "\n[IT checked troubleshooting steps: " . implode(',', $checkedTechnicianSteps) . "]";
+    if ($checkedTechnicianSteps) $troubleshooting .= "\n[IT manually checked troubleshooting steps: " . implode(',', $checkedTechnicianSteps) . "]";
     $savedSections = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
     $technicalTroubleshooting = trim((string)($savedSections[1] ?? ''));
 

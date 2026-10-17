@@ -216,6 +216,8 @@ Important rules:
 - Do not return a generic category label in place of actionable steps.
 - Do not instruct employees to change router, switch, server, firewall, DNS, DHCP, or other network infrastructure settings.
 - Technical troubleshooting may include network diagnostic procedures appropriate for IT personnel.
+- Generate only the number of technical troubleshooting steps this specific incident needs. Let the report details determine the count; do not force a fixed number of steps or add redundant checks just to reach a count.
+- Write each technical troubleshooting action as a separate numbered step in the order the technician should perform it, with a clear observation or decision point where useful.
 - Technical troubleshooting suggestions are advisory only and must be reviewed by IT Support.
 - Do not claim that the incident has been resolved.
 - Do not assign the incident to an IT employee.

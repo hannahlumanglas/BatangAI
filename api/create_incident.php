@@ -25,6 +25,7 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 
 require_once "config.php";
 require_once "catalog.php";
+require_once "auth_tokens.php";
 
 // Get JSON data from React
 $rawData = file_get_contents("php://input");
@@ -41,13 +42,26 @@ if (!is_array($data)) {
     exit;
 }
 
+$actor = require_role_session($conn, ['Employee', 'Administrator'], 'Only an active Employee or Administrator may submit an incident report.');
+if ($actor === null) {
+    $conn->close();
+    exit;
+}
+
 /*
 |--------------------------------------------------------------------------
 | Get values from request
 |--------------------------------------------------------------------------
 */
 
-$userId = trim((string)($data["userId"] ?? ""));
+$requestedUserId = trim((string)($data["userId"] ?? ""));
+$userId = (string)$actor['userID'];
+if ($requestedUserId !== '' && $requestedUserId !== $userId) {
+    http_response_code(403);
+    echo json_encode(["success" => false, "message" => "The report must be submitted by the signed-in account."]);
+    $conn->close();
+    exit;
+}
 $affectedIssue = trim((string)($data["affectedIssue"] ?? ""));
 $description = trim((string)($data["description"] ?? ""));
 $issueCategory = trim((string)($data["issueCategory"] ?? ""));
@@ -114,18 +128,18 @@ foreach ([
     }
 }
 
-// The authenticated employee identity is the database source of truth for
-// reporter name and department. This prevents a browser payload from filing a
-// report under another employee while retaining all report fields.
+// Use the authenticated submitter as the database source of truth for reporter
+// name and department. This prevents a browser payload from filing a report
+// under another employee or administrator while retaining all report fields.
 $employeeStmt = $conn->prepare('SELECT userID, fullName, department, role, status FROM users WHERE userID = ? LIMIT 1');
 $employeeStmt->bind_param('s', $userId);
 $employeeStmt->execute();
 $employee = $employeeStmt->get_result()->fetch_assoc();
 $employeeStmt->close();
 
-if (!$employee || strtolower(trim((string)$employee['role'])) !== 'employee' || strtolower(trim((string)$employee['status'])) !== 'active') {
+if (!$employee || $employee['userID'] != $actor['userID'] || !in_array(strtolower(trim((string)$employee['role'])), ['employee', 'administrator'], true) || strtolower(trim((string)$employee['status'])) !== 'active') {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Only an active Employee account may submit an incident report.']);
+    echo json_encode(['success' => false, 'message' => 'Only the signed-in active Employee or Administrator may submit this incident report.']);
     $conn->close();
     exit;
 }

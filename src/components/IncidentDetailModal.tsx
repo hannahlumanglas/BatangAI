@@ -88,11 +88,13 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
   const checkedMatch = troubleshooting.match(/\[Employee checked self-help steps: ([^\]]*)\]/i)
   // ReportIncident stores the checked steps as zero-based array indexes.
   // Keep that representation here so, for example, "0,1" restores steps 1 and 2.
-  const savedCheckedSteps = new Set((checkedMatch?.[1] || '').split(',').map(value => Number(value.trim())).filter(index => Number.isInteger(index) && index >= 0))
+  const savedCheckedSteps = new Set((checkedMatch?.[1] || '').split(',').map(value => value.trim()).filter(value => value !== '').map(Number).filter(index => Number.isInteger(index) && index >= 0))
   const selfHelpSteps = parseSelfHelpSteps(troubleshooting)
+  const showEmployeeCheckMarks = (incident.status || '').trim().toLowerCase() !== 'pending'
   const technicianSteps = parseTechnicianSteps(troubleshooting)
-  const savedTechnicianMatch = troubleshooting.match(/\[IT checked troubleshooting steps: ([^\]]*)\]/i)
-  const savedTechnicianSteps = new Set((savedTechnicianMatch?.[1] || '').split(',').map(value => Number(value.trim())).filter(index => Number.isInteger(index) && index >= 0))
+  const savedTechnicianMatch = troubleshooting.match(/\[IT manually checked troubleshooting steps: ([^\]]*)\]/i)
+  const savedTechnicianSteps = new Set((savedTechnicianMatch?.[1] || '').split(',').map(value => value.trim()).filter(value => value !== '').map(Number).filter(index => Number.isInteger(index) && index >= 0))
+  const technicianWorkStarted = ['in progress', 'resolved', 'closed'].includes((incident.status || '').trim().toLowerCase())
 
   const keywordExtraction = [
     ['Reporter', incident.employeeName],
@@ -106,10 +108,6 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
   ]
     .filter(([, value]) => typeof value === 'string' && value.trim() !== '')
     .map(([label, value]) => `${label}: ${value}`)
-  // A confirmed employee resolution means every suggested self-help step was
-  // completed, including reports created before check data was saved.
-  const resolvedByReporter = Boolean(incident.resolvedBy && incident.employeeName && incident.resolvedBy.trim() === incident.employeeName.trim())
-
   return (
     <div className="modal-overlay incident-detail-overlay" onMouseDown={event => event.target === event.currentTarget && onClose()}>
       <section className="incident-detail-modal" role="dialog" aria-modal="true" aria-labelledby="incident-detail-title">
@@ -144,9 +142,12 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
                 <div className="incident-ai-block">
                   <span>Basic Self-Help</span>
                   {selfHelpSteps.length ? <ul className="incident-self-help-checklist">
-                    {selfHelpSteps.map((step, index) => <li key={`${index}-${step}`} className={resolvedByReporter || savedCheckedSteps.has(index) ? 'is-checked' : ''}>
-                      <label><input type="checkbox" checked={resolvedByReporter || savedCheckedSteps.has(index)} readOnly /><span>{step}</span></label>
-                    </li>)}
+                    {selfHelpSteps.map((step, index) => {
+                      const checked = showEmployeeCheckMarks && savedCheckedSteps.has(index)
+                      return <li key={`${index}-${step}`} className={checked ? 'is-checked' : ''}>
+                        <label><input type="checkbox" checked={checked} readOnly /><span>{step}</span></label>
+                      </li>
+                    })}
                   </ul> : <p>No basic self-help guidance was recorded.</p>}
                 </div>
               ) : incident.troubleshooting && <AnalysisBlock label="Troubleshooting" value={troubleshooting} />}
@@ -154,9 +155,9 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
                 <span>Technician Troubleshooting Steps</span>
                 {technicianSteps.length ? <ul className="incident-self-help-checklist">
                   {technicianSteps.map((step, index) => {
-                    const checked = checkedTechnicianSteps.includes(index) || savedTechnicianSteps.has(index)
+                    const checked = technicianWorkStarted && (checkedTechnicianSteps.includes(index) || savedTechnicianSteps.has(index))
                     return <li key={`tech-${index}-${step}`} className={checked ? 'is-checked' : ''}>
-                      <label><input type="checkbox" checked={checked} disabled={!onTechnicianStepChange || savedTechnicianSteps.has(index)} onChange={event => onTechnicianStepChange?.(index, event.target.checked)} /><span>{step}</span></label>
+                      <label><input type="checkbox" checked={checked} disabled={!technicianWorkStarted || !onTechnicianStepChange} onChange={event => onTechnicianStepChange?.(index, event.target.checked)} /><span>{step}</span></label>
                     </li>
                   })}
                 </ul> : <p>No technician troubleshooting steps were generated.</p>}

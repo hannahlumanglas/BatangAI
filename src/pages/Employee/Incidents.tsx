@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { JSX } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { signOut } from '../../auth'
 
@@ -10,6 +11,7 @@ import { ProfileMenu } from './Profile'
 import { getAuthSession } from '../../auth'
 import { IncidentDetailModal } from '../../components/IncidentDetailModal'
 import { useAppDialog } from '../../components/AppDialog'
+import { analyzeIncidentWithAI } from '../../utils/incidentAi'
 
 import {
   IncidentDetailsFields,
@@ -190,6 +192,20 @@ type IncidentsResponse = {
   count: number
   incidents: EmployeeIncident[]
   message?: string
+}
+
+function buildEditedIncidentSummary(values: IncidentFormValues): string {
+  const details = [
+    values.department && `office: ${values.department.trim()}`,
+    values.location && `location: ${values.location.trim()}`,
+    values.issueCategory && `category: ${values.issueCategory.trim()}`,
+    values.deviceType && `device: ${values.deviceType.trim()}`,
+    values.connectionType && `connection: ${values.connectionType.trim()}`,
+  ].filter(Boolean)
+  const service = values.affectedService.trim()
+  const description = values.description.trim()
+  const report = [service, description].filter(Boolean).join(': ')
+  return details.length ? `${report} (${details.join('; ')}).` : report
 }
 
 /* ---------- Theme ---------- */
@@ -480,6 +496,7 @@ function Incidents() {
     menuOpenId,
     setMenuOpenId,
   ] = useState<string | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null)
 
   const [editing, setEditing] =
     useState<EmployeeIncident | null>(
@@ -650,12 +667,13 @@ function Incidents() {
         const target = event.target
         if (
           target instanceof Element &&
-          target.closest('.employee-more-wrap')
+          target.closest('.employee-more-wrap, .employee-action-menu')
         ) {
           return
         }
 
         setMenuOpenId(null)
+        setMenuPosition(null)
       }
 
     if (menuOpenId === null) {
@@ -674,6 +692,22 @@ function Incidents() {
         handleOutsidePointerDown,
         true,
       )
+    }
+  }, [menuOpenId])
+
+  useEffect(() => {
+    if (menuOpenId === null) return
+
+    const closeMenu = () => {
+      setMenuOpenId(null)
+      setMenuPosition(null)
+    }
+
+    window.addEventListener('scroll', closeMenu, true)
+    window.addEventListener('resize', closeMenu)
+    return () => {
+      window.removeEventListener('scroll', closeMenu, true)
+      window.removeEventListener('resize', closeMenu)
     }
   }, [menuOpenId])
 
@@ -818,13 +852,7 @@ function Incidents() {
     }))
   }
 
-  /*
-   * Save edited incident details.
-   *
-   * AI analysis is generated during the Report Incident
-   * workflow. Editing an existing incident does not run a
-   * rule-based analysis or fabricate an AI response.
-   */
+  /* Refresh the AI summary from the edited report before saving it. */
   const handleSaveEditChanges =
     async () => {
       if (!editing) {
@@ -834,6 +862,16 @@ function Incidents() {
       try {
         setSavingEdit(true)
         setEditError('')
+
+        let updatedSummary = buildEditedIncidentSummary(editForm)
+        let usedFallbackSummary = false
+        try {
+          const updatedAnalysis = await analyzeIncidentWithAI(editForm)
+          updatedSummary = updatedAnalysis.summary
+        } catch (analysisError) {
+          usedFallbackSummary = true
+          console.warn('AI summary refresh failed; saving with a summary from the edited report.', analysisError)
+        }
 
         const response =
           await fetch(
@@ -871,16 +909,12 @@ function Incidents() {
                 description:
                   editForm.description,
 
-                /*
-                 * Keep the existing AI-generated
-                 * classification, summary, and
-                 * troubleshooting unchanged.
-                 */
+                // Keep other AI analysis fields unchanged; refresh the summary.
                 classification:
                   editing.classification,
 
                 summary:
-                  editing.summary,
+                  updatedSummary,
 
                 troubleshooting:
                   editing.troubleshooting,
@@ -949,6 +983,9 @@ function Incidents() {
 
                   description:
                     editForm.description,
+
+                  summary:
+                    updatedSummary,
                 }
               : item,
           ),
@@ -956,6 +993,9 @@ function Incidents() {
 
         setEditing(null)
         setEditError('')
+        if (usedFallbackSummary) {
+          void showAlert('Your changes were saved. The AI service was unavailable, so the summary was updated from the information in the report.')
+        }
       } catch (error) {
         console.error(
           'Update incident error:',
@@ -1365,22 +1405,31 @@ function Incidents() {
 
                             <div
                               className="employee-more-wrap"
-                              onClick={event =>
-                                event.stopPropagation()
-                              }
+                              onClick={event => event.stopPropagation()}
                             >
                               <button
                                 type="button"
                                 className="employee-more-button"
-                                onClick={() =>
-                                  setMenuOpenId(
-                                    current =>
-                                      current ===
-                                      incident.incidentID
-                                        ? null
-                                        : incident.incidentID,
+                                onClick={event => {
+                                  event.stopPropagation()
+                                  if (menuOpenId === incident.incidentID) {
+                                    setMenuOpenId(null)
+                                    setMenuPosition(null)
+                                    return
+                                  }
+
+                                  const trigger = event.currentTarget.getBoundingClientRect()
+                                  const menuHeight = 84
+                                  const menuTop = trigger.bottom + 6 + menuHeight <= window.innerHeight - 8
+                                    ? trigger.bottom + 6
+                                    : Math.max(8, trigger.top - menuHeight - 6)
+                                  const menuRight = Math.max(
+                                    8,
+                                    Math.min(window.innerWidth - 134, window.innerWidth - trigger.right),
                                   )
-                                }
+                                  setMenuPosition({ top: menuTop, right: menuRight })
+                                  setMenuOpenId(incident.incidentID)
+                                }}
                                 aria-label={`More actions for ${incident.incidentID}`}
                                 aria-expanded={
                                   menuOpenId ===
@@ -1393,8 +1442,8 @@ function Incidents() {
                               </button>
 
                               {menuOpenId ===
-                                incident.incidentID && (
-                                <div className="employee-action-menu">
+                                incident.incidentID && menuPosition && createPortal(
+                                <div className="employee-action-menu" style={menuPosition}>
                                   <button
                                     type="button"
                                     disabled={
@@ -1450,7 +1499,8 @@ function Incidents() {
                                       ? 'Deleting...'
                                       : 'Delete'}
                                   </button>
-                                </div>
+                                </div>,
+                                document.body,
                               )}
                             </div>
                           </td>
@@ -1485,7 +1535,7 @@ function Incidents() {
           EDIT INCIDENT MODAL
           ===================================================== */}
 
-      {editing && (
+      {editing && createPortal((
         <div
           className="employee-modal-overlay"
           onMouseDown={event => {
@@ -1506,15 +1556,8 @@ function Incidents() {
             <header>
               <div>
                 <h2 id="employee-edit-title">
-                  Edit{' '}
-                  {
-                    editing.incidentID
-                  }
+                  Edit a Network Incident
                 </h2>
-
-                <p>
-                  Update the report details below, then save your changes.
-                </p>
               </div>
 
               <button
@@ -1575,6 +1618,8 @@ function Incidents() {
                   handleEditFieldChange
                 }
                 departmentEditable
+                showSeverity
+                severityReadOnly
               />
 
               <IncidentDescriptionFields
@@ -1616,8 +1661,8 @@ function Incidents() {
             </footer>
           </section>
         </div>
-      )}
-      {deletionTarget && (
+      ), document.body)}
+      {deletionTarget && createPortal((
         <div className="employee-modal-overlay" role="presentation" onMouseDown={event => event.target === event.currentTarget && !deletingId && setDeletionTarget(null)}>
           <section className="employee-incident-modal employee-delete-confirmation" role="dialog" aria-modal="true" aria-labelledby="delete-incident-title">
             <header>
@@ -1639,7 +1684,7 @@ function Incidents() {
             </footer>
           </section>
         </div>
-      )}
+      ), document.body)}
     </div>
   )
 }

@@ -53,7 +53,7 @@ if ($incidentID === '' || $assignedTo === '') {
     exit;
 }
 
-$personnelStmt = $conn->prepare("SELECT userID, fullName FROM users WHERE userID = ? AND role IN ('Technician', 'IT Personnel', 'IT Support') AND LOWER(status) = 'active' LIMIT 1");
+$personnelStmt = $conn->prepare("SELECT userID, fullName FROM users WHERE userID = ? AND role IN ('Technician', 'IT Personnel', 'IT Support', 'Administrator') AND LOWER(status) = 'active' LIMIT 1");
 $personnelStmt->bind_param('s', $assignedTo);
 $personnelStmt->execute();
 $personnel = $personnelStmt->get_result()->fetch_assoc();
@@ -61,7 +61,7 @@ $personnelStmt->close();
 
 if (!$personnel) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'The selected account is not an active Technician.']);
+    echo json_encode(['success' => false, 'message' => 'The selected account is not an active Technician or Administrator.']);
     $conn->close();
     exit;
 }

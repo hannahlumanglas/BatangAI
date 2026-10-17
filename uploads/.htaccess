@@ -1,0 +1,6 @@
+Options -Indexes
+
+# Uploaded files are data only; never execute a script placed in this folder.
+<FilesMatch "\.(php[0-9]?|phtml|phar|cgi|pl|asp|aspx|sh)$">
+    Require all denied
+</FilesMatch>

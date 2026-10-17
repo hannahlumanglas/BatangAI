@@ -173,6 +173,7 @@ const navigation: {
     icon: 'assign',
     path: '/admin/manage-assign',
   },
+  { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },
   {
     label: 'Device Monitoring',
     icon: 'devices',
@@ -604,7 +605,9 @@ function parseTroubleshooting(
 
   const checkedMatch = value.match(/\[Employee checked self-help steps: ([^\]]*)\]/i)
   const checkedSteps = (checkedMatch?.[1] || '').split(',')
-    .map(item => Number(item.trim()))
+    .map(item => item.trim())
+    .filter(item => item !== '')
+    .map(Number)
     .filter(index => Number.isInteger(index) && index >= 0)
   const basicHelp = value.match(/Basic Self-Help:\s*([\s\S]*?)(?=\n\s*IT Troubleshooting Suggestions:|\n\s*\[Employee checked self-help steps:|$)/i)?.[1]
 
@@ -969,10 +972,12 @@ function ManageAndAssign({
       ] = await Promise.all([
         fetch(
           `${API_BASE_URL}/get_incidents.php?userID=${encodeURIComponent(String(currentUserId ?? ''))}`,
+          { credentials: 'include' },
         ),
 
         fetch(
           `${API_BASE_URL}/it_personnel.php`,
+          { credentials: 'include' },
         ),
       ])
 
@@ -1173,7 +1178,7 @@ function ManageAndAssign({
 
     if (!selectedPersonnel) {
       setError(
-        'Please select a technician.',
+        'Please select an assignee.',
       )
       return
     }
@@ -1186,6 +1191,7 @@ function ManageAndAssign({
         `${API_BASE_URL}/assign_incident.php`,
         {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -1700,7 +1706,7 @@ function ManageAndAssign({
           >
             <div className="maa-modal-header">
               <h2>
-                Assign Technician
+                Assign Incident
               </h2>
 
               <button
@@ -1722,7 +1728,7 @@ function ManageAndAssign({
             </p>
 
             <label className="maa-modal-field">
-              Technician
+              Assignee
 
               <select
                 value={selectedPersonnelId}
@@ -1734,7 +1740,7 @@ function ManageAndAssign({
               >
                 {itPersonnel.length === 0 ? (
                   <option value="">
-                    No technicians available
+                    No eligible assignees available
                   </option>
                 ) : (
                   itPersonnel.map(person => (
@@ -1746,7 +1752,7 @@ function ManageAndAssign({
                         person.userID,
                       )}
                     >
-                      {person.fullName}
+                      {person.fullName} ({person.role === 'Administrator' ? 'Administrator' : 'Technician'})
                     </option>
                   ))
                 )}
@@ -1820,12 +1826,12 @@ function ManageAndAssign({
                   onClick={() => openAssign(viewingIncident.id)}
                   disabled={savingSeverity || !viewingIncident.severity}
                   title={!viewingIncident.severity
-                    ? 'Set a severity level before assigning a technician.'
+                    ? 'Set a severity level before assigning this incident.'
                     : undefined}
                 >
                   {viewingIncident.assignedTo
-                    ? 'Reassign Technician'
-                    : 'Assign Technician'}
+                    ? 'Reassign Assignee'
+                    : 'Assign Assignee'}
                 </button>
               </>
             ) : null

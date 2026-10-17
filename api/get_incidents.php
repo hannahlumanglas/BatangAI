@@ -96,6 +96,13 @@ if (strcasecmp($role, "Employee") === 0) {
         ORDER BY incidents.createdAt DESC
     ";
 
+} elseif (strcasecmp($role, "Administrator") === 0 && $requestedScope === 'assigned') {
+
+    $sql .= "
+        WHERE incidents.assignedTo = ?
+        ORDER BY incidents.createdAt DESC
+    ";
+
 } else {
 
     // Administrator and Secretary can view all incidents. IT can request the
@@ -133,10 +140,10 @@ if (!$stmt) {
 
 if (
     strcasecmp($role, "Employee") === 0 ||
-    (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all')
+    (strcasecmp($role, "IT Personnel") === 0 && $requestedScope !== 'all') ||
+    (strcasecmp($role, "Administrator") === 0 && $requestedScope === 'assigned')
 ) {
-    if (strcasecmp($role, "IT Personnel") === 0) $stmt->bind_param("s", $userID);
-    else $stmt->bind_param("s", $userID);
+    $stmt->bind_param("s", $userID);
 }
 
 /*

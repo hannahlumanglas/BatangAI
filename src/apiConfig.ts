@@ -1,6 +1,5 @@
 /**
- * Development can use the local PHP API; deployments serve the API on the
- * same origin so Vercel Functions receive the existing endpoint paths.
+ * Development and production use the PHP API on the same origin.
  */
 export const API_BASE_URL = (
   import.meta.env.DEV

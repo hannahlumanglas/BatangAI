@@ -219,6 +219,7 @@ const navigation: {
   { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
   { label: 'All Incidents', icon: 'incidents', path: '/admin/incidents' },
   { label: 'Manage & Assign', icon: 'assign', path: '/admin/manage-assign' },
+  { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },
   {
     label: 'Device Monitoring',
     icon: 'devices',
