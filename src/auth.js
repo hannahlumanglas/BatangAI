@@ -1,0 +1,346 @@
+export const AUTH_STORAGE_KEY = 'batangai-admin-auth';
+import { API_BASE_URL, PROFILE_PHOTOS_BASE_URL } from './apiConfig';
+let authValidationPromise = null;
+export function isUserRole(value) {
+    return (value === 'Administrator' ||
+        value === 'Employee' ||
+        value === 'Secretary' ||
+        value === 'IT Personnel');
+}
+export function getRoleDisplayName(role) {
+    if (role === 'Secretary')
+        return 'Front Desk';
+    if (role === 'IT Personnel')
+        return 'Technician';
+    return role;
+}
+function isAuthUser(value) {
+    if (!value || typeof value !== 'object') {
+        return false;
+    }
+    const user = value;
+    return ((typeof user.userID === 'number' || typeof user.userID === 'string') &&
+        Boolean(user.userID) &&
+        typeof user.email === 'string' &&
+        Boolean(user.email) &&
+        typeof user.fullName === 'string' &&
+        Boolean(user.fullName) &&
+        typeof user.department === 'string' &&
+        Boolean(user.department) &&
+        isUserRole(user.role) &&
+        typeof user.status === 'string');
+}
+function normalizeAccountDisplayName(fullName) {
+    return fullName.trim().toLowerCase() === 'system administrator'
+        ? 'Administrator'
+        : fullName;
+}
+/**
+ * Creates a default profile avatar using the actual
+ * logged-in user's full name.
+ */
+export function getDefaultProfileAvatar(fullName, role) {
+    const name = fullName?.trim() || 'BatangAI User';
+    const colors = {
+        Administrator: '#075df6',
+        Employee: '#009b5a',
+        Secretary: '#7c3aed',
+        'IT Personnel': '#d97706',
+        guest: '#64748b',
+    };
+    const color = role && colors[role]
+        ? colors[role]
+        : colors.guest;
+    const initials = name
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((part) => part[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
+    return `data:image/svg+xml,${encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+      <rect
+        width="120"
+        height="120"
+        rx="60"
+        fill="${color}"
+      />
+
+      <circle
+        cx="60"
+        cy="43"
+        r="23"
+        fill="white"
+        fill-opacity=".92"
+      />
+
+      <path
+        d="M22 112c5-27 20-42 38-42s33 15 38 42"
+        fill="white"
+        fill-opacity=".92"
+      />
+
+      <text
+        x="60"
+        y="112"
+        text-anchor="middle"
+        font-family="Arial,sans-serif"
+        font-size="17"
+        font-weight="700"
+        fill="${color}"
+      >
+        ${initials}
+      </text>
+    </svg>
+  `)}`;
+}
+/**
+ * Returns the uploaded profile photo URL if available.
+ * Otherwise, returns a default avatar using the actual
+ * logged-in user's name.
+ */
+export function getProfilePhotoUrl(profilePhoto, fullName, role) {
+    // No uploaded photo
+    if (!profilePhoto) {
+        return getDefaultProfileAvatar(fullName, role);
+    }
+    // Preserve embedded images; stored URLs are routed through private storage below.
+    if (profilePhoto.startsWith('data:')) {
+        return profilePhoto;
+    }
+    // Uploaded photos live on the same shared server as the API.  Using
+    // localhost here would point every teammate to their own computer.
+    if (import.meta.env.DEV) {
+        const fileName = profilePhoto.split(/[\\/]/).pop() || profilePhoto;
+        return `${PROFILE_PHOTOS_BASE_URL}/${encodeURIComponent(fileName)}`;
+    }
+    const pathname = profilePhoto.startsWith('profile_photos/')
+        ? profilePhoto
+        : `profile_photos/${profilePhoto.split(/[\\/]/).pop() || profilePhoto}`;
+    return `${API_BASE_URL}/profile_photo?pathname=${encodeURIComponent(pathname)}`;
+}
+/**
+ * Logs in using the server authentication API.
+ */
+export async function signIn(email, password, rememberMe = false) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/login.php`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify({
+                email: email.trim().toLowerCase(),
+                password,
+                rememberMe,
+            }),
+        });
+        const data = await response.json();
+        if (!data || typeof data !== 'object') {
+            return {
+                session: null,
+                message: 'The login service returned an invalid response.',
+            };
+        }
+        const payload = data;
+        if (!response.ok ||
+            payload.success !== true ||
+            !payload.user) {
+            return {
+                session: null,
+                message: typeof payload.message === 'string'
+                    ? payload.message
+                    : 'Unable to sign in. Please try again.',
+            };
+        }
+        if (!isAuthUser(payload.user)) {
+            return {
+                session: null,
+                message: 'The login service returned invalid account data.',
+            };
+        }
+        const user = {
+            ...payload.user,
+            fullName: normalizeAccountDisplayName(payload.user.fullName),
+        };
+        const session = {
+            user,
+            isAuthenticated: true,
+        };
+        sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        return { session };
+    }
+    catch (error) {
+        console.error('Login error:', error);
+        return {
+            session: null,
+            message: 'Unable to reach the login service. Please try again.',
+        };
+    }
+}
+/**
+ * Revalidates the browser's session with the API. An HttpOnly persistent
+ * cookie may restore the session after the browser has been restarted.
+ */
+export async function initializeAuthSession() {
+    try {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        return await getValidatedAuthSession();
+    }
+    catch (error) {
+        console.error('Session validation error:', error);
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        return null;
+    }
+}
+export async function revalidateAuthSession() {
+    return getValidatedAuthSession();
+}
+function getValidatedAuthSession() {
+    if (!authValidationPromise) {
+        authValidationPromise = requestAuthSession().finally(() => {
+            authValidationPromise = null;
+        });
+    }
+    return authValidationPromise;
+}
+async function requestAuthSession() {
+    const response = await fetch(`${API_BASE_URL}/auth_session.php`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+    });
+    if (response.status === 401) {
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        return null;
+    }
+    if (!response.ok) {
+        throw new Error(`Session validation failed (HTTP ${response.status}).`);
+    }
+    const data = await response.json();
+    if (!data || typeof data !== 'object') {
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        return null;
+    }
+    const payload = data;
+    if (payload.success !== true || !isAuthUser(payload.user)) {
+        sessionStorage.removeItem(AUTH_STORAGE_KEY);
+        return null;
+    }
+    const session = {
+        user: {
+            ...payload.user,
+            fullName: normalizeAccountDisplayName(payload.user.fullName),
+        },
+        isAuthenticated: true,
+    };
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    window.dispatchEvent(new Event('batangai-auth-updated'));
+    return session;
+}
+/**
+ * Returns the currently logged-in user's session.
+ */
+export function getAuthSession() {
+    const savedSession = sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (!savedSession) {
+        return null;
+    }
+    try {
+        const parsed = JSON.parse(savedSession);
+        if (parsed.isAuthenticated !== true ||
+            !parsed.user) {
+            return null;
+        }
+        if (!isAuthUser(parsed.user)) {
+            return null;
+        }
+        const user = {
+            ...parsed.user,
+            fullName: normalizeAccountDisplayName(parsed.user.fullName),
+        };
+        if (user.fullName !== parsed.user.fullName) {
+            sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ user, isAuthenticated: true }));
+        }
+        return {
+            user,
+            isAuthenticated: true,
+        };
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * Returns the role of the currently logged-in user.
+ */
+export function getCurrentUserRole() {
+    return getAuthSession()?.user.role ?? null;
+}
+/**
+ * Checks whether the logged-in user has a specific role.
+ */
+export function hasRole(role) {
+    return getCurrentUserRole() === role;
+}
+/**
+ * Returns the currently logged-in user's database ID.
+ */
+export function getCurrentUserId() {
+    return getAuthSession()?.user.userID ?? null;
+}
+/**
+ * Returns the currently logged-in user's full name.
+ */
+export function getCurrentUserName() {
+    return (getAuthSession()?.user.fullName ??
+        'BatangAI User');
+}
+/**
+ * Returns the currently logged-in user's department.
+ */
+export function getCurrentUserDepartment() {
+    return (getAuthSession()?.user.department ?? '');
+}
+/**
+ * Returns the currently logged-in user's email.
+ */
+export function getCurrentUserEmail() {
+    return (getAuthSession()?.user.email ?? '');
+}
+/**
+ * Returns the currently logged-in user's profile photo.
+ */
+export function getCurrentUserProfilePhoto() {
+    const session = getAuthSession();
+    if (!session) {
+        return getDefaultProfileAvatar();
+    }
+    return getProfilePhotoUrl(session.user.profilePhoto, session.user.fullName, session.user.role);
+}
+/**
+ * Logs out the current user.
+ */
+export function signOut() {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    void fetch(`${API_BASE_URL}/logout.php`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+    }).then(async (response) => {
+        if (!response.ok) {
+            const data = await response.json().catch(() => null);
+            throw new Error(data?.message || 'The server could not revoke the login token.');
+        }
+    }).catch(error => {
+        console.error('Logout request failed:', error);
+    });
+}
+export function saveAuthSession(session) {
+    sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+}
