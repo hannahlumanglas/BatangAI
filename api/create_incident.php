@@ -42,7 +42,7 @@ if (!is_array($data)) {
     exit;
 }
 
-$actor = require_role_session($conn, ['Employee', 'Administrator'], 'Only an active Employee or Administrator may submit an incident report.');
+$actor = require_role_session($conn, ['Employee', 'Administrator', 'Secretary', 'IT Personnel'], 'Only an active account may submit an incident report.');
 if ($actor === null) {
     $conn->close();
     exit;
@@ -137,11 +137,24 @@ $employeeStmt->execute();
 $employee = $employeeStmt->get_result()->fetch_assoc();
 $employeeStmt->close();
 
-if (!$employee || $employee['userID'] != $actor['userID'] || !in_array(strtolower(trim((string)$employee['role'])), ['employee', 'administrator'], true) || strtolower(trim((string)$employee['status'])) !== 'active') {
+if (!$employee || $employee['userID'] != $actor['userID'] || !in_array(strtolower(trim((string)$employee['role'])), ['employee', 'administrator', 'secretary', 'it personnel', 'technician', 'it support'], true) || strtolower(trim((string)$employee['status'])) !== 'active') {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Only the signed-in active Employee or Administrator may submit this incident report.']);
+    echo json_encode(['success' => false, 'message' => 'Only the signed-in active account may submit this incident report.']);
     $conn->close();
     exit;
+}
+$employeeRole = strtolower(trim((string)$employee['role']));
+$isAssignmentReporter = in_array($employeeRole, ['administrator', 'it personnel', 'technician', 'it support'], true);
+if ($isAssignmentReporter && ($severity === null || $severity === '')) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Select a severity level before submitting this incident.']);
+    $conn->close();
+    exit;
+}
+// Staff who report incidents begin with an assigned, pending ticket. Technician
+// troubleshooting and resolution notes are completed later in My Assignments.
+if ($isAssignmentReporter) {
+    $resolvedByUser = false;
 }
 
 $employeeName = (string)$employee['fullName'];
@@ -192,6 +205,12 @@ $resolvedBy = $resolvedByUser ? (int)$userId : null;
 $troubleshootingParts = preg_split('/^\s*IT Troubleshooting Suggestions:\s*$/im', $troubleshooting, 2);
 $basicTroubleshooting = trim((string)($troubleshootingParts[0] ?? ''));
 $technicalTroubleshooting = trim((string)($troubleshootingParts[1] ?? ''));
+if ($isAssignmentReporter) {
+    $assigned = 1;
+    $assignedAt = date('Y-m-d H:i:s');
+    $assignedTo = (int)$userId;
+    $assignedToName = $employeeName;
+}
 
 /*
 |--------------------------------------------------------------------------
@@ -271,7 +290,7 @@ echo json_encode([
     "message" => "Incident created successfully.",
     "incidentID" => $incidentID,
     "status" => $status,
-    "assigned" => "No",
+    "assigned" => $assigned ? "Yes" : "No",
     "resolvedBy" => $resolvedByUser ? $employeeName : null
 ]);
 

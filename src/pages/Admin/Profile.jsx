@@ -96,6 +96,7 @@ function accountKey() {
 */
 function ProfileNavIcon({ name, }) {
     const paths = {
+        report: _jsx("path", { d: "M7 3h7l4 4v14H7zM14 3v5h5M10 12h5M10 16h5" }),
         dashboard: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "14", width: "7", height: "7", rx: "1" })] })),
         incidents: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "5", y: "4", width: "14", height: "17", rx: "2" }), _jsx("path", { d: "M9 4.5h6M9 10h6M9 14h6M9 18h3" })] })),
         assign: (_jsxs(_Fragment, { children: [_jsx("circle", { cx: "9", cy: "8", r: "3" }), _jsx("path", { d: "M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M18 8v6M15 11h6" })] })),
@@ -323,6 +324,7 @@ function Profile({ audience: requestedAudience = 'administrator', view = 'profil
                 path: '/admin',
                 icon: 'dashboard',
             },
+            { label: 'Report Incident', path: '/employee/report-incident', icon: 'report' },
             {
                 label: 'All Incidents',
                 path: '/admin/incidents',
@@ -356,6 +358,7 @@ function Profile({ audience: requestedAudience = 'administrator', view = 'profil
         ]
         : actualAudience === 'secretary'
             ? [
+                { label: 'Report Incident', path: '/employee/report-incident', icon: 'report' },
                 {
                     label: 'All Incidents',
                     path: '/secretary/incidents',
@@ -369,6 +372,7 @@ function Profile({ audience: requestedAudience = 'administrator', view = 'profil
             ]
             : actualAudience === 'it'
                 ? [
+                    { label: 'Report Incident', path: '/employee/report-incident', icon: 'report' },
                     {
                         label: 'All Incidents',
                         path: '/it/incidents',
@@ -389,7 +393,7 @@ function Profile({ audience: requestedAudience = 'administrator', view = 'profil
                     {
                         label: 'Report Incident',
                         path: '/employee/report-incident',
-                        icon: 'reports',
+                        icon: 'report',
                     },
                     {
                         label: 'All Incidents',

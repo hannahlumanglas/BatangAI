@@ -17,11 +17,16 @@ $username = getenv('DB_USER');
 $password = getenv('DB_PASSWORD');
 $port = (int) (getenv('DB_PORT') ?: 3306);
 
-$conn = new mysqli($host, $username, $password, $dbname, $port);
+// Return API JSON for a missing or unreachable database instead of allowing
+// mysqli's default exception output to leak an HTML fatal error to the client.
+mysqli_report(MYSQLI_REPORT_OFF);
+$conn = @new mysqli($host, $username, $password, $dbname, $port);
 
 if ($conn->connect_error) {
     http_response_code(500);
-    die("Database connection failed.");
+    header('Content-Type: application/json; charset=utf-8');
+    error_log('Database connection failed: ' . $conn->connect_error);
+    die(json_encode(['success' => false, 'message' => 'Database connection failed. Check the API database configuration and setup.']));
 }
 
 $conn->set_charset("utf8mb4");

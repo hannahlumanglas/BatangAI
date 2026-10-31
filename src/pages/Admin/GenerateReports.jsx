@@ -9,6 +9,7 @@ import './GenerateReports.css';
 import { API_BASE_URL } from '../../apiConfig';
 function Icon({ name }) {
     const paths = {
+        report: _jsx("path", { d: "M7 3h7l4 4v14H7zM14 3v5h5M10 12h5M10 16h5" }),
         dashboard: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "14", width: "7", height: "7", rx: "1" })] })),
         incidents: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "5", y: "4", width: "14", height: "17", rx: "2" }), _jsx("path", { d: "M9 4.5h6M9 10h6M9 14h6M9 18h3" })] })),
         devices: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "4", width: "18", height: "13", rx: "1.5" }), _jsx("path", { d: "M8 21h8M12 17v4" })] })),
@@ -34,6 +35,7 @@ const navigation = [
     { label: 'Device Monitoring', icon: 'devices', path: '/admin/device-monitoring' },
     { label: 'User Management', icon: 'users', path: '/admin/user-management' },
     { label: 'Generate Reports', icon: 'reports', path: '/admin/generate-reports' },
+    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     { label: 'Profile', icon: 'profile', path: '/admin/profile' },
 ];
 const reportTypes = [

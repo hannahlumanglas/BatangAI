@@ -13,6 +13,7 @@ import '../Admin/Incidents.css';
 import { API_BASE_URL } from '../../apiConfig';
 function Icon({ name }) {
     const paths = {
+        report: _jsx("path", { d: "M7 3h7l4 4v14H7zM14 3v5h5M10 12h5M10 16h5" }),
         dashboard: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "14", width: "7", height: "7", rx: "1" })] })),
         incidents: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "5", y: "4", width: "14", height: "17", rx: "2" }), _jsx("path", { d: "M9 4.5h6M9 10h6M9 14h6M9 18h3" })] })),
         assign: (_jsxs(_Fragment, { children: [_jsx("circle", { cx: "9", cy: "8", r: "3" }), _jsx("path", { d: "M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6" }), _jsx("path", { d: "M18 8v6M15 11h6" })] })),
@@ -25,6 +26,7 @@ function Icon({ name }) {
     return (_jsx("svg", { className: "admin-icon", viewBox: "0 0 24 24", "aria-hidden": "true", children: paths[name] }));
 }
 const navigation = [
+    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     {
         label: 'All Incidents',
         icon: 'incidents',
@@ -48,6 +50,7 @@ const navigation = [
 ];
 const administratorNavigation = [
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
+    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     { label: 'All Incident Reports', icon: 'incidents', path: '/admin/incidents' },
     { label: 'Manage & Assign', icon: 'assign', path: '/admin/manage-assign' },
     { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },

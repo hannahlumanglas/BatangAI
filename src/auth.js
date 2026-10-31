@@ -1,6 +1,18 @@
 export const AUTH_STORAGE_KEY = 'batangai-admin-auth';
-import { API_BASE_URL, PROFILE_PHOTOS_BASE_URL } from './apiConfig';
+import { API_BASE_URL } from './apiConfig';
 let authValidationPromise = null;
+async function readAuthJson(response, endpoint) {
+    const responseText = await response.text();
+    try {
+        return JSON.parse(responseText);
+    }
+    catch {
+        const contentType = response.headers.get('content-type') || 'unknown content type';
+        const preview = responseText.replace(/\s+/g, ' ').trim().slice(0, 240);
+        console.error(`${endpoint} returned a non-JSON response (HTTP ${response.status}, ${contentType}):`, preview || '(empty response)');
+        throw new Error(`${endpoint} returned an invalid response (HTTP ${response.status}). Check the PHP API server.`);
+    }
+}
 export function isUserRole(value) {
     return (value === 'Administrator' ||
         value === 'Employee' ||
@@ -109,16 +121,17 @@ export function getProfilePhotoUrl(profilePhoto, fullName, role) {
     if (profilePhoto.startsWith('data:')) {
         return profilePhoto;
     }
-    // Uploaded photos live on the same shared server as the API.  Using
-    // localhost here would point every teammate to their own computer.
-    if (import.meta.env.DEV) {
-        const fileName = profilePhoto.split(/[\\/]/).pop() || profilePhoto;
-        return `${PROFILE_PHOTOS_BASE_URL}/${encodeURIComponent(fileName)}`;
+    // Resolve uploaded photos through the configured API instead of assuming
+    // a public uploads path that may differ between deployments.
+    const storedPath = profilePhoto.split(/[?#]/, 1)[0];
+    let fileName = storedPath.split(/[\\/]/).pop() || storedPath;
+    try {
+        fileName = decodeURIComponent(fileName);
     }
-    const pathname = profilePhoto.startsWith('profile_photos/')
-        ? profilePhoto
-        : `profile_photos/${profilePhoto.split(/[\\/]/).pop() || profilePhoto}`;
-    return `${API_BASE_URL}/profile_photo?pathname=${encodeURIComponent(pathname)}`;
+    catch {
+        // Keep the original filename if it is not valid URI encoding.
+    }
+    return `${API_BASE_URL}/profile_photo.php?filename=${encodeURIComponent(fileName)}`;
 }
 /**
  * Logs in using the server authentication API.
@@ -137,7 +150,7 @@ export async function signIn(email, password, rememberMe = false) {
                 rememberMe,
             }),
         });
-        const data = await response.json();
+        const data = await readAuthJson(response, 'login.php');
         if (!data || typeof data !== 'object') {
             return {
                 session: null,
@@ -220,7 +233,7 @@ async function requestAuthSession() {
     if (!response.ok) {
         throw new Error(`Session validation failed (HTTP ${response.status}).`);
     }
-    const data = await response.json();
+    const data = await readAuthJson(response, 'auth_session.php');
     if (!data || typeof data !== 'object') {
         sessionStorage.removeItem(AUTH_STORAGE_KEY);
         return null;

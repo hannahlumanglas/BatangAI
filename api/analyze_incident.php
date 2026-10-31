@@ -212,10 +212,10 @@ Important rules:
 - Clearly distinguish possible interpretations from confirmed facts.
 - Basic self-help must be safe and appropriate for a normal employee.
 - Generate the employee self-help steps specifically for this incident. Use the reported issue category, device type, connection type, affected service, symptoms, and location when relevant; do not return a generic reusable checklist.
-- Return 2 to 5 practical employee-safe actions as a numbered sequence (1., 2., 3., and so on), with one clear action per step.
+- Choose the number of practical employee-safe actions this incident needs. Let the reported details determine the count; do not force a minimum or maximum, and do not add redundant steps just to reach a count. Return them as a numbered sequence (1., 2., 3., and so on), with one clear action per step.
 - Start with simple checks, then give safe next actions. Include what the employee should observe after each action and when to stop and contact IT Support.
 - Do not tell employees to open equipment, install unapproved software, share passwords, or change network infrastructure or security settings.
-- Tailor the IT troubleshooting steps to this incident's report details as well. Return 2 to 5 concrete diagnostic or remediation steps for IT Support, including what to check and what the result would indicate. Do not return a generic placeholder.
+- Tailor the IT troubleshooting steps to this incident's report details as well. Choose the number of concrete diagnostic or remediation steps this incident needs; let the report details determine the count, with no forced minimum or maximum. Include what to check and what the result would indicate. Do not return a generic placeholder or redundant steps.
 - Do not return a generic category label in place of actionable steps.
 - Do not instruct employees to change router, switch, server, firewall, DNS, DHCP, or other network infrastructure settings.
 - Technical troubleshooting may include network diagnostic procedures appropriate for IT personnel.
@@ -240,8 +240,8 @@ The JSON object must contain exactly these six keys:
   "keywords": ["keyword one", "keyword two"],
   "summary": "Concise but complete paragraph summarizing the entire user-submitted report and all relevant supplied details.",
   "possibleInterpretation": "Cautious possible interpretation of the issue.",
-  "basicSelfHelp": "Two to five numbered, safe, actionable self-help steps tailored to the submitted incident details. Avoid generic filler.",
-  "itTroubleshooting": "Two to five numbered technical troubleshooting steps tailored to the submitted incident for IT Support review. Avoid generic filler."
+  "basicSelfHelp": "The number of numbered, safe, actionable self-help steps appropriate for the submitted incident details. Avoid generic or redundant filler.",
+  "itTroubleshooting": "The number of numbered technical troubleshooting steps appropriate for the submitted incident for IT Support review. Avoid generic or redundant filler."
 }
 
 Do not use Markdown.

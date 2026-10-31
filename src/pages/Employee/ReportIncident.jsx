@@ -15,6 +15,11 @@ import { analyzeIncidentWithAI } from '../../utils/incidentAi';
 import { useAppDialog } from '../../components/AppDialog';
 function Icon({ name }) {
     const paths = {
+        dashboard: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "14", width: "7", height: "7", rx: "1" })] })),
+        assign: (_jsxs(_Fragment, { children: [_jsx("circle", { cx: "9", cy: "8", r: "3" }), _jsx("path", { d: "M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M18 8v6M15 11h6" })] })),
+        devices: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "4", width: "18", height: "13", rx: "1.5" }), _jsx("path", { d: "M8 21h8M12 17v4" })] })),
+        users: (_jsxs(_Fragment, { children: [_jsx("circle", { cx: "9", cy: "8", r: "3" }), _jsx("circle", { cx: "17", cy: "9", r: "2" }), _jsx("path", { d: "M3.5 20c.4-4 2.5-6 5.5-6s5.1 2 5.5 6M15 15c2.7.1 4.4 1.7 4.6 4.5" })] })),
+        reports: (_jsx("path", { d: "M4 20V10M10 20V4M16 20v-7M22 20H2" })),
         report: (_jsxs(_Fragment, { children: [_jsx("path", { d: "M7 3h7l4 4v14H7z" }), _jsx("path", { d: "M14 3v5h5M10 12h5M10 16h5" })] })),
         incidents: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "5", y: "4", width: "14", height: "17", rx: "2" }), _jsx("path", { d: "M9 4.5h6M9 10h6M9 14h6M9 18h3" })] })),
         profile: (_jsxs(_Fragment, { children: [_jsx("circle", { cx: "12", cy: "8", r: "4" }), _jsx("path", { d: "M4 21c.7-4.1 3.4-6.2 8-6.2s7.3 2.1 8 6.2" })] })),
@@ -42,6 +47,33 @@ const navigation = [
         path: '/employee/profile',
     },
 ];
+const roleNavigation = {
+    Administrator: [
+        { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
+        { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
+        { label: 'All Incidents', icon: 'incidents', path: '/admin/incidents' },
+        { label: 'Manage & Assign', icon: 'assign', path: '/admin/manage-assign' },
+        { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },
+        { label: 'Device Monitoring', icon: 'devices', path: '/admin/device-monitoring' },
+        { label: 'User Management', icon: 'users', path: '/admin/user-management' },
+        { label: 'Generate Reports', icon: 'reports', path: '/admin/generate-reports' },
+        { label: 'Profile', icon: 'profile', path: '/admin/profile' },
+    ],
+    Secretary: [
+        { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
+        { label: 'All Incidents', icon: 'incidents', path: '/secretary/incidents' },
+        { label: 'Manage & Assign', icon: 'assign', path: '/secretary/manage-assign' },
+        { label: 'Profile', icon: 'profile', path: '/secretary/profile' },
+    ],
+    'IT Personnel': [
+        { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
+        { label: 'All Incidents', icon: 'incidents', path: '/it/incidents' },
+        { label: 'My Assignments', icon: 'assign', path: '/it/my-assignments' },
+        { label: 'Device Monitoring', icon: 'devices', path: '/it/device-monitoring' },
+        { label: 'Profile', icon: 'profile', path: '/it/profile' },
+    ],
+    Employee: navigation,
+};
 function isIncidentAnalysis(value) {
     if (!value || typeof value !== 'object')
         return false;
@@ -264,6 +296,8 @@ function ReportIncident() {
         navigate('/');
     };
     const currentUser = getAuthSession()?.user;
+    const isAssignmentReporter = ['Administrator', 'IT Personnel'].includes(currentUser?.role || '');
+    const currentNavigation = roleNavigation[currentUser?.role] || navigation;
     const analyze = async (event) => {
         event.preventDefault();
         if (analysisRequestActive.current || analyzing) {
@@ -299,8 +333,8 @@ function ReportIncident() {
         }
         const userId = getCurrentUserId();
         if (!userId ||
-            currentUser?.role !== 'Employee') {
-            setSubmitError('Your Employee login session has expired. Please log in again.');
+            !['Employee', 'Administrator', 'Secretary', 'IT Personnel'].includes(currentUser?.role || '')) {
+            setSubmitError('Your login session has expired. Please log in again.');
             navigate('/');
             return;
         }
@@ -308,12 +342,12 @@ function ReportIncident() {
             setSubmitError('Please continue with the incident submission.');
             return;
         }
-        if (!issueResolved) {
+        if (!isAssignmentReporter && !issueResolved) {
             setSubmitError('Please choose whether the basic self-help resolved the issue.');
             return;
         }
         const selfHelpSteps = parseSelfHelpSteps(aiAnalysis.basicSelfHelp);
-        if (issueResolved === 'yes' &&
+        if (!isAssignmentReporter && issueResolved === 'yes' &&
             selfHelpSteps.length > 0 &&
             checkedSelfHelpSteps.length < selfHelpSteps.length) {
             setSubmitError('Please mark each self-help step you tried before confirming that the issue is resolved.');
@@ -330,15 +364,15 @@ function ReportIncident() {
                 },
                 body: JSON.stringify({
                     userId,
-                    resolvedByUser: issueResolved === 'yes',
+                    resolvedByUser: !isAssignmentReporter && issueResolved === 'yes',
                     affectedIssue: values.affectedService,
                     description: values.description,
                     issueCategory: values.issueCategory,
                     deviceType: values.deviceType,
                     connectionType: values.connectionType,
                     location: values.location,
-                    // Severity is set by Admin/Secretary only.
-                    severity: null,
+                    // Admin and IT Personnel set severity before analysis.
+                    severity: isAssignmentReporter ? values.severity : null,
                     /* AI classification is saved alongside the report. */
                     classification: analysis.classification,
                     keywords: analysis.keywords,
@@ -382,7 +416,7 @@ function ReportIncident() {
             setPhase('form');
             setAiAnalysis(null);
             setAnalysisError('');
-            navigate('/employee/incidents');
+            navigate(currentUser?.role === 'Administrator' ? '/admin/my-assignments' : currentUser?.role === 'IT Personnel' ? '/it/my-assignments' : currentUser?.role === 'Secretary' ? '/secretary/incidents' : '/employee/incidents');
         }
         catch (error) {
             console.error('Submit incident error:', error);
@@ -402,7 +436,7 @@ function ReportIncident() {
         setPhase('form');
         setAiAnalysis(null);
         setAnalysisError('');
-        navigate('/employee/incidents');
+        navigate(currentUser?.role === 'Administrator' ? '/admin/incidents' : currentUser?.role === 'Secretary' ? '/secretary/incidents' : currentUser?.role === 'IT Personnel' ? '/it/incidents' : '/employee/incidents');
     };
     const editReport = () => {
         setSubmitError('');
@@ -410,22 +444,22 @@ function ReportIncident() {
     };
     return (_jsxs("div", { className: `admin-shell${sidebarCollapsed
             ? ' sidebar-collapsed'
-            : ''}`, children: [_jsxs("aside", { className: "admin-sidebar", children: [_jsxs("div", { className: "sidebar-brand", children: [_jsx("img", { src: logo, alt: "Batangas City seal" }), _jsxs("strong", { children: ["Batang", _jsx("span", { children: "AI" })] })] }), _jsx("nav", { className: "sidebar-nav", "aria-label": "Employee navigation", children: navigation.map(item => (_jsxs("button", { type: "button", className: item.label ===
+            : ''}`, children: [_jsxs("aside", { className: "admin-sidebar", children: [_jsxs("div", { className: "sidebar-brand", children: [_jsx("img", { src: logo, alt: "Batangas City seal" }), _jsxs("strong", { children: ["Batang", _jsx("span", { children: "AI" })] })] }), _jsx("nav", { className: "sidebar-nav", "aria-label": `${currentUser?.role || 'Employee'} navigation`, children: currentNavigation.map(item => (_jsxs("button", { type: "button", className: item.label ===
                                 'Report Incident'
                                 ? 'is-active'
                                 : '', onClick: () => navigate(item.path), children: [_jsx(Icon, { name: item.icon }), _jsx("span", { children: item.label })] }, item.label))) })] }), _jsxs("main", { className: "admin-main", children: [_jsxs("header", { className: "admin-topbar", children: [_jsx("button", { className: "menu-button", type: "button", "aria-label": "Toggle menu", "aria-expanded": !sidebarCollapsed, onClick: () => setSidebarCollapsed(value => !value), children: _jsx(Icon, { name: "menu" }) }), _jsxs("div", { className: "topbar-title", children: [_jsx("h1", { children: "Report Incident" }), _jsx("p", { children: "Submit a new IT incident report." })] }), _jsx(ThemeToggle, { theme: theme, onToggle: toggleTheme }), _jsx(AdminNotifications, {}), _jsx(ProfileMenu, { name: currentUser?.fullName ||
                                     'Employee', role: "Employee", avatarInitial: (currentUser?.fullName ||
                                     'E')
                                     .charAt(0)
-                                    .toUpperCase(), onLogout: handleLogout })] }), _jsx("div", { className: "dashboard-content employee-report-page", children: _jsx("article", { className: "employee-report-dialog", role: "region", "aria-label": "Report a Network Incident form", children: _jsxs("div", { className: "employee-report-dialog-body", children: [phase === 'form' ? (_jsxs("form", { className: "incident-form", onSubmit: analyze, children: [_jsx(IncidentDetailsFields, { values: values, onChange: (field, value) => {
+                                    .toUpperCase(), onLogout: handleLogout })] }), _jsx("div", { className: "dashboard-content employee-report-page", children: _jsx("article", { className: "employee-report-dialog", role: "region", "aria-label": "Report a Network Incident form", children: _jsxs("div", { className: "employee-report-dialog-body", children: [phase === 'form' ? (_jsxs("form", { className: "incident-form", onSubmit: analyze, children: [_jsx(IncidentDetailsFields, { values: values, showSeverity: currentUser?.role === 'Administrator' || currentUser?.role === 'IT Personnel', onChange: (field, value) => {
                                                     setDraftSaveError('');
                                                     setValues(v => ({ ...v, [field]: value }));
                                                 } }), _jsx(IncidentDescriptionFields, { values: values, onChange: (field, value) => {
                                                     setDraftSaveError('');
                                                     setValues(v => ({ ...v, [field]: value }));
-                                                } }), _jsxs("footer", { className: "employee-report-footer", children: [_jsx("button", { className: "btn-secondary", type: "button", onClick: closeReport, children: "Cancel" }), _jsxs("button", { className: "incident-new", type: "submit", disabled: analyzing, children: [_jsx(Icon, { name: "sparkle" }), "Analyze with BatangAI"] })] }), analyzing && (_jsx("div", { className: "employee-report-loading-overlay", role: "status", "aria-live": "polite", "aria-busy": "true", children: _jsxs("div", { className: "employee-report-loading-card", children: [_jsx("span", { className: "employee-report-spinner", "aria-hidden": "true" }), _jsx("h2", { children: "Generating response" }), _jsx("span", { className: "employee-report-loading-note", children: "This may take a few moments." })] }) })), analysisError && (_jsx("div", { className: "employee-report-error", role: "alert", children: _jsx("p", { children: analysisError }) })), submitted && (_jsxs("p", { className: "employee-report-success", children: [_jsx(Icon, { name: "check" }), "Your incident report has been submitted."] }))] })) : (_jsxs("section", { className: "employee-ai-result", "aria-live": "polite", children: [_jsxs("section", { className: "employee-self-help", "aria-labelledby": "employee-self-help-title", children: [_jsx("h3", { id: "employee-self-help-title", children: "Basic Self Help" }), parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length ? (_jsx("ol", { className: "employee-self-help-checklist", children: parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').map((step, index) => (_jsx("li", { className: checkedSelfHelpSteps.includes(index) ? 'is-checked' : '', children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: checkedSelfHelpSteps.includes(index), onChange: event => setCheckedSelfHelpSteps(current => event.target.checked
+                                                } }), _jsxs("footer", { className: "employee-report-footer", children: [_jsx("button", { className: "btn-secondary", type: "button", onClick: closeReport, children: "Cancel" }), _jsxs("button", { className: "incident-new", type: "submit", disabled: analyzing, children: [_jsx(Icon, { name: "sparkle" }), "Analyze with BatangAI"] })] }), analyzing && (_jsx("div", { className: "employee-report-loading-overlay", role: "status", "aria-live": "polite", "aria-busy": "true", children: _jsxs("div", { className: "employee-report-loading-card", children: [_jsx("span", { className: "employee-report-spinner", "aria-hidden": "true" }), _jsx("h2", { children: "Generating response" }), _jsx("span", { className: "employee-report-loading-note", children: "This may take a few moments." })] }) })), analysisError && (_jsx("div", { className: "employee-report-error", role: "alert", children: _jsx("p", { children: analysisError }) })), submitted && (_jsxs("p", { className: "employee-report-success", children: [_jsx(Icon, { name: "check" }), "Your incident report has been submitted."] }))] })) : (_jsxs("section", { className: "employee-ai-result", "aria-live": "polite", children: [currentUser?.role === "Administrator" || currentUser?.role === "IT Personnel" ? (_jsxs("section", { className: "employee-self-help", "aria-labelledby": "technician-steps-title", children: [_jsx("h3", { id: "technician-steps-title", children: "Technician Troubleshooting Steps" }), parseSelfHelpSteps(aiAnalysis?.itTroubleshooting || "").length ? _jsx("ol", { className: "employee-self-help-checklist", children: parseSelfHelpSteps(aiAnalysis?.itTroubleshooting || "").map((step, index) => _jsx("li", { children: _jsx("span", { children: step }) }, index)) }) : _jsx("p", { children: "No technician troubleshooting steps were generated." }), _jsx("p", { children: "Resolution Notes can be completed from My Assignments after you take action." })] })) : (_jsxs(_Fragment, { children: [_jsxs("section", { className: "employee-self-help", "aria-labelledby": "employee-self-help-title", children: [_jsx("h3", { id: "employee-self-help-title", children: "Basic Self Help" }), parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length ? (_jsx("ol", { className: "employee-self-help-checklist", children: parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').map((step, index) => (_jsx("li", { className: checkedSelfHelpSteps.includes(index) ? 'is-checked' : '', children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: checkedSelfHelpSteps.includes(index), onChange: event => setCheckedSelfHelpSteps(current => event.target.checked
                                                                             ? [...current, index]
-                                                                            : current.filter(stepIndex => stepIndex !== index)) }), _jsx("span", { children: step })] }) }, index))) })) : _jsx("p", { children: "No troubleshooting steps were provided. You can still submit the report for IT assistance." })] }), _jsxs("section", { className: "employee-resolution-choice", "aria-labelledby": "employee-resolution-title", children: [_jsx("h3", { id: "employee-resolution-title", children: "Were you able to resolve the issue?" }), _jsx("p", { children: "Try the steps above, mark the steps you completed, then choose the result before submitting." }), _jsxs("div", { className: "employee-resolution-options", children: [_jsxs("label", { className: issueResolved === 'yes' ? 'is-selected' : '', children: [_jsx("input", { type: "radio", name: "issueResolved", value: "yes", checked: issueResolved === 'yes', onChange: () => setIssueResolved('yes') }), _jsx("span", { className: "employee-resolution-icon employee-resolution-icon--yes", "aria-hidden": "true", children: "\u2713" }), _jsx("strong", { children: "Yes, Resolved!" }), _jsx("small", { children: "Save to All Incidents as resolved by you" })] }), _jsxs("label", { className: issueResolved === 'no' ? 'is-selected' : '', children: [_jsx("input", { type: "radio", name: "issueResolved", value: "no", checked: issueResolved === 'no', onChange: () => setIssueResolved('no') }), _jsx("span", { className: "employee-resolution-icon employee-resolution-icon--no", "aria-hidden": "true", children: "\u00D7" }), _jsx("strong", { children: "Not Resolved" }), _jsx("small", { children: "Save as pending for admin or secretary assignment" })] })] })] }), submitError && (_jsx("p", { className: "employee-report-error", role: "alert", children: submitError })), _jsxs("div", { className: "employee-ai-actions", children: [_jsx("button", { className: "employee-ai-back", type: "button", onClick: closeReport, children: "Close" }), _jsx("button", { className: "employee-ai-edit", type: "button", onClick: editReport, children: "Edit Report" }), _jsxs("button", { className: "incident-new", type: "button", onClick: submit, disabled: submitting, children: [_jsx(Icon, { name: "check" }), submitting
+                                                                            : current.filter(stepIndex => stepIndex !== index)) }), _jsx("span", { children: step })] }) }, index))) })) : _jsx("p", { children: "No troubleshooting steps were provided. You can still submit the report for IT assistance." })] }), _jsxs("section", { className: "employee-resolution-choice", "aria-labelledby": "employee-resolution-title", children: [_jsx("h3", { id: "employee-resolution-title", children: "Were you able to resolve the issue?" }), _jsx("p", { children: "Try the steps above, mark the steps you completed, then choose the result before submitting." }), _jsxs("div", { className: "employee-resolution-options", children: [_jsxs("label", { className: issueResolved === 'yes' ? 'is-selected' : '', children: [_jsx("input", { type: "radio", name: "issueResolved", value: "yes", checked: issueResolved === 'yes', onChange: () => setIssueResolved('yes') }), _jsx("span", { className: "employee-resolution-icon employee-resolution-icon--yes", "aria-hidden": "true", children: "\u2713" }), _jsx("strong", { children: "Yes, Resolved!" }), _jsx("small", { children: "Save to All Incidents as resolved by you" })] }), _jsxs("label", { className: issueResolved === 'no' ? 'is-selected' : '', children: [_jsx("input", { type: "radio", name: "issueResolved", value: "no", checked: issueResolved === 'no', onChange: () => setIssueResolved('no') }), _jsx("span", { className: "employee-resolution-icon employee-resolution-icon--no", "aria-hidden": "true", children: "\u00D7" }), _jsx("strong", { children: "Not Resolved" }), _jsx("small", { children: "Save as pending for admin or secretary assignment" })] })] })] })] })), submitError && (_jsx("p", { className: "employee-report-error", role: "alert", children: submitError })), _jsxs("div", { className: "employee-ai-actions", children: [_jsx("button", { className: "employee-ai-back", type: "button", onClick: closeReport, children: "Close" }), _jsx("button", { className: "employee-ai-edit", type: "button", onClick: editReport, children: "Edit Report" }), _jsxs("button", { className: "incident-new", type: "button", onClick: submit, disabled: submitting, children: [_jsx(Icon, { name: "check" }), submitting
                                                                 ? 'Submitting…'
                                                                 : issueResolved === 'yes'
                                                                     ? 'Submit as Resolved'

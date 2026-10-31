@@ -16,6 +16,7 @@ import { analyzeIncidentWithAI } from '../../utils/incidentAi';
 import { useAppDialog } from '../../components/AppDialog';
 function Icon({ name }) {
     const paths = {
+        report: _jsx("path", { d: "M7 3h7l4 4v14H7zM14 3v5h5M10 12h5M10 16h5" }),
         dashboard: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "3", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "3", y: "14", width: "7", height: "7", rx: "1" }), _jsx("rect", { x: "14", y: "14", width: "7", height: "7", rx: "1" })] })),
         incidents: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "5", y: "4", width: "14", height: "17", rx: "2" }), _jsx("path", { d: "M9 4.5h6M9 10h6M9 14h6M9 18h3" })] })),
         devices: (_jsxs(_Fragment, { children: [_jsx("rect", { x: "3", y: "4", width: "18", height: "13", rx: "1.5" }), _jsx("path", { d: "M8 21h8M12 17v4" })] })),
@@ -43,6 +44,7 @@ const navigation = [
         icon: 'dashboard',
         path: '/admin',
     },
+    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     {
         label: 'All Incidents',
         icon: 'incidents',
@@ -194,6 +196,7 @@ function Incidents({ audience = 'administrator', }) {
     const roleNavigation = isSecretary
         ? navigation
             .filter(item => [
+            'Report Incident',
             'All Incidents',
             'Manage & Assign',
             'Profile',
@@ -205,6 +208,7 @@ function Incidents({ audience = 'administrator', }) {
         : isIT
             ? navigation
                 .filter(item => [
+                'Report Incident',
                 'All Incidents',
                 'Manage & Assign',
                 'Device Monitoring',
@@ -698,7 +702,7 @@ function Incidents({ audience = 'administrator', }) {
                                 ? 'is-active'
                                 : '', type: "button", onClick: () => navigate(item.path), children: [_jsx(Icon, { name: item.icon }), _jsx("span", { children: item.label })] }, item.label))) })] }), _jsxs("main", { className: "admin-main", children: [_jsxs("header", { className: "admin-topbar", children: [_jsx("button", { className: "menu-button", type: "button", "aria-label": "Toggle menu", "aria-expanded": !sidebarCollapsed, onClick: () => setSidebarCollapsed(value => !value), children: _jsx(Icon, { name: "menu" }) }), _jsxs("div", { className: "topbar-title", children: [_jsx("h1", { children: isIT ? 'All Incidents' : 'All Incident Reports' }), _jsx("p", { children: isIT
                                             ? 'View reported incidents across offices. Manage your assigned work in My Assignments.'
-                                            : 'Monitor all network incident reports across all offices.' })] }), _jsx(ThemeToggle, { theme: theme, onToggle: toggleTheme }), _jsx(AdminNotifications, {}), _jsx(ProfileMenu, { name: user.name, role: user.role, avatar: profileAvatar, profilePath: user.profilePath, onLogout: handleLogout })] }), _jsxs("div", { className: "dashboard-content", children: [_jsxs("section", { className: "incident-tools", children: [_jsxs("label", { className: "incident-search", children: [_jsx(Icon, { name: "search" }), _jsx("input", { value: query, onChange: e => setQuery(e.target.value), placeholder: "Search incidents..." })] }), user.role === 'Administrator' && _jsx("button", { className: "incident-new", type: "button", onClick: openNewIncident, children: "+ New Incident" })] }), _jsxs("section", { className: "incident-filters", children: [_jsx("label", { className: "incident-filter-select", children: _jsx("select", { value: statusFilter, onChange: e => setStatusFilter(e.target.value), children: [
+                                            : 'Monitor all network incident reports across all offices.' })] }), _jsx(ThemeToggle, { theme: theme, onToggle: toggleTheme }), _jsx(AdminNotifications, {}), _jsx(ProfileMenu, { name: user.name, role: user.role, avatar: profileAvatar, profilePath: user.profilePath, onLogout: handleLogout })] }), _jsxs("div", { className: "dashboard-content", children: [_jsxs("section", { className: "incident-tools", children: [_jsxs("label", { className: "incident-search", children: [_jsx(Icon, { name: "search" }), _jsx("input", { value: query, onChange: e => setQuery(e.target.value), placeholder: "Search incidents..." })] })] }), _jsxs("section", { className: "incident-filters", children: [_jsx("label", { className: "incident-filter-select", children: _jsx("select", { value: statusFilter, onChange: e => setStatusFilter(e.target.value), children: [
                                                 'All Status',
                                                 ...(options.incident_status ?? []).filter(option => option !== 'Closed'),
                                             ].map(option => (_jsx("option", { value: option, children: option }, option))) }) }), _jsx("label", { className: "incident-filter-select", children: _jsx("select", { value: severityFilter, onChange: e => setSeverityFilter(e.target.value), children: [
