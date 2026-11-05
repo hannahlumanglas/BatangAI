@@ -1,0 +1,147 @@
+.app-loading {
+  display: grid;
+  gap: 18px;
+  min-height: 220px;
+  padding: 24px;
+  color: var(--text-primary);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+}
+
+.app-loading--page {
+  align-content: center;
+  justify-items: center;
+  min-height: 100svh;
+  padding: 32px;
+  background: var(--app-bg);
+  border: 0;
+  border-radius: 0;
+}
+
+.app-loading-message,
+.app-loading-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: var(--font-body, 13px);
+  font-weight: 600;
+}
+
+.app-loading-inline {
+  vertical-align: middle;
+  color: inherit;
+}
+
+.app-loading-skeleton-bar {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 12px;
+  overflow: hidden;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--text-muted) 20%, var(--card-bg));
+  border-radius: 999px;
+}
+
+.app-loading-skeleton-bar::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card-bg) 70%, transparent), transparent);
+  content: "";
+  transform: translateX(-100%);
+  animation: app-loading-shimmer 1.4s ease-in-out infinite;
+}
+
+.app-loading-spinner {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: app-loading-spin 0.8s linear infinite;
+}
+
+.app-loading-inline .app-loading-spinner {
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+
+.app-loading-skeleton-list {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+}
+
+.app-loading-skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 50px;
+  padding: 8px 12px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.app-loading-skeleton-avatar,
+.app-loading-skeleton-lines > span {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 20%, var(--card-bg));
+}
+
+.app-loading-skeleton-avatar::after,
+.app-loading-skeleton-lines > span::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--card-bg) 70%, transparent), transparent);
+  content: "";
+  transform: translateX(-100%);
+  animation: app-loading-shimmer 1.4s ease-in-out infinite;
+}
+
+.app-loading-skeleton-avatar {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+}
+
+.app-loading-skeleton-lines {
+  display: grid;
+  flex: 1;
+  gap: 7px;
+  max-width: 360px;
+}
+
+.app-loading-skeleton-lines > span {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.app-loading-skeleton-lines > span:last-child {
+  width: 58%;
+}
+
+@keyframes app-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes app-loading-shimmer {
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-spinner,
+  .app-loading-skeleton-avatar::after,
+  .app-loading-skeleton-lines > span::after,
+  .app-loading-skeleton-bar::after {
+    animation: none;
+  }
+}

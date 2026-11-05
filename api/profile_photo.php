@@ -24,11 +24,14 @@ try {
         exit;
     }
 
-    $stmt = $conn->prepare('SELECT 1 FROM users WHERE profilePhoto = ? LIMIT 1');
+    $stmt = $conn->prepare("SELECT 1 FROM users
+        WHERE profilePhoto = ?
+            OR SUBSTRING_INDEX(REPLACE(profilePhoto, CHAR(92), '/'), '/', -1) = ?
+        LIMIT 1");
     if (!$stmt) {
         throw new RuntimeException('Unable to validate the profile photo.');
     }
-    $stmt->bind_param('s', $fileName);
+    $stmt->bind_param('ss', $fileName, $fileName);
     $stmt->execute();
     $isRegisteredPhoto = (bool)$stmt->get_result()->fetch_row();
     $stmt->close();
@@ -59,4 +62,3 @@ try {
     http_response_code(500);
     $conn->close();
 }
-

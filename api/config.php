@@ -20,12 +20,30 @@ $port = (int) (getenv('DB_PORT') ?: 3306);
 // Return API JSON for a missing or unreachable database instead of allowing
 // mysqli's default exception output to leak an HTML fatal error to the client.
 mysqli_report(MYSQLI_REPORT_OFF);
-$conn = @new mysqli($host, $username, $password, $dbname, $port);
+$conn = null;
+$hostCandidates = [$host];
+if (strcasecmp($host, 'localhost') === 0) {
+    $hostCandidates[] = '127.0.0.1';
+    $hostCandidates[] = '::1';
+} elseif (strcasecmp($host, '127.0.0.1') === 0 || strcasecmp($host, '::1') === 0) {
+    $hostCandidates[] = 'localhost';
+}
+$hostCandidates = array_values(array_unique(array_filter($hostCandidates, static fn ($value) => $value !== '')));
 
-if ($conn->connect_error) {
+foreach ($hostCandidates as $candidateHost) {
+    $candidate = @new mysqli($candidateHost, $username, $password, $dbname, $port);
+    if (!$candidate->connect_error) {
+        $conn = $candidate;
+        break;
+    }
+    $lastConnectError = $candidate->connect_error;
+    $candidate->close();
+}
+
+if (!$conn instanceof mysqli || $conn->connect_error) {
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
-    error_log('Database connection failed: ' . $conn->connect_error);
+    error_log('Database connection failed: ' . ($lastConnectError ?? 'unknown mysqli error'));
     die(json_encode(['success' => false, 'message' => 'Database connection failed. Check the API database configuration and setup.']));
 }
 

@@ -5,7 +5,7 @@ header("Access-Control-Allow-Headers: Content-Type");
 header("Content-Type: application/json; charset=utf-8");
 // PHP/MySQL errors must not be printed as HTML before the JSON response.
 ini_set('display_errors', '0');
-set_exception_handler(function ($error) {
+set_exception_handler(function (Throwable $error): void {
   error_log('update_user.php: ' . $error->getMessage());
   if (!headers_sent()) {
     http_response_code(500);
@@ -16,18 +16,19 @@ set_exception_handler(function ($error) {
 });
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(204); exit; }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'message' => 'Method not allowed.']); exit; }
+/** @var mysqli $conn */
 require_once 'config.php';
 require_once 'catalog.php';
 require_once 'security_policy.php';
 $data = json_decode(file_get_contents('php://input'), true);
 $action = trim((string)($data['action'] ?? ''));
 $userID = trim((string)($data['userID'] ?? ''));
-function fail($conn, $message, $status = 400) { http_response_code($status); echo json_encode(['success' => false, 'message' => $message]); $conn->close(); exit; }
-function employee_id_prefix_for_role($role) {
+function fail(mysqli $conn, string $message, int $status = 400): void { http_response_code($status); echo json_encode(['success' => false, 'message' => $message]); $conn->close(); exit; }
+function employee_id_prefix_for_role(string $role): ?string {
   $prefixes = ['Employee' => 'EMP', 'Secretary' => 'SEC', 'IT Personnel' => 'ITS', 'Technician' => 'ITS', 'IT Support' => 'ITS', 'Administrator' => 'ADM', 'Admin' => 'ADM'];
   return $prefixes[$role] ?? null;
 }
-function next_employee_id($conn, $role) {
+function next_employee_id(mysqli $conn, string $role): ?string {
   $prefix = employee_id_prefix_for_role($role);
   if ($prefix === null) return null;
   $query = $conn->prepare('SELECT employeeId FROM users WHERE employeeId LIKE ? FOR UPDATE');
@@ -40,6 +41,9 @@ function next_employee_id($conn, $role) {
   return $prefix . str_pad((string)($max + 1), 2, '0', STR_PAD_LEFT);
 }
 if ($userID === '' || !ctype_digit($userID)) fail($conn, 'A valid user is required.');
+/** @var mysqli_stmt|null $stmt */
+$stmt = null;
+$transactionalUpdate = false;
 if ($action === 'update') {
   $fullName = trim((string)($data['fullName'] ?? '')); $email = strtolower(trim((string)($data['email'] ?? ''))); $department = trim((string)($data['department'] ?? '')); $role = trim((string)($data['role'] ?? ''));
   if ($fullName === '' || $department === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || !is_active_catalog_value($conn, 'user_role', $role) || employee_id_prefix_for_role($role) === null) fail($conn, 'Please provide valid account details.');
@@ -77,21 +81,31 @@ if ($action === 'update') {
   $passwordError = password_policy_error($password); if ($passwordError !== null) fail($conn, $passwordError);
   $current = $conn->prepare('SELECT password FROM users WHERE userID = ? LIMIT 1');
   if (!$current) fail($conn, 'Unable to verify the account password.', 500);
+  $storedPassword = '';
   $current->bind_param('i', $userID); $current->execute(); $current->bind_result($storedPassword); $hasAccount = $current->fetch(); $current->close();
   if (!$hasAccount || !password_verify($currentPassword, $storedPassword)) fail($conn, 'Current password is incorrect.', 401);
-  $passwordHash = password_hash($password, PASSWORD_DEFAULT); $stmt = $conn->prepare('UPDATE users SET password = ? WHERE userID = ?'); $stmt->bind_param('si', $passwordHash, $userID);
+  $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+  $stmt = $conn->prepare('UPDATE users SET password = ? WHERE userID = ?');
+  if (!$stmt) fail($conn, 'Unable to prepare the password update.', 500);
+  $stmt->bind_param('si', $passwordHash, $userID);
 } elseif ($action === 'password') {
   $password = (string)($data['password'] ?? ''); $passwordError = password_policy_error($password); if ($passwordError !== null) fail($conn, $passwordError);
-  $passwordHash = password_hash($password, PASSWORD_DEFAULT); $stmt = $conn->prepare('UPDATE users SET password = ? WHERE userID = ?'); $stmt->bind_param('si', $passwordHash, $userID);
+  $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+  $stmt = $conn->prepare('UPDATE users SET password = ? WHERE userID = ?');
+  if (!$stmt) fail($conn, 'Unable to prepare the password update.', 500);
+  $stmt->bind_param('si', $passwordHash, $userID);
 } elseif ($action === 'status') {
-  $status = trim((string)($data['status'] ?? '')); if (!in_array($status, ['Active', 'Inactive'], true)) fail($conn, 'Invalid account status.'); $stmt = $conn->prepare('UPDATE users SET status = ? WHERE userID = ?'); $stmt->bind_param('si', $status, $userID);
+  $status = trim((string)($data['status'] ?? '')); if (!in_array($status, ['Active', 'Inactive'], true)) fail($conn, 'Invalid account status.');
+  $stmt = $conn->prepare('UPDATE users SET status = ? WHERE userID = ?');
+  if (!$stmt) fail($conn, 'Unable to prepare the account status update.', 500);
+  $stmt->bind_param('si', $status, $userID);
 } else fail($conn, 'Invalid user-management action.');
-if (!$stmt || !$stmt->execute()) { if (!empty($transactionalUpdate)) $conn->rollback(); fail($conn, 'Unable to update the user.', 500); }
+if (!$stmt) fail($conn, 'Unable to prepare the account update.', 500);
+if (!$stmt->execute()) { if ($transactionalUpdate) $conn->rollback(); fail($conn, 'Unable to update the user.', 500); }
 if ($stmt->affected_rows === 0) {
   // MySQL reports zero affected rows both when the user does not exist and
   // when the submitted values already match the stored values. Treat the
   // latter as a successful save so an unchanged form does not show an error.
-  $stmt->close();
   $checkUser = $conn->prepare('SELECT userID FROM users WHERE userID = ? LIMIT 1');
   if (!$checkUser) fail($conn, 'Unable to verify the user account.', 500);
   $checkUser->bind_param('i', $userID);
@@ -101,5 +115,5 @@ if ($stmt->affected_rows === 0) {
   $checkUser->close();
   if (!$userExists) fail($conn, 'User not found.', 404);
 }
-$stmt && !empty($transactionalUpdate) ? $conn->commit() : null;
+$transactionalUpdate ? $conn->commit() : null;
 $stmt->close(); $conn->close(); echo json_encode(['success' => true, 'message' => 'User updated successfully.']);

@@ -40,17 +40,15 @@ function formatIncidentDateTime(value) {
 export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChecklist = false, showTechnicianChecklist = false, checkedTechnicianSteps = [], onTechnicianStepChange, resolutionNotesDraft, onResolutionNotesDraftChange }) {
     const duration = displayDuration(incident.durationMinutes);
     const [generatedTroubleshooting, setGeneratedTroubleshooting] = useState('');
-    const [generatingGuidance, setGeneratingGuidance] = useState(false);
     const [guidanceError, setGuidanceError] = useState('');
     const [generationAttempt, setGenerationAttempt] = useState(0);
+    const existingTroubleshooting = displayTroubleshooting(incident.troubleshooting);
+    const needsBasic = showSelfHelpChecklist && parseSelfHelpSteps(existingTroubleshooting).length === 0;
+    const needsTechnical = showTechnicianChecklist && parseTechnicianSteps(existingTroubleshooting).length === 0;
+    const generatingGuidance = (needsBasic || needsTechnical) && Boolean(incident.incidentID) && !generatedTroubleshooting && !guidanceError;
     useEffect(() => {
         let cancelled = false;
-        const existing = displayTroubleshooting(incident.troubleshooting);
-        const needsBasic = showSelfHelpChecklist && parseSelfHelpSteps(existing).length === 0;
-        const needsTechnical = showTechnicianChecklist && parseTechnicianSteps(existing).length === 0;
         if ((!needsBasic && !needsTechnical) || !incident.incidentID) return undefined;
-        setGeneratingGuidance(true);
-        setGuidanceError('');
         const report = {
             department: incident.department || '',
             location: incident.location || '',
@@ -80,11 +78,25 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
             }
         }).catch(error => {
             if (!cancelled) setGuidanceError(error instanceof Error ? error.message : 'AI troubleshooting generation failed.');
-        }).finally(() => {
-            if (!cancelled) setGeneratingGuidance(false);
         });
         return () => { cancelled = true; };
-    }, [incident.incidentID, incident.troubleshooting, showSelfHelpChecklist, showTechnicianChecklist, generationAttempt]);
+    }, [
+        incident.incidentID,
+        incident.troubleshooting,
+        incident.department,
+        incident.location,
+        incident.issueCategory,
+        incident.deviceType,
+        incident.connectionType,
+        incident.affectedIssue,
+        incident.description,
+        incident.summary,
+        showSelfHelpChecklist,
+        showTechnicianChecklist,
+        needsBasic,
+        needsTechnical,
+        generationAttempt,
+    ]);
     const troubleshooting = displayTroubleshooting(generatedTroubleshooting || incident.troubleshooting);
     const checkedMatch = troubleshooting.match(/\[Employee checked self-help steps: ([^\]]*)\]/i);
     // ReportIncident stores the checked steps as zero-based array indexes.
@@ -114,10 +126,10 @@ export function IncidentDetailModal({ incident, onClose, footer, showSelfHelpChe
                                                     }) })] }), _jsx(AnalysisBlock, { label: "Summarization", value: incident.summary || '' })] }), showSelfHelpChecklist ? (_jsxs("div", { className: "incident-ai-block", children: [_jsx("span", { children: "Basic Self-Help" }), selfHelpSteps.length ? _jsx("ul", { className: "incident-self-help-checklist", children: selfHelpSteps.map((step, index) => {
                                                 const checked = showEmployeeCheckMarks && savedCheckedSteps.has(index);
                                                 return _jsx("li", { className: checked ? 'is-checked' : '', children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: checked, readOnly: true }), _jsx("span", { children: step })] }) }, `${index}-${step}`);
-                                            }) }) : _jsx("div", { children: generatingGuidance ? _jsx("p", { role: "status", children: "Generating incident-specific steps with BatangAI…" }) : guidanceError ? _jsxs("div", { children: [_jsx("p", { role: "alert", children: guidanceError }), _jsx("button", { type: "button", className: "btn-secondary", onClick: () => setGenerationAttempt(value => value + 1), children: "Generate Again" })] }) : _jsx("p", { role: "status", children: "AI troubleshooting guidance is being prepared…" }) })] })) : incident.troubleshooting && _jsx(AnalysisBlock, { label: "Troubleshooting", value: troubleshooting }), showTechnicianChecklist && _jsxs("div", { className: "incident-ai-block", children: [_jsx("span", { children: "Technician Troubleshooting Steps" }), technicianSteps.length ? _jsx("ul", { className: "incident-self-help-checklist", children: technicianSteps.map((step, index) => {
+                                            }) }) : _jsx("div", { children: generatingGuidance ? _jsx("p", { role: "status", children: "Generating incident-specific steps with BatangAI…" }) : guidanceError ? _jsxs("div", { children: [_jsx("p", { role: "alert", children: guidanceError }), _jsx("button", { type: "button", className: "btn-secondary", onClick: () => { setGuidanceError(''); setGenerationAttempt(value => value + 1); }, children: "Generate Again" })] }) : _jsx("p", { role: "status", children: "AI troubleshooting guidance is being prepared…" }) })] })) : !showTechnicianChecklist && incident.troubleshooting && _jsx(AnalysisBlock, { label: "Troubleshooting", value: troubleshooting }), showTechnicianChecklist && _jsxs("div", { className: "incident-ai-block", children: [_jsx("span", { children: "Technician Troubleshooting Steps" }), technicianSteps.length ? _jsx("ul", { className: "incident-self-help-checklist", children: technicianSteps.map((step, index) => {
                                                 const checked = technicianWorkStarted && (checkedTechnicianSteps.includes(index) || savedTechnicianSteps.has(index));
                                                 return _jsx("li", { className: checked ? 'is-checked' : '', children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: checked, disabled: !technicianWorkStarted || !onTechnicianStepChange, onChange: event => onTechnicianStepChange?.(index, event.target.checked) }), _jsx("span", { children: step })] }) }, `tech-${index}-${step}`);
-                                            }) }) : generatingGuidance ? _jsx("p", { role: "status", children: "Generating incident-specific steps with BatangAI…" }) : guidanceError ? _jsx("p", { role: "alert", children: guidanceError }) : _jsx("p", { role: "status", children: "AI troubleshooting guidance is being prepared…" })] }), onResolutionNotesDraftChange && _jsxs("div", { className: "incident-ai-block incident-resolution-notes-editor", children: [_jsx("label", { htmlFor: "incident-resolution-notes", children: "Resolution Notes" }), _jsx("textarea", { id: "incident-resolution-notes", value: resolutionNotesDraft || '', onChange: event => onResolutionNotesDraftChange(event.target.value), placeholder: "Describe the troubleshooting performed and how the issue was resolved.", rows: 4 })] }), !onResolutionNotesDraftChange && incident.resolutionNotes && _jsxs("div", { className: "incident-ai-block incident-resolution-notes-editor", children: [_jsx("label", { htmlFor: "incident-resolution-notes-readonly", children: "Resolution Notes" }), _jsx("textarea", { id: "incident-resolution-notes-readonly", value: incident.resolutionNotes, rows: 4, readOnly: true })] })] })), (incident.resolvedBy || incident.resolvedAt || duration) && (_jsx("section", { className: "incident-resolution-panel", children: _jsxs("div", { className: "incident-resolution-grid", children: [incident.resolvedBy && _jsx(ResolutionField, { label: "Resolved By", value: incident.resolvedBy, detail: incident.resolvedBy === incident.employeeName ? 'Reporter' : 'Technician' }), incident.resolvedAt && _jsx(ResolutionField, { label: "Resolution Date/Time", value: formatIncidentDateTime(incident.resolvedAt) }), duration && _jsx(ResolutionField, { label: "Duration Time", value: duration })] }) })), incident.resolvedBy && incident.resolvedBy === incident.employeeName && (_jsxs("section", { className: "incident-resolution-panel", children: [_jsx("h3", { children: "Resolution Result" }), _jsx("p", { children: "Resolved by the reporting employee using basic self-help." })] }))] }), footer && _jsx("footer", { className: "incident-detail-footer", children: footer })] }) }));
+                                            }) }) : generatingGuidance ? _jsx("p", { role: "status", children: "Generating incident-specific steps with BatangAI…" }) : guidanceError ? _jsx("p", { role: "alert", children: guidanceError }) : _jsx("p", { role: "status", children: "AI troubleshooting guidance is being prepared…" })] }), onResolutionNotesDraftChange && _jsxs("div", { className: "incident-ai-block incident-resolution-notes-editor", children: [_jsx("label", { htmlFor: "incident-resolution-notes", children: "Resolution Notes (required)" }), _jsx("textarea", { id: "incident-resolution-notes", value: resolutionNotesDraft || '', required: true, ariaRequired: true, onChange: event => onResolutionNotesDraftChange(event.target.value), placeholder: "Describe the troubleshooting performed and how the issue was resolved.", rows: 4 })] }), !onResolutionNotesDraftChange && incident.resolutionNotes && _jsxs("div", { className: "incident-ai-block incident-resolution-notes-editor", children: [_jsx("label", { htmlFor: "incident-resolution-notes-readonly", children: "Resolution Notes" }), _jsx("textarea", { id: "incident-resolution-notes-readonly", value: incident.resolutionNotes, rows: 4, readOnly: true })] })] })), (incident.resolvedBy || incident.resolvedAt || duration) && (_jsx("section", { className: "incident-resolution-panel", children: _jsxs("div", { className: "incident-resolution-grid", children: [incident.resolvedBy && _jsx(ResolutionField, { label: "Resolved By", value: incident.resolvedBy, detail: incident.resolvedBy === incident.employeeName ? 'Reporter' : 'Technician' }), incident.resolvedAt && _jsx(ResolutionField, { label: "Resolution Date/Time", value: formatIncidentDateTime(incident.resolvedAt) }), duration && _jsx(ResolutionField, { label: "Duration Time", value: duration })] }) })), ] }), footer && _jsx("footer", { className: "incident-detail-footer", children: footer })] }) }));
 }
 function AnalysisBlock({ label, value }) {
     return _jsxs("div", { className: "incident-ai-block", children: [_jsx("span", { children: label }), _jsx("p", { style: { whiteSpace: 'pre-line' }, children: value })] });

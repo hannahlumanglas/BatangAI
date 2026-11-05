@@ -1,5 +1,8 @@
 import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
+import ProfileAvatar from '../../components/ProfileAvatar';
+import LoadingState from '../../components/LoadingState';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 import { useNavigate } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 import { getAuthSession, getCurrentUserName, getCurrentUserRole, getRoleDisplayName, getProfilePhotoUrl, signOut, } from '../../auth';
@@ -42,6 +45,7 @@ function StatCard({ icon, number, title, tone, }) {
 }
 const navigation = [
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
+    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     { label: 'All Incidents', icon: 'incidents', path: '/admin/incidents' },
     { label: 'Manage & Assign', icon: 'assign', path: '/admin/manage-assign' },
     { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },
@@ -60,7 +64,6 @@ const navigation = [
         icon: 'reports',
         path: '/admin/generate-reports',
     },
-    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     { label: 'Profile', icon: 'profile', path: '/admin/profile' },
 ];
 const THEME_STORAGE_KEY = 'batangai-theme';
@@ -120,7 +123,7 @@ function ProfileMenu({ name, role, avatar, onLogout, profilePath = '/admin/profi
         .slice(0, 2)
         .join('')
         .toUpperCase();
-    return (_jsxs("div", { className: "profile-menu-root", ref: rootRef, children: [_jsxs("button", { type: "button", className: "topbar-user profile-menu-trigger", onClick: () => setOpen(current => !current), "aria-haspopup": "menu", "aria-expanded": open, children: [_jsx("div", { className: "topbar-avatar", children: avatar ? (_jsx("img", { src: avatar, alt: "" })) : (initials) }), _jsxs("div", { children: [_jsx("strong", { children: name }), _jsx("span", { children: getRoleDisplayName(role) })] }), _jsx("span", { className: `profile-menu-chevron${open ? ' open' : ''}`, children: _jsx("svg", { viewBox: "0 0 24 24", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "2.4", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: _jsx("path", { d: "m6 9 6 6 6-6" }) }) })] }), open && (_jsxs("div", { className: "profile-menu-dropdown", role: "menu", children: [_jsxs("button", { type: "button", role: "menuitem", onClick: goToProfile, children: [_jsxs("svg", { viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "1.9", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [_jsx("circle", { cx: "12", cy: "8", r: "4" }), _jsx("path", { d: "M4 21c.7-4.1 3.4-6.2 8-6.2s7.3 2.1 8 6.2" })] }), "My Profile"] }), _jsxs("button", { type: "button", role: "menuitem", onClick: () => {
+    return (_jsxs("div", { className: "profile-menu-root", ref: rootRef, children: [_jsxs("button", { type: "button", className: "topbar-user profile-menu-trigger", onClick: () => setOpen(current => !current), "aria-haspopup": "menu", "aria-expanded": open, children: [_jsx("div", { className: "topbar-avatar", children: avatar ? (_jsx(ProfileAvatar, { src: avatar, name: name })) : (initials) }), _jsxs("div", { children: [_jsx("strong", { children: name }), _jsx("span", { children: getRoleDisplayName(role) })] }), _jsx("span", { className: `profile-menu-chevron${open ? ' open' : ''}`, children: _jsx("svg", { viewBox: "0 0 24 24", width: "13", height: "13", fill: "none", stroke: "currentColor", strokeWidth: "2.4", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: _jsx("path", { d: "m6 9 6 6 6-6" }) }) })] }), open && (_jsxs("div", { className: "profile-menu-dropdown", role: "menu", children: [_jsxs("button", { type: "button", role: "menuitem", onClick: goToProfile, children: [_jsxs("svg", { viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "1.9", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [_jsx("circle", { cx: "12", cy: "8", r: "4" }), _jsx("path", { d: "M4 21c.7-4.1 3.4-6.2 8-6.2s7.3 2.1 8 6.2" })] }), "My Profile"] }), _jsxs("button", { type: "button", role: "menuitem", onClick: () => {
                             setOpen(false);
                             navigate(profilePath.replace('/profile', '/settings'));
                         }, children: [_jsxs("svg", { viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "1.9", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [_jsx("circle", { cx: "12", cy: "12", r: "3" }), _jsx("path", { d: "M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4.7a7.6 7.6 0 0 0-2.6-1.5L14 2h-4l-.4 2.7a7.6 7.6 0 0 0-2.6 1.5l-2.4-.7-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-.7a7.6 7.6 0 0 0 2.6 1.5L10 22h4l.4-2.7a7.6 7.6 0 0 0 2.6-1.5l2.4.7 2-3.4Z" })] }), "Settings"] }), _jsxs("button", { type: "button", role: "menuitem", onClick: goToProfile, children: [_jsxs("svg", { viewBox: "0 0 24 24", width: "16", height: "16", fill: "none", stroke: "currentColor", strokeWidth: "1.9", strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true", children: [_jsx("rect", { x: "4", y: "10", width: "16", height: "11", rx: "2" }), _jsx("path", { d: "M8 10V7a4 4 0 0 1 8 0v3" })] }), "Change Password"] }), _jsx("span", { className: "profile-menu-divider" }), _jsxs("button", { type: "button", role: "menuitem", className: "danger", onClick: () => {
@@ -170,7 +173,7 @@ function DeviceCard({ device, expanded, onToggle, onEdit, onDelete, deleting, })
                                         ? 'Online'
                                         : device.status === 'offline'
                                             ? 'Offline'
-                                            : 'Unknown'] }), _jsx(Icon, { name: "chevron" })] })] }), _jsx("div", { className: "dm-card-details", children: _jsxs("div", { className: "dm-card-details-inner", children: [_jsx("div", { className: "dm-details-grid", children: _jsxs("dl", { className: "dm-details-list", children: [_jsxs("div", { children: [_jsx("dt", { children: "Type" }), _jsx("dd", { children: device.type })] }), _jsxs("div", { children: [_jsx("dt", { children: "IP Address" }), _jsx("dd", { children: device.ip })] }), _jsxs("div", { children: [_jsx("dt", { children: "Location" }), _jsx("dd", { children: device.location })] }), _jsxs("div", { children: [_jsx("dt", { children: "Office" }), _jsx("dd", { children: device.department })] }), _jsxs("div", { children: [_jsx("dt", { children: "User" }), _jsx("dd", { children: device.assignedUserName || 'Unassigned' })] }), _jsxs("div", { children: [_jsx("dt", { children: "Firmware Version" }), _jsx("dd", { children: device.firmware })] }), _jsxs("div", { children: [_jsx("dt", { children: "Date Registered" }), _jsx("dd", { children: formatDeviceDateTime(device.registeredAt) })] }), _jsxs("div", { children: [_jsx("dt", { children: "Last Pinged" }), _jsx("dd", { children: formatDeviceDateTime(device.lastPingAt) })] }), _jsxs("div", { children: [_jsx("dt", { children: "Last Seen" }), _jsx("dd", { children: formatDeviceDateTime(device.lastSeen) })] })] }) }), _jsxs("div", { className: "dm-card-actions", children: [_jsx("button", { className: "dm-edit", type: "button", onClick: onEdit, children: "Edit Device" }), _jsx("button", { className: "dm-delete", type: "button", disabled: deleting, onClick: onDelete, children: deleting ? 'Deleting…' : 'Delete Device' })] })] }) })] }));
+                                            : 'Unknown'] }), _jsx(Icon, { name: "chevron" })] })] }), _jsx("div", { className: "dm-card-details", children: _jsxs("div", { className: "dm-card-details-inner", children: [_jsx("div", { className: "dm-details-grid", children: _jsxs("dl", { className: "dm-details-list", children: [_jsxs("div", { children: [_jsx("dt", { children: "Type" }), _jsx("dd", { children: device.type })] }), _jsxs("div", { children: [_jsx("dt", { children: "IP Address" }), _jsx("dd", { children: device.ip })] }), _jsxs("div", { children: [_jsx("dt", { children: "Location" }), _jsx("dd", { children: device.location })] }), _jsxs("div", { children: [_jsx("dt", { children: "Office" }), _jsx("dd", { children: device.department })] }), _jsxs("div", { children: [_jsx("dt", { children: "User" }), _jsx("dd", { children: device.assignedUserName || 'Unassigned' })] }), _jsxs("div", { children: [_jsx("dt", { children: "Firmware Version" }), _jsx("dd", { children: device.firmware })] }), _jsxs("div", { children: [_jsx("dt", { children: "Date Registered" }), _jsx("dd", { children: formatDeviceDateTime(device.registeredAt) })] }), _jsxs("div", { children: [_jsx("dt", { children: "Last Pinged" }), _jsx("dd", { children: formatDeviceDateTime(device.lastPingAt) })] }), _jsxs("div", { children: [_jsx("dt", { children: "Last Seen" }), _jsx("dd", { children: formatDeviceDateTime(device.lastSeen) })] })] }) }), _jsxs("div", { className: "dm-card-actions", children: [_jsx("button", { className: "dm-edit", type: "button", onClick: onEdit, children: "Edit Device" }), _jsx("button", { className: "dm-delete", type: "button", disabled: deleting, onClick: onDelete, children: deleting ? _jsx(LoadingState, { label: "Deleting device...", variant: "inline" }) : 'Delete Device' })] })] }) })] }));
 }
 function AddDeviceModal({ onClose, onAdd, onEdit, initialDevice, users, }) {
     const { offices, loading: officesLoading } = useOffices();
@@ -316,14 +319,17 @@ function DeviceMonitoring({ audience = 'administrator', }) {
         };
     }, []);
     /* ---------- Page state ---------- */
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
     const { theme, toggleTheme } = useTheme();
     const [deviceList, setDeviceList] = useState([]);
     const [users, setUsers] = useState([]);
     const [loadingDevices, setLoadingDevices] = useState(true);
     const [deviceError, setDeviceError] = useState('');
     const deviceRequestInFlight = useRef(false);
+    const scanInFlight = useRef(false);
+    const refreshAllDevicesRef = useRef(null);
     const [refreshingAll, setRefreshingAll] = useState(false);
+    const [monitoringError, setMonitoringError] = useState('');
     const [deletingId, setDeletingId] = useState(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingDevice, setEditingDevice] = useState(null);
@@ -341,7 +347,7 @@ function DeviceMonitoring({ audience = 'administrator', }) {
             return;
         deviceRequestInFlight.current = true;
         try {
-            const response = await fetch(DEVICES_URL);
+            const response = await fetch(DEVICES_URL, { credentials: 'include' });
             const data = (await response.json());
             if (!response.ok ||
                 !data.success ||
@@ -376,12 +382,8 @@ function DeviceMonitoring({ audience = 'administrator', }) {
             })
                 .catch(() => setUsers([]));
         }, 0);
-        const refreshInterval = window.setInterval(() => {
-            void loadDevices();
-        }, 15_000);
         return () => {
             window.clearTimeout(initialLoad);
-            window.clearInterval(refreshInterval);
         };
     }, [loadDevices]);
     const filtered = useMemo(() => {
@@ -417,6 +419,7 @@ function DeviceMonitoring({ audience = 'administrator', }) {
     const handleAddDevice = async (device) => {
         const response = await fetch(DEVICES_URL, {
             method: 'POST',
+            credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
             },
@@ -442,6 +445,7 @@ function DeviceMonitoring({ audience = 'administrator', }) {
     const handleUpdateDevice = async (deviceId, device) => {
         const response = await fetch(DEVICES_URL, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'update', deviceID: deviceId, ...device }),
         });
@@ -455,6 +459,7 @@ function DeviceMonitoring({ audience = 'administrator', }) {
     const refreshDevice = async (device) => {
         const response = await fetch(DEVICES_URL, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'ping', deviceID: device.id }),
         });
@@ -462,43 +467,23 @@ function DeviceMonitoring({ audience = 'administrator', }) {
         if (!response.ok || !data.success) {
             throw new Error(data.message || 'Unable to refresh device status.');
         }
-        let result = data;
-        if (data.pending && data.requestID) {
-            for (let attempt = 0; attempt < 24; attempt += 1) {
-                await new Promise(resolve => window.setTimeout(resolve, 1000));
-                const statusResponse = await fetch(DEVICES_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'ping_status',
-                        deviceID: device.id,
-                        requestID: data.requestID,
-                    }),
-                });
-                const statusData = await statusResponse.json();
-                if (!statusResponse.ok || !statusData.success) {
-                    throw new Error(statusData.message || 'Unable to retrieve refreshed status.');
-                }
-                result = statusData;
-                if (!statusData.pending)
-                    break;
-            }
-        }
-        if (result.pending || !result.status || result.status === 'unknown') {
-            throw new Error('The monitoring agent did not return a result. Check that it is running inside the device network.');
+        if (!data.status || data.status === 'unknown') {
+            throw new Error('The API did not return an online/offline result for this device IP.');
         }
         setDeviceList(list => list.map(item => item.id === device.id
             ? {
                 ...item,
-                status: result.status,
-                lastSeen: result.lastSeen ?? item.lastSeen,
-                lastPingAt: result.lastPingAt ?? null,
+                status: data.status,
+                pingResponseTimeMs: data.responseTimeMs ?? null,
+                lastSeen: data.lastSeen ?? item.lastSeen,
+                lastPingAt: data.lastPingAt ?? null,
             }
             : item));
     };
-    const refreshAllDevices = async () => {
-        if (refreshingAll || deviceList.length === 0)
+    const refreshAllDevices = useCallback(async (showErrors = true) => {
+        if (scanInFlight.current || deviceList.length === 0)
             return;
+        scanInFlight.current = true;
         setRefreshingAll(true);
         try {
             const results = await Promise.allSettled(deviceList.map(refreshDevice));
@@ -506,13 +491,33 @@ function DeviceMonitoring({ audience = 'administrator', }) {
             if (failures.length > 0) {
                 const firstError = failures[0].status === 'rejected' ? failures[0].reason : null;
                 const detail = firstError instanceof Error ? ` ${firstError.message}` : '';
-                void showAlert(`Could not refresh ${failures.length} of ${deviceList.length} devices.${detail}`);
+                const message = `Could not check ${failures.length} of ${deviceList.length} devices.${detail}`;
+                setMonitoringError(message);
+                console.error('Automatic device status check failed:', message);
+                if (showErrors)
+                    void showAlert(message);
+            }
+            else {
+                setMonitoringError('');
             }
         }
         finally {
+            scanInFlight.current = false;
             setRefreshingAll(false);
         }
-    };
+    }, [deviceList, showAlert]);
+    useEffect(() => {
+        refreshAllDevicesRef.current = refreshAllDevices;
+    }, [refreshAllDevices]);
+    useEffect(() => {
+        if (loadingDevices)
+            return undefined;
+        void refreshAllDevicesRef.current?.(false);
+        const refreshInterval = window.setInterval(() => {
+            void refreshAllDevicesRef.current?.(false);
+        }, 5_000);
+        return () => window.clearInterval(refreshInterval);
+    }, [loadingDevices]);
     const deleteDevice = async (device) => {
         if (!await showConfirm(`Delete ${device.name} (${device.id})? This cannot be undone.`, 'Delete device?'))
             return;
@@ -542,7 +547,7 @@ function DeviceMonitoring({ audience = 'administrator', }) {
             : ''}`, children: [_jsxs("aside", { className: "admin-sidebar", children: [_jsxs("div", { className: "sidebar-brand", children: [_jsx("img", { src: logo, alt: "Batangas City seal" }), _jsxs("strong", { children: ["Batang", _jsx("span", { children: "AI" })] })] }), _jsx("nav", { className: "sidebar-nav", "aria-label": `${currentUserRole} navigation`, children: roleNavigation.map(item => (_jsxs("button", { className: item.label ===
                                 'Device Monitoring'
                                 ? 'is-active'
-                                : '', type: "button", onClick: () => navigate(item.path), children: [_jsx(Icon, { name: item.icon }), _jsx("span", { children: item.label })] }, item.label))) })] }), _jsxs("main", { className: "admin-main", children: [_jsxs("header", { className: "admin-topbar", children: [_jsx("button", { className: "menu-button", type: "button", "aria-label": "Toggle menu", "aria-expanded": !sidebarCollapsed, onClick: () => setSidebarCollapsed(current => !current), children: _jsx(Icon, { name: "menu" }) }), _jsxs("div", { className: "topbar-title", children: [_jsx("h1", { children: "Device Monitoring" }), _jsx("p", { children: "Track the status and health of all network devices." })] }), _jsx(ThemeToggle, { theme: theme, onToggle: toggleTheme }), _jsx(AdminNotifications, {}), _jsx(ProfileMenu, { name: currentUserName, role: currentUserRole, avatar: profileAvatar, profilePath: profilePath, onLogout: handleLogout })] }), _jsxs("div", { className: "dashboard-content", children: [_jsxs("section", { className: "statistics-grid dm-stats", children: [_jsx(StatCard, { icon: "devices", number: String(counts.total), title: "Total Devices", tone: "blue" }), _jsx(StatCard, { icon: "online", number: String(counts.online), title: "Online", tone: "green" }), _jsx(StatCard, { icon: "offline", number: String(counts.offline), title: "Offline", tone: "red" })] }), _jsxs("div", { className: "incident-tools dm-device-tools", children: [_jsxs("label", { className: "incident-search", children: [_jsx(Icon, { name: "search" }), _jsx("input", { type: "text", placeholder: "Search by name, ID, or IP address...", value: query, onChange: e => setQuery(e.target.value) })] }), _jsxs("div", { className: "dm-toolbar-actions", children: [_jsxs("div", { className: "dm-filter-group", children: [_jsx("label", { className: "dm-filter-select", "aria-label": "Filter by device type", children: _jsxs("select", { "aria-label": "Filter by device type", value: typeFilter, onChange: e => setTypeFilter(e.target.value), children: [_jsx("option", { children: "All Types" }), _jsx("option", { children: "Router" }), _jsx("option", { children: "Switch" }), _jsx("option", { children: "Access Point" })] }) }), _jsx("label", { className: "dm-filter-select", "aria-label": "Filter by device status", children: _jsxs("select", { "aria-label": "Filter by device status", value: statusFilter, onChange: e => setStatusFilter(e.target.value), children: [_jsx("option", { children: "All Statuses" }), _jsx("option", { children: "Online" }), _jsx("option", { children: "Offline" })] }) })] }), _jsxs("button", { type: "button", className: "incident-new", onClick: () => setShowAddModal(true), children: [_jsx(Icon, { name: "plus" }), "Add Device"] }), _jsxs("button", { type: "button", className: "incident-new dm-ping-all", disabled: refreshingAll || deviceList.length === 0, onClick: () => void refreshAllDevices(), children: [_jsx(Icon, { name: "online" }), refreshingAll ? 'PINGING…' : 'PING'] })] })] }), loadingDevices ? (_jsx("div", { className: "dm-grid", children: _jsx("div", { className: "dashboard-card dm-empty", children: "Loading devices\u2026" }) })) : deviceError ? (_jsx("div", { className: "dm-grid", children: _jsxs("div", { className: "dashboard-card dm-empty", children: [deviceError, ' ', _jsx("button", { type: "button", className: "dm-retry", onClick: () => void loadDevices(), children: "Retry" })] }) })) : filtered.length === 0 ? (_jsx("div", { className: "dm-grid", children: _jsx("div", { className: "dashboard-card dm-empty", children: "No devices match your search or filters." }) })) : (_jsx("div", { className: "dm-grid", children: filtered.map(device => (_jsx(DeviceCard, { device: device, expanded: expandedId === device.id, deleting: deletingId === device.id, onDelete: () => void deleteDevice(device), onEdit: () => setEditingDevice(device), onToggle: () => setExpandedId(current => current === device.id
+                                : '', type: "button", onClick: () => navigate(item.path), children: [_jsx(Icon, { name: item.icon }), _jsx("span", { children: item.label })] }, item.label))) })] }), _jsxs("main", { className: "admin-main", children: [_jsxs("header", { className: "admin-topbar", children: [_jsx("button", { className: "menu-button", type: "button", "aria-label": "Toggle menu", "aria-expanded": !sidebarCollapsed, onClick: () => setSidebarCollapsed(current => !current), children: _jsx(Icon, { name: "menu" }) }), _jsxs("div", { className: "topbar-title", children: [_jsx("h1", { children: "Device Monitoring" }), _jsx("p", { children: "Track the status and health of all network devices." })] }), _jsx(ThemeToggle, { theme: theme, onToggle: toggleTheme }), _jsx(AdminNotifications, {}), _jsx(ProfileMenu, { name: currentUserName, role: currentUserRole, avatar: profileAvatar, profilePath: profilePath, onLogout: handleLogout })] }), _jsxs("div", { className: "dashboard-content", children: [_jsxs("section", { className: "statistics-grid dm-stats", children: [_jsx(StatCard, { icon: "devices", number: String(counts.total), title: "Total Devices", tone: "blue" }), _jsx(StatCard, { icon: "online", number: String(counts.online), title: "Online", tone: "green" }), _jsx(StatCard, { icon: "offline", number: String(counts.offline), title: "Offline", tone: "red" })] }), _jsxs("div", { className: "incident-tools dm-device-tools", children: [_jsxs("label", { className: "incident-search", children: [_jsx(Icon, { name: "search" }), _jsx("input", { type: "text", placeholder: "Search by name, ID, or IP address...", value: query, onChange: e => setQuery(e.target.value) })] }), _jsxs("div", { className: "dm-toolbar-actions", children: [_jsxs("div", { className: "dm-filter-group", children: [_jsx("label", { className: "dm-filter-select", "aria-label": "Filter by device type", children: _jsxs("select", { "aria-label": "Filter by device type", value: typeFilter, onChange: e => setTypeFilter(e.target.value), children: [_jsx("option", { children: "All Types" }), _jsx("option", { children: "Router" }), _jsx("option", { children: "Switch" }), _jsx("option", { children: "Access Point" })] }) }), _jsx("label", { className: "dm-filter-select", "aria-label": "Filter by device status", children: _jsxs("select", { "aria-label": "Filter by device status", value: statusFilter, onChange: e => setStatusFilter(e.target.value), children: [_jsx("option", { children: "All Statuses" }), _jsx("option", { children: "Online" }), _jsx("option", { children: "Offline" })] }) })] }), _jsxs("button", { type: "button", className: "incident-new", onClick: () => setShowAddModal(true), children: [_jsx(Icon, { name: "plus" }), "Add Device"] }), _jsxs("button", { type: "button", className: "incident-new dm-ping-all", disabled: refreshingAll || deviceList.length === 0, onClick: () => void refreshAllDevices(), children: [_jsx(Icon, { name: "online" }), refreshingAll ? _jsx(LoadingState, { label: "Pinging...", variant: "inline" }) : "PING"] })] })] }), monitoringError && _jsx("div", { className: "dm-form-error", role: "alert", children: monitoringError }), loadingDevices ? (_jsx("div", { className: "dm-grid", children: _jsx(LoadingState, { label: "Loading devices...", variant: "panel" }) })) : deviceError ? (_jsx("div", { className: "dm-grid", children: _jsxs("div", { className: "dashboard-card dm-empty", children: [deviceError, ' ', _jsx("button", { type: "button", className: "dm-retry", onClick: () => void loadDevices(), children: "Retry" })] }) })) : filtered.length === 0 ? (_jsx("div", { className: "dm-grid", children: _jsx("div", { className: "dashboard-card dm-empty", children: "No devices match your search or filters." }) })) : (_jsx("div", { className: "dm-grid", children: filtered.map(device => (_jsx(DeviceCard, { device: device, expanded: expandedId === device.id, deleting: deletingId === device.id, onDelete: () => void deleteDevice(device), onEdit: () => setEditingDevice(device), onToggle: () => setExpandedId(current => current === device.id
                                         ? null
                                         : device.id) }, device.id))) }))] })] }), showAddModal && (_jsx(AddDeviceModal, { onClose: () => setShowAddModal(false), onAdd: handleAddDevice, users: users })), editingDevice && (_jsx(AddDeviceModal, { onClose: () => setEditingDevice(null), onAdd: handleAddDevice, onEdit: handleUpdateDevice, initialDevice: editingDevice, users: users }))] }));
 }

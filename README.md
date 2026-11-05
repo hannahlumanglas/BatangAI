@@ -19,6 +19,20 @@ uploads/                User uploaded files
 
 ## Local development with XAMPP
 
+### Start with Vite and PHP
+
+Open the project folder in VS Code, then open two terminals at the project root:
+
+1. Run `npm run api:dev` to start the PHP API on `127.0.0.1:8000`.
+2. Run `npm run dev` and open the local URL printed by Vite (usually
+   `http://127.0.0.1:5173`).
+
+Vite forwards `/api` requests to the PHP server. The incident-analysis feature
+uses Gemini through the PHP API; its key stays in the ignored
+`api/.env.local` file and is never sent from the browser.
+
+### Start with Apache
+
 1. Put the project folder at `F:\Desktop\BatangAI` and configure an Apache
    virtual host named `batangai.local` to use that folder as its document root.
    Enable `conf/extra/httpd-vhosts.conf` in `C:\xampp\apache\conf\httpd.conf`,

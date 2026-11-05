@@ -5,6 +5,11 @@ private office or school devices, run BatangAI on a computer connected to the
 same network. InfinityFree's public web server is outside that private network
 and cannot reach its local device addresses.
 
+While Device Monitoring is open, it automatically pings registered devices
+every five seconds and updates their online/offline status. A scan will not
+overlap an earlier scan. This checks IP reachability from the PHP server; it
+does not retrieve router-specific metrics such as traffic or CPU usage.
+
 ## Run locally with XAMPP
 
 1. Connect the computer to the device network and make sure Windows Firewall

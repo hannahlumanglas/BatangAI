@@ -361,6 +361,73 @@
   text-align: center;
 }
 
+:root[data-theme="dark"] .login-page .login-card {
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.38);
+}
+
+:root[data-theme="dark"] .login-page .login-heading h2 {
+  color: #f8fafc;
+}
+
+:root[data-theme="dark"] .login-page .login-heading p,
+:root[data-theme="dark"] .login-page .login-options,
+:root[data-theme="dark"] .login-page .login-footer,
+:root[data-theme="dark"] .login-page .register-link {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .login-page .login-field label {
+  color: #e2e8f0;
+}
+
+:root[data-theme="dark"] .login-page .login-field input {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc;
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .login-page .login-field input::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+:root[data-theme="dark"] .login-page .login-field input:-webkit-autofill,
+:root[data-theme="dark"] .login-page .login-field input:-webkit-autofill:hover,
+:root[data-theme="dark"] .login-page .login-field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f8fafc;
+  box-shadow: 0 0 0 1000px #1e293b inset;
+  border-color: #475569;
+  caret-color: #f8fafc;
+}
+
+:root[data-theme="dark"] .login-page .input-wrap > svg {
+  stroke: #94a3b8;
+}
+
+:root[data-theme="dark"] .login-page .password-toggle {
+  color: #cbd5e1;
+}
+
+:root[data-theme="dark"] .login-page .password-toggle:hover,
+:root[data-theme="dark"] .login-page .password-toggle:focus-visible {
+  color: #6ee7b7;
+  background: #14382d;
+}
+
+:root[data-theme="dark"] .login-page .remember-me input {
+  background-color: transparent !important;
+  accent-color: #31c89a;
+}
+
+:root[data-theme="dark"] .login-page .login-footer > span {
+  background: #334155;
+}
+
 @media (max-width: 1100px) {
   .login-page {
     grid-template-columns: 50% 50%;

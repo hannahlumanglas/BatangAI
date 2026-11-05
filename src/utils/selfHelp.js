@@ -15,14 +15,47 @@ function checklistItemText(item) {
     }
     return '';
 }
-/** Keep Basic Self-Help formatting identical in the report form and incident view. */
-export function parseSelfHelpSteps(value) {
-    const normalized = value
+
+function stripChecklistHeading(value) {
+    return value
+        .replace(/^\s*(?:Basic Self-Help|IT Troubleshooting Suggestions|Technician Troubleshooting Steps|Troubleshooting)\s*:?\s*/i, '')
+        .trim();
+}
+
+function extractChecklistSection(value, stopLabels, includeAfter = false) {
+    const cleaned = value
         .replace(/\r\n?/g, '\n')
         .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
-        .split(/^\s*IT Troubleshooting Suggestions:\s*$/im)[0]
-        .replace(/^\s*Basic Self-Help:\s*/i, '')
+        .replace(/\[IT (?:manually )?checked troubleshooting steps: [^\]]*\]/i, '')
         .trim();
+
+    if (!cleaned)
+        return '';
+
+    let earliestIndex = Number.POSITIVE_INFINITY;
+    let earliestMatch = null;
+
+    for (const label of stopLabels) {
+        const regex = new RegExp(`(^|\\n)\\s*${label}\\s*:?\\s*(?:\\n|$)`, 'i');
+        const match = cleaned.match(regex);
+        if (!match || match.index === undefined) continue;
+        if (match.index < earliestIndex) {
+            earliestIndex = match.index;
+            earliestMatch = match;
+        }
+    }
+
+    if (earliestMatch) {
+        const sectionStart = earliestMatch.index + earliestMatch[0].length;
+        return stripChecklistHeading(includeAfter ? cleaned.slice(sectionStart).trim() : cleaned.slice(0, earliestIndex).trim());
+    }
+
+    return stripChecklistHeading(cleaned);
+}
+
+/** Keep Basic Self-Help formatting identical in the report form and incident view. */
+export function parseSelfHelpSteps(value) {
+    const normalized = extractChecklistSection(value, ['IT Troubleshooting Suggestions', 'Technician Troubleshooting Steps', 'Troubleshooting'], false);
     // Older records may store the AI list as a JSON array.
     try {
         const parsed = JSON.parse(normalized);
@@ -42,12 +75,7 @@ export function parseSelfHelpSteps(value) {
         .filter(Boolean);
 }
 export function parseTechnicianSteps(value) {
-    const normalized = value
-        .replace(/\r\n?/g, '\n')
-        .split(/^\s*IT Troubleshooting Suggestions:\s*$/im)[1]
-        ?.replace(/\[IT (?:manually )?checked troubleshooting steps: [^\]]*\]/i, '')
-        .replace(/\[Employee checked self-help steps: [^\]]*\]/i, '')
-        .trim() ?? '';
+    const normalized = extractChecklistSection(value, ['IT Troubleshooting Suggestions', 'Technician Troubleshooting Steps', 'Troubleshooting'], true);
     if (!normalized)
         return [];
     try {

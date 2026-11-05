@@ -72,6 +72,24 @@ body:not(.keyboard-navigation) [role="menuitem"]:focus {
   min-width: 0;
 }
 
+/* Keep navigation items in place while changing their active appearance. */
+.admin-sidebar .sidebar-nav button:hover,
+.dm-sidebar nav button:hover,
+.um-sidebar nav button:hover,
+.simple-sidebar nav button:hover,
+.incidents-sidebar nav button:hover {
+  transform: none;
+}
+
+.profile-shell.sidebar-collapsed .admin-sidebar {
+  width: 74px;
+}
+
+.profile-shell.sidebar-collapsed .admin-main {
+  width: calc(100% - 74px);
+  margin-left: 74px;
+}
+
 /* A solid, sticky header provides a reliable reference plane for menus. */
 .admin-topbar,
 .dm-header,
@@ -446,4 +464,3 @@ body:not(.keyboard-navigation) [role="menuitem"]:focus {
   stroke-linejoin: round;
   stroke-width: 1.8;
 }
-

@@ -1,0 +1,27 @@
+{
+  "files.exclude": {
+    "**/.local-secrets": true,
+    "**/api/.env.local": true,
+    "**/api/gemini_config.php": true,
+    "**/dist": true,
+    "**/local-secrets": true,
+    "**/node_modules": true,
+    "**/uploads/profile_photos": true
+  },
+  "search.exclude": {
+    "**/.local-secrets/**": true,
+    "**/api/.env.local": true,
+    "**/api/gemini_config.php": true,
+    "**/dist/**": true,
+    "**/local-secrets/**": true,
+    "**/node_modules/**": true,
+    "**/uploads/profile_photos/**": true
+  },
+  "files.watcherExclude": {
+    "**/.local-secrets/**": true,
+    "**/dist/**": true,
+    "**/local-secrets/**": true,
+    "**/node_modules/**": true,
+    "**/uploads/**": true
+  }
+}

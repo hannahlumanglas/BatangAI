@@ -297,7 +297,6 @@
   border-radius: 14px;
 }
 
-
 /* =========================================================
    USER CARD
    ========================================================= */
@@ -759,6 +758,24 @@
 
 .um-form-success {
   color: var(--success);
+}
+
+.um-save-feedback {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  margin: 0 0 16px;
+  padding: 10px 13px;
+  border: 1px solid currentColor;
+  border-radius: 9px;
+}
+
+.um-save-feedback.um-form-error {
+  background: color-mix(in srgb, var(--danger) 8%, var(--card-bg));
+}
+
+.um-save-feedback.um-form-success {
+  background: color-mix(in srgb, var(--success) 10%, var(--card-bg));
 }
 
 

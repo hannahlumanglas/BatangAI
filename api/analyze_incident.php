@@ -212,14 +212,13 @@ Important rules:
 - Clearly distinguish possible interpretations from confirmed facts.
 - Basic self-help must be safe and appropriate for a normal employee.
 - Generate the employee self-help steps specifically for this incident. Use the reported issue category, device type, connection type, affected service, symptoms, and location when relevant; do not return a generic reusable checklist.
-- Choose the number of practical employee-safe actions this incident needs. Let the reported details determine the count; do not force a minimum or maximum, and do not add redundant steps just to reach a count. Return them as a numbered sequence (1., 2., 3., and so on), with one clear action per step.
+- You decide how many practical employee-safe actions this incident needs based on its reported details. There is no fixed minimum or maximum: include every useful, incident-specific action and nothing redundant. Return the complete steps as a numbered sequence (1., 2., 3., and so on), with one clear action per step. Do not return only a step count.
 - Start with simple checks, then give safe next actions. Include what the employee should observe after each action and when to stop and contact IT Support.
 - Do not tell employees to open equipment, install unapproved software, share passwords, or change network infrastructure or security settings.
-- Tailor the IT troubleshooting steps to this incident's report details as well. Choose the number of concrete diagnostic or remediation steps this incident needs; let the report details determine the count, with no forced minimum or maximum. Include what to check and what the result would indicate. Do not return a generic placeholder or redundant steps.
+- You also decide how many IT troubleshooting actions this incident needs based on the report details. There is no fixed minimum or maximum: include every useful, incident-specific diagnostic or remediation step and nothing redundant. Return all steps as a numbered sequence in the order they should be performed; include what to check and what the result would indicate. Do not return only a step count.
 - Do not return a generic category label in place of actionable steps.
 - Do not instruct employees to change router, switch, server, firewall, DNS, DHCP, or other network infrastructure settings.
 - Technical troubleshooting may include network diagnostic procedures appropriate for IT personnel.
-- Generate only the number of technical troubleshooting steps this specific incident needs. Let the report details determine the count; do not force a fixed number of steps or add redundant checks just to reach a count.
 - Write each technical troubleshooting action as a separate numbered step in the order the technician should perform it, with a clear observation or decision point where useful.
 - Technical troubleshooting suggestions are advisory only and must be reviewed by IT Support.
 - Do not claim that the incident has been resolved.
@@ -240,8 +239,8 @@ The JSON object must contain exactly these six keys:
   "keywords": ["keyword one", "keyword two"],
   "summary": "Concise but complete paragraph summarizing the entire user-submitted report and all relevant supplied details.",
   "possibleInterpretation": "Cautious possible interpretation of the issue.",
-  "basicSelfHelp": "The number of numbered, safe, actionable self-help steps appropriate for the submitted incident details. Avoid generic or redundant filler.",
-  "itTroubleshooting": "The number of numbered technical troubleshooting steps appropriate for the submitted incident for IT Support review. Avoid generic or redundant filler."
+  "basicSelfHelp": "The complete numbered sequence of incident-specific, employee-safe actions. Choose the number of useful actions based on the incident; do not return only a count.",
+  "itTroubleshooting": "The complete numbered sequence of incident-specific technical actions for IT Support review. Choose the number of useful actions based on the incident; do not return only a count."
 }
 
 Do not use Markdown.

@@ -1,5 +1,8 @@
 import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
+import ProfileAvatar from '../../components/ProfileAvatar';
+import LoadingState from '../../components/LoadingState';
 import { useState, useEffect, useRef } from 'react';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 import { useNavigate } from 'react-router-dom';
 import logo from '../../assets/logo.png';
 import { AdminNotifications } from './AdminNotifications';
@@ -29,13 +32,13 @@ function Icon({ name }) {
 }
 const navigation = [
     { label: 'Dashboard', icon: 'dashboard', path: '/admin' },
+    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     { label: 'All Incidents', icon: 'incidents', path: '/admin/incidents' },
     { label: 'Manage & Assign', icon: 'assign', path: '/admin/manage-assign' },
     { label: 'My Assignments', icon: 'assign', path: '/admin/my-assignments' },
     { label: 'Device Monitoring', icon: 'devices', path: '/admin/device-monitoring' },
     { label: 'User Management', icon: 'users', path: '/admin/user-management' },
     { label: 'Generate Reports', icon: 'reports', path: '/admin/generate-reports' },
-    { label: 'Report Incident', icon: 'report', path: '/employee/report-incident' },
     { label: 'Profile', icon: 'profile', path: '/admin/profile' },
 ];
 const reportTypes = [
@@ -429,7 +432,7 @@ function ProfileMenu({ name, role, avatar, onLogout, }) {
         setOpen(false);
         navigate('/admin/profile');
     };
-    return (_jsxs("div", { className: "profile-menu-root", ref: rootRef, children: [_jsxs("button", { type: "button", className: "topbar-user profile-menu-trigger", onClick: () => setOpen(current => !current), "aria-haspopup": "menu", "aria-expanded": open, children: [_jsx("div", { className: "topbar-avatar", children: avatar ? (_jsx("img", { src: avatar, alt: "" })) : (name
+    return (_jsxs("div", { className: "profile-menu-root", ref: rootRef, children: [_jsxs("button", { type: "button", className: "topbar-user profile-menu-trigger", onClick: () => setOpen(current => !current), "aria-haspopup": "menu", "aria-expanded": open, children: [_jsx("div", { className: "topbar-avatar", children: avatar ? (_jsx(ProfileAvatar, { src: avatar, name: name })) : (name
                             .split(/\s+/)
                             .map(part => part[0])
                             .slice(0, 2)
@@ -450,7 +453,7 @@ function GenerateReports() {
     const currentUserId = currentUser?.userID;
     const [profileAvatar, setProfileAvatar] = useState(() => getProfilePhotoUrl(currentUser?.profilePhoto, currentUser?.fullName, currentUser?.role));
     const { theme, toggleTheme } = useTheme();
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
     const [reportType, setReportType] = useState(reportTypes[0]);
     const [startMonth, setStartMonth] = useState(months[0]);
     const [endMonth, setEndMonth] = useState(months[months.length - 1]);
@@ -604,11 +607,7 @@ function GenerateReports() {
                                             border: 'none',
                                             cursor: 'pointer',
                                             transition: 'background 0.2s ease',
-                                        }, children: [_jsx(Icon, { name: "reports" }), loading
-                                                ? 'Loading Incident Records...'
-                                                : generating
-                                                    ? 'Preparing Preview...'
-                                                    : 'Generate Report'] }), message && (_jsxs("p", { className: `gr-message${messageTone ===
+                                        }, children: [_jsx(Icon, { name: "reports" }), loading || generating ? _jsx(LoadingState, { label: loading ? 'Loading reports...' : 'Preparing preview...', variant: 'inline' }) : 'Generate Report'] }), message && (_jsxs("p", { className: `gr-message${messageTone ===
                                             'error'
                                             ? ' gr-message--error'
                                             : ''}`, children: [_jsx(Icon, { name: messageTone ===

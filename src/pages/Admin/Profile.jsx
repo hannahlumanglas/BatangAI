@@ -1,4 +1,6 @@
 import { jsx as _jsx, Fragment as _Fragment, jsxs as _jsxs } from "react/jsx-runtime";
+import ProfileAvatar from '../../components/ProfileAvatar';
+import LoadingState from '../../components/LoadingState';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAuthSession, getDefaultProfileAvatar, getRoleDisplayName, getProfilePhotoUrl, saveAuthSession, signOut, } from '../../auth';
@@ -8,6 +10,7 @@ import './Dashboard.css';
 import './Profile.css';
 import { API_BASE_URL } from '../../apiConfig';
 import { useOffices } from '../../hooks/useOffices';
+import { useSidebarCollapsed } from '../../hooks/useSidebarCollapsed';
 const UPDATE_USER_API_URL = `${API_BASE_URL}/update_user.php`;
 function PasswordVisibilityButton({ visible, onClick }) {
     return _jsx("button", { type: "button", className: "password-visibility-button", onClick: onClick, "aria-label": visible ? 'Hide password' : 'Show password', title: visible ? 'Hide password' : 'Show password', children: _jsx("svg", { viewBox: "0 0 24 24", "aria-hidden": "true", children: visible ? _jsxs(_Fragment, { children: [_jsx("path", { d: "M3 3l18 18" }), _jsx("path", { d: "M10.6 10.6a2 2 0 0 0 2.8 2.8" }), _jsx("path", { d: "M9.9 5.1A10.8 10.8 0 0 1 12 5c5.1 0 8.7 4.5 9.5 7-.4 1.2-1.4 2.9-3 4.3M6.3 6.3C4.6 7.7 3.4 9.8 2.5 12c.8 2.5 4.4 7 9.5 7 1 0 1.9-.2 2.7-.5" })] }) : _jsxs(_Fragment, { children: [_jsx("path", { d: "M2.5 12S6.1 5 12 5s9.5 7 9.5 7-3.6 7-9.5 7S2.5 12 2.5 12Z" }), _jsx("circle", { cx: "12", cy: "12", r: "3" })] }) }) });
@@ -129,10 +132,7 @@ function ProfileMenu({ account, avatar, onLogout, }) {
             document.removeEventListener('mousedown', close);
         };
     }, []);
-    return (_jsxs("div", { className: "profile-menu-root", ref: rootRef, children: [_jsxs("button", { type: "button", className: "topbar-user profile-menu-trigger", onClick: () => setOpen(value => !value), "aria-haspopup": "menu", "aria-expanded": open, "aria-label": "Open account menu", children: [_jsx("div", { className: "topbar-avatar", children: avatar ? (_jsx("img", { src: avatar, alt: "", onError: event => {
-                                event.currentTarget.onerror = null;
-                                event.currentTarget.src = getDefaultProfileAvatar(account.name);
-                            } })) : (account.initial) }), _jsxs("div", { children: [_jsx("strong", { children: account.name }), _jsx("span", { children: getRoleDisplayName(account.role) })] }), _jsx("span", { className: "profile-menu-chevron", children: "\u2304" })] }), open && (_jsxs("div", { className: "profile-menu-dropdown", role: "menu", children: [_jsx("button", { type: "button", role: "menuitem", onClick: () => {
+    return (_jsxs("div", { className: "profile-menu-root", ref: rootRef, children: [_jsxs("button", { type: "button", className: "topbar-user profile-menu-trigger", onClick: () => setOpen(value => !value), "aria-haspopup": "menu", "aria-expanded": open, "aria-label": "Open account menu", children: [_jsx("div", { className: "topbar-avatar", children: avatar ? (_jsx(ProfileAvatar, { src: avatar, name: account.name })) : (account.initial) }), _jsxs("div", { children: [_jsx("strong", { children: account.name }), _jsx("span", { children: getRoleDisplayName(account.role) })] }), _jsx("span", { className: "profile-menu-chevron", children: "\u2304" })] }), open && (_jsxs("div", { className: "profile-menu-dropdown", role: "menu", children: [_jsx("button", { type: "button", role: "menuitem", onClick: () => {
                             setOpen(false);
                             navigate(account.profilePath);
                         }, children: "My Profile" }), _jsx("button", { type: "button", role: "menuitem", onClick: () => {
@@ -149,6 +149,7 @@ function ProfileMenu({ account, avatar, onLogout, }) {
 |--------------------------------------------------------------------------
 */
 function Profile({ audience: requestedAudience = 'administrator', view = 'profile', }) {
+    const [sidebarCollapsed, setSidebarCollapsed] = useSidebarCollapsed();
     const navigate = useNavigate();
     const { offices } = useOffices();
     /*
@@ -227,10 +228,6 @@ function Profile({ audience: requestedAudience = 'administrator', view = 'profil
         }
         return getProfilePhotoUrl(currentSession.user.profilePhoto, currentSession.user.fullName, currentSession.user.role);
     });
-    const handleAvatarLoadError = () => {
-        const currentUser = getAuthSession()?.user;
-        setAvatar(getDefaultProfileAvatar(currentUser?.fullName, currentUser?.role));
-    };
     /*
     |--------------------------------------------------------------------------
     | Profile editing.
@@ -646,20 +643,20 @@ function Profile({ audience: requestedAudience = 'administrator', view = 'profil
     | Render.
     |--------------------------------------------------------------------------
     */
-    return (_jsxs("div", { className: "admin-shell profile-shell", children: [_jsxs("aside", { className: "admin-sidebar", children: [_jsxs("div", { className: "sidebar-brand", children: [_jsx("img", { src: logo, alt: "Batangas City seal" }), _jsxs("strong", { children: ["Batang", _jsx("span", { children: "AI" })] })] }), _jsxs("nav", { className: "sidebar-nav", "aria-label": `${account.role} navigation`, children: [navigation.map(item => (_jsxs("button", { type: "button", onClick: () => navigate(item.path), children: [_jsx(ProfileNavIcon, { name: item.icon }), _jsx("span", { children: item.label })] }, item.path))), _jsxs("button", { type: "button", className: view === 'profile'
+    return (_jsxs("div", { className: `admin-shell profile-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`, children: [_jsxs("aside", { className: "admin-sidebar", children: [_jsxs("div", { className: "sidebar-brand", children: [_jsx("img", { src: logo, alt: "Batangas City seal" }), _jsxs("strong", { children: ["Batang", _jsx("span", { children: "AI" })] })] }), _jsxs("nav", { className: "sidebar-nav", "aria-label": `${account.role} navigation`, children: [navigation.map(item => (_jsxs("button", { type: "button", onClick: () => navigate(item.path), children: [_jsx(ProfileNavIcon, { name: item.icon }), _jsx("span", { children: item.label })] }, item.path))), _jsxs("button", { type: "button", className: view === 'profile'
                                     ? 'is-active'
                                     : '', onClick: () => navigate(account.profilePath), children: [_jsx(ProfileNavIcon, { name: "profile" }), _jsx("span", { children: "Profile" })] }), _jsxs("button", { type: "button", className: view === 'settings'
                                     ? 'is-active'
-                                    : '', onClick: () => navigate(account.settingsPath), children: [_jsx(ProfileNavIcon, { name: "settings" }), _jsx("span", { children: "Settings" })] })] })] }), _jsxs("main", { className: "admin-main", children: [_jsxs("header", { className: "admin-topbar", children: [_jsxs("div", { className: "topbar-title", children: [_jsx("h1", { children: view === 'profile'
+                                    : '', onClick: () => navigate(account.settingsPath), children: [_jsx(ProfileNavIcon, { name: "settings" }), _jsx("span", { children: "Settings" })] })] })] }), _jsxs("main", { className: "admin-main", children: [_jsxs("header", { className: "admin-topbar", children: [_jsx("button", { className: "menu-button", type: "button", "aria-label": sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar', onClick: () => setSidebarCollapsed(value => !value), children: _jsx("svg", { className: "admin-icon", viewBox: "0 0 24 24", "aria-hidden": "true", children: _jsx("path", { d: "M4 6h16M4 12h16M4 18h16" }) }) }), _jsxs("div", { className: "topbar-title", children: [_jsx("h1", { children: view === 'profile'
                                             ? 'My Profile'
                                             : 'Settings' }), _jsx("p", { children: view === 'profile'
                                             ? 'Review and update your account information.'
-                                            : 'Manage appearance and account security.' })] }), _jsx(AdminNotifications, {}), _jsx(ProfileMenu, { account: account, avatar: avatar, onLogout: handleLogout })] }), _jsxs("div", { className: "dashboard-content profile-page-content", children: [notice && (_jsxs("div", { className: "profile-toast", role: "status", children: [notice, _jsx("button", { type: "button", onClick: () => setNotice(''), "aria-label": "Dismiss", children: "\u00D7" })] })), view === 'profile' ? (_jsxs("section", { className: "profile-layout", children: [_jsxs("article", { className: "dashboard-card profile-identity-card", children: [_jsx("div", { className: "profile-photo", children: avatar ? (_jsx("img", { src: photoPreview || avatar, alt: "Profile", onError: handleAvatarLoadError })) : (account.initial) }), _jsx("input", { ref: fileRef, type: "file", accept: "image/jpeg,image/png,image/webp", hidden: true, disabled: uploadingPhoto, onChange: event => updatePendingPhoto(event.target.files?.[0] ?? null) }), _jsx("button", { type: "button", className: "profile-photo-button", disabled: uploadingPhoto, onClick: () => fileRef.current?.click(), children: "Change photo" }), pendingPhoto && (_jsxs("div", { className: "profile-photo-actions", children: [_jsx("button", { type: "button", className: "profile-photo-button", disabled: uploadingPhoto, onClick: () => {
+                                            : 'Manage appearance and account security.' })] }), _jsx(AdminNotifications, {}), _jsx(ProfileMenu, { account: account, avatar: avatar, onLogout: handleLogout })] }), _jsxs("div", { className: "dashboard-content profile-page-content", children: [notice && (_jsxs("div", { className: "profile-toast", role: "status", children: [notice, _jsx("button", { type: "button", onClick: () => setNotice(''), "aria-label": "Dismiss", children: "\u00D7" })] })), view === 'profile' ? (_jsxs("section", { className: "profile-layout", children: [_jsxs("article", { className: "dashboard-card profile-identity-card", children: [_jsx("div", { className: "profile-photo", children: avatar ? (_jsx(ProfileAvatar, { src: photoPreview || avatar, name: account.name, alt: "Profile" })) : (account.initial) }), _jsx("input", { ref: fileRef, type: "file", accept: "image/jpeg,image/png,image/webp", hidden: true, disabled: uploadingPhoto, onChange: event => updatePendingPhoto(event.target.files?.[0] ?? null) }), _jsx("button", { type: "button", className: "profile-photo-button", disabled: uploadingPhoto, onClick: () => fileRef.current?.click(), children: "Change photo" }), pendingPhoto && (_jsxs("div", { className: "profile-photo-actions", children: [_jsx("button", { type: "button", className: "profile-photo-button", disabled: uploadingPhoto, onClick: () => {
                                                             updatePendingPhoto(null);
                                                             if (fileRef.current)
                                                                 fileRef.current.value = '';
                                                             setNotice('');
-                                                        }, children: "Cancel" }), _jsx("button", { type: "button", className: "profile-photo-button", disabled: uploadingPhoto, onClick: () => void uploadAvatar(pendingPhoto), children: uploadingPhoto ? 'Saving...' : 'Save photo' })] })), _jsx("small", { children: "JPG, PNG, or WEBP. Maximum 5 MB. Your photo appears in the top bar." })] }), _jsxs("article", { className: "dashboard-card profile-card", children: [_jsxs("div", { className: "profile-card-heading", children: [_jsxs("div", { children: [_jsx("h2", { children: "Account Information" }), _jsx("p", { children: "Keep your personal details accurate." })] }), _jsx("button", { type: "button", className: "profile-edit-button", onClick: () => editing ? void saveAccount() : setEditing(true), disabled: savingAccount, children: savingAccount ? 'Saving...' : editing ? 'Save changes' : 'Edit information' })] }), _jsx("div", { className: "account-form", children: info.map(([label, value]) => (_jsxs("label", { children: [_jsx("span", { children: label }), label === 'Office' ? (_jsxs("select", { value: value, disabled: !editing || savingAccount, onChange: event => setAccount(current => ({ ...current, department: event.target.value })), children: [!offices.includes(value) && value && _jsx("option", { value: value, children: value }), offices.map(office => _jsx("option", { value: office, children: office }, office))] })) : (_jsx("input", { value: value, disabled: !editing || savingAccount || label === 'Employee ID' || label === 'Role', onChange: event => {
+                                                        }, children: "Cancel" }), _jsx("button", { type: "button", className: "profile-photo-button", disabled: uploadingPhoto, onClick: () => void uploadAvatar(pendingPhoto), children: uploadingPhoto ? _jsx(LoadingState, { label: "Saving...", variant: "inline" }) : 'Save photo' })] })), _jsx("small", { children: "JPG, PNG, or WEBP. Maximum 5 MB. Your photo appears in the top bar." })] }), _jsxs("article", { className: "dashboard-card profile-card", children: [_jsxs("div", { className: "profile-card-heading", children: [_jsxs("div", { children: [_jsx("h2", { children: "Account Information" }), _jsx("p", { children: "Keep your personal details accurate." })] }), _jsx("button", { type: "button", className: "profile-edit-button", onClick: () => editing ? void saveAccount() : setEditing(true), disabled: savingAccount, children: savingAccount ? _jsx(LoadingState, { label: "Saving...", variant: "inline" }) : editing ? 'Save changes' : 'Edit information' })] }), _jsx("div", { className: "account-form", children: info.map(([label, value]) => (_jsxs("label", { children: [_jsx("span", { children: label }), label === 'Office' ? (_jsxs("select", { value: value, disabled: !editing || savingAccount, onChange: event => setAccount(current => ({ ...current, department: event.target.value })), children: [!offices.includes(value) && value && _jsx("option", { value: value, children: value }), offices.map(office => _jsx("option", { value: office, children: office }, office))] })) : (_jsx("input", { value: value, disabled: !editing || savingAccount || label === 'Employee ID' || label === 'Role', onChange: event => {
                                                                 const newValue = event.target.value;
                                                                 setAccount(current => ({
                                                                     ...current,
@@ -682,7 +679,7 @@ function Profile({ audience: requestedAudience = 'administrator', view = 'profil
                                                                             confirm: event.target
                                                                                 .value,
                                                                         })), placeholder: "Re-enter password", autoComplete: "new-password" }), _jsx(PasswordVisibilityButton, { visible: showPasswords.confirm, onClick: () => setShowPasswords(current => ({ ...current, confirm: !current.confirm })) })] })] }), _jsx("button", { type: "button", className: "incident-new", onClick: updatePassword, disabled: updatingPassword, children: updatingPassword
-                                                            ? 'Updating...'
+                                                            ? _jsx(LoadingState, { label: "Updating...", variant: "inline" })
                                                             : 'Update password' })] })] })] }))] })] })] }));
 }
 export default Profile;
