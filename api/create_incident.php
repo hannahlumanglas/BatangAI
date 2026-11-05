@@ -27,6 +27,8 @@ require_once "config.php";
 require_once "catalog.php";
 require_once "auth_tokens.php";
 
+/** @var mysqli $conn The config bootstrap exits if it cannot establish a connection. */
+
 // Get JSON data from React
 $rawData = file_get_contents("php://input");
 $data = json_decode($rawData, true);
@@ -151,9 +153,9 @@ if ($isAssignmentReporter && ($severity === null || $severity === '')) {
     $conn->close();
     exit;
 }
-// Staff who report incidents begin with an assigned, pending ticket. Technician
-// troubleshooting and resolution notes are completed later in My Assignments.
-if ($isAssignmentReporter) {
+// Employee reports must remain pending for IT review. Staff troubleshooting
+// and resolution are completed later in My Assignments.
+if ($employeeRole === 'employee' || $isAssignmentReporter) {
     $resolvedByUser = false;
 }
 

@@ -67,6 +67,13 @@ provide PHP with MySQLi and a MySQL database. Configure the PHP API using a
 private `api/.env.local` file on the host. Never put database passwords or API
 keys in frontend files.
 
+## Hostinger deployment
+
+For Hostinger shared hosting, follow the
+[Hostinger deployment guide](docs/HOSTINGER_DEPLOYMENT.md). It covers the
+production build, hPanel database setup, private API configuration, and the
+shared-hosting limitation for office-network device pings.
+
 For local network device monitoring, see
 [Remote device monitoring](docs/REMOTE_DEVICE_MONITORING.md). Incident-analysis
 configuration is described in [Gemini setup](docs/GEMINI_SETUP.md).

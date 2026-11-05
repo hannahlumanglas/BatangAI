@@ -48,6 +48,10 @@
 
 .incident-form { display:flex; flex-direction:column; gap:16px; }
 
+.employee-report-guidance { display:grid; gap:5px; padding:14px 16px; color:var(--text-primary); background:color-mix(in srgb,var(--primary) 7%,var(--card-bg)); border:1px solid color-mix(in srgb,var(--primary) 22%,var(--border-color)); border-left:4px solid var(--primary); border-radius:12px; font-size:var(--font-body); line-height:1.5; }
+.employee-report-guidance strong { color:var(--text-heading); }
+.employee-report-guidance span { color:var(--text-secondary); }
+
 .incident-form-section { min-width:0; margin:0; padding:20px; background:var(--card-bg); border:1px solid var(--border-color); border-radius:14px; }
 .incident-form-section-header { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
 .incident-form-badge { display:inline-grid; width:24px; height:24px; place-items:center; color:#fff; background:var(--success); border-radius:50%; font-size:var(--font-badge); font-weight:700; }

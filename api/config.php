@@ -47,4 +47,5 @@ if (!$conn instanceof mysqli || $conn->connect_error) {
     die(json_encode(['success' => false, 'message' => 'Database connection failed. Check the API database configuration and setup.']));
 }
 
+/** @var mysqli $conn */
 $conn->set_charset("utf8mb4");

@@ -299,9 +299,14 @@ function ReportIncident() {
     };
     const currentUser = getAuthSession()?.user;
     const isAssignmentReporter = ['Administrator', 'IT Personnel'].includes(currentUser?.role || '');
+    const isEmployee = currentUser?.role === 'Employee';
     const currentNavigation = roleNavigation[currentUser?.role] || navigation;
     const analyze = async (event) => {
         event.preventDefault();
+        if (isEmployee) {
+            await submit();
+            return;
+        }
         if (analysisRequestActive.current || analyzing) {
             return;
         }
@@ -340,22 +345,28 @@ function ReportIncident() {
             navigate('/');
             return;
         }
-        if (!aiAnalysis) {
+        if (!aiAnalysis && !isEmployee) {
             setSubmitError('Please continue with the incident submission.');
             return;
         }
-        if (!isAssignmentReporter && !issueResolved) {
+        if (!isAssignmentReporter && !isEmployee && !issueResolved) {
             setSubmitError('Please choose whether the basic self-help resolved the issue.');
             return;
         }
-        const selfHelpSteps = parseSelfHelpSteps(aiAnalysis.basicSelfHelp);
-        if (!isAssignmentReporter && issueResolved === 'yes' &&
+        const analysis = aiAnalysis ?? {
+            classification: values.issueCategory,
+            keywords: [],
+            summary: values.description,
+            basicSelfHelp: '',
+            itTroubleshooting: '',
+        };
+        const selfHelpSteps = parseSelfHelpSteps(analysis.basicSelfHelp);
+        if (!isAssignmentReporter && !isEmployee && issueResolved === 'yes' &&
             selfHelpSteps.length > 0 &&
             checkedSelfHelpSteps.length < selfHelpSteps.length) {
             setSubmitError('Please mark each self-help step you tried before confirming that the issue is resolved.');
             return;
         }
-        const analysis = aiAnalysis;
         try {
             setSubmitting(true);
             const response = await fetch(`${API_BASE_URL}/create_incident.php`, {
@@ -366,7 +377,7 @@ function ReportIncident() {
                 },
                 body: JSON.stringify({
                     userId,
-                    resolvedByUser: !isAssignmentReporter && issueResolved === 'yes',
+                    resolvedByUser: !isAssignmentReporter && !isEmployee && issueResolved === 'yes',
                     affectedIssue: values.affectedService,
                     description: values.description,
                     issueCategory: values.issueCategory,
@@ -453,13 +464,13 @@ function ReportIncident() {
                                     'Employee', role: "Employee", avatarInitial: (currentUser?.fullName ||
                                     'E')
                                     .charAt(0)
-                                    .toUpperCase(), onLogout: handleLogout })] }), _jsx("div", { className: "dashboard-content employee-report-page", children: _jsx("article", { className: "employee-report-dialog", role: "region", "aria-label": "Report a Network Incident form", children: _jsxs("div", { className: "employee-report-dialog-body", children: [phase === 'form' ? (_jsxs("form", { className: "incident-form", onSubmit: analyze, children: [_jsx(IncidentDetailsFields, { values: values, showSeverity: currentUser?.role === 'Administrator' || currentUser?.role === 'IT Personnel', onChange: (field, value) => {
+                                    .toUpperCase(), onLogout: handleLogout })] }), _jsx("div", { className: "dashboard-content employee-report-page", children: _jsx("article", { className: "employee-report-dialog", role: "region", "aria-label": "Report a Network Incident form", children: _jsxs("div", { className: "employee-report-dialog-body", children: [isEmployee || phase === 'form' ? (_jsxs("form", { className: "incident-form", onSubmit: analyze, children: [isEmployee && (_jsxs("aside", { className: "employee-report-guidance", role: "note", children: [_jsx("strong", { children: "For your safety, do not try to repair or open the device yourself." }), _jsx("span", { children: "Submit this report and IT personnel will review it and handle the repair through My Assignments." })] })), _jsx(IncidentDetailsFields, { values: values, showSeverity: currentUser?.role === 'Administrator' || currentUser?.role === 'IT Personnel', onChange: (field, value) => {
                                                     setDraftSaveError('');
                                                     setValues(v => ({ ...v, [field]: value }));
                                                 } }), _jsx(IncidentDescriptionFields, { values: values, onChange: (field, value) => {
                                                     setDraftSaveError('');
                                                     setValues(v => ({ ...v, [field]: value }));
-                                                } }), _jsxs("footer", { className: "employee-report-footer", children: [_jsx("button", { className: "btn-secondary", type: "button", onClick: closeReport, children: "Cancel" }), _jsxs("button", { className: "incident-new", type: "submit", disabled: analyzing, children: [_jsx(Icon, { name: "sparkle" }), "Analyze with BatangAI"] })] }), analyzing && (_jsx("div", { className: "employee-report-loading-overlay", role: "status", "aria-live": "polite", "aria-busy": "true", children: _jsxs("div", { className: "employee-report-loading-card", children: [_jsx(LoadingState, { label: "Generating response...", variant: "inline" }), _jsx("span", { className: "employee-report-loading-note", children: "This may take a few moments." })] }) })), analysisError && (_jsx("div", { className: "employee-report-error", role: "alert", children: _jsx("p", { children: analysisError }) })), submitted && (_jsxs("p", { className: "employee-report-success", children: [_jsx(Icon, { name: "check" }), "Your incident report has been submitted."] }))] })) : (_jsxs("section", { className: "employee-ai-result", "aria-live": "polite", children: [currentUser?.role === "Administrator" || currentUser?.role === "IT Personnel" ? (_jsxs("section", { className: "employee-self-help", "aria-labelledby": "technician-steps-title", children: [_jsx("h3", { id: "technician-steps-title", children: "Technician Troubleshooting Steps" }), parseSelfHelpSteps(aiAnalysis?.itTroubleshooting || "").length ? _jsx("ul", { className: "employee-self-help-checklist", children: parseSelfHelpSteps(aiAnalysis?.itTroubleshooting || "").map((step, index) => _jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", disabled: true }), _jsx("span", { children: step })] }) }, index)) }) : _jsx("p", { children: "No technician troubleshooting steps were generated." }), _jsx("p", { children: "Resolution Notes can be completed from My Assignments after you take action." })] })) : (_jsxs(_Fragment, { children: [_jsxs("section", { className: "employee-self-help", "aria-labelledby": "employee-self-help-title", children: [_jsx("h3", { id: "employee-self-help-title", children: "Basic Self Help" }), parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length ? (_jsx("ol", { className: "employee-self-help-checklist", children: parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').map((step, index) => (_jsx("li", { className: checkedSelfHelpSteps.includes(index) ? 'is-checked' : '', children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: checkedSelfHelpSteps.includes(index), onChange: event => setCheckedSelfHelpSteps(current => event.target.checked
+                                                } }), _jsxs("footer", { className: "employee-report-footer", children: [_jsx("button", { className: "btn-secondary", type: "button", onClick: closeReport, children: "Cancel" }), _jsxs("button", { className: "incident-new", type: "submit", disabled: submitting || analyzing, children: [_jsx(Icon, { name: isEmployee ? "report" : "sparkle" }), submitting ? "Submitting..." : isEmployee ? "Submit Incident Report" : "Analyze with BatangAI"] })] }), analyzing && (_jsx("div", { className: "employee-report-loading-overlay", role: "status", "aria-live": "polite", "aria-busy": "true", children: _jsxs("div", { className: "employee-report-loading-card", children: [_jsx(LoadingState, { label: "Generating response...", variant: "inline" }), _jsx("span", { className: "employee-report-loading-note", children: "This may take a few moments." })] }) })), analysisError && (_jsx("div", { className: "employee-report-error", role: "alert", children: _jsx("p", { children: analysisError }) })), submitError && (_jsx("div", { className: "employee-report-error", role: "alert", children: _jsx("p", { children: submitError }) })), submitted && (_jsxs("p", { className: "employee-report-success", children: [_jsx(Icon, { name: "check" }), "Your incident report has been submitted."] }))] })) : (_jsxs("section", { className: "employee-ai-result", "aria-live": "polite", children: [currentUser?.role === "Administrator" || currentUser?.role === "IT Personnel" ? (_jsxs("section", { className: "employee-self-help", "aria-labelledby": "technician-steps-title", children: [_jsx("h3", { id: "technician-steps-title", children: "Technician Troubleshooting Steps" }), parseSelfHelpSteps(aiAnalysis?.itTroubleshooting || "").length ? _jsx("ul", { className: "employee-self-help-checklist", children: parseSelfHelpSteps(aiAnalysis?.itTroubleshooting || "").map((step, index) => _jsx("li", { children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", disabled: true }), _jsx("span", { children: step })] }) }, index)) }) : _jsx("p", { children: "No technician troubleshooting steps were generated." }), _jsx("p", { children: "Resolution Notes can be completed from My Assignments after you take action." })] })) : (_jsxs(_Fragment, { children: [_jsxs("section", { className: "employee-self-help", "aria-labelledby": "employee-self-help-title", children: [_jsx("h3", { id: "employee-self-help-title", children: "Basic Self Help" }), parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').length ? (_jsx("ol", { className: "employee-self-help-checklist", children: parseSelfHelpSteps(aiAnalysis?.basicSelfHelp || '').map((step, index) => (_jsx("li", { className: checkedSelfHelpSteps.includes(index) ? 'is-checked' : '', children: _jsxs("label", { children: [_jsx("input", { type: "checkbox", checked: checkedSelfHelpSteps.includes(index), onChange: event => setCheckedSelfHelpSteps(current => event.target.checked
                                                                             ? [...current, index]
                                                                             : current.filter(stepIndex => stepIndex !== index)) }), _jsx("span", { children: step })] }) }, index))) })) : _jsx("p", { children: "No troubleshooting steps were provided. You can still submit the report for IT assistance." })] }), _jsxs("section", { className: "employee-resolution-choice", "aria-labelledby": "employee-resolution-title", children: [_jsx("h3", { id: "employee-resolution-title", children: "Were you able to resolve the issue?" }), _jsx("p", { children: "Try the steps above, mark the steps you completed, then choose the result before submitting." }), _jsxs("div", { className: "employee-resolution-options", children: [_jsxs("label", { className: issueResolved === 'yes' ? 'is-selected' : '', children: [_jsx("input", { type: "radio", name: "issueResolved", value: "yes", checked: issueResolved === 'yes', onChange: () => setIssueResolved('yes') }), _jsx("span", { className: "employee-resolution-icon employee-resolution-icon--yes", "aria-hidden": "true", children: "\u2713" }), _jsx("strong", { children: "Yes, Resolved!" }), _jsx("small", { children: "Save to All Incidents as resolved by you" })] }), _jsxs("label", { className: issueResolved === 'no' ? 'is-selected' : '', children: [_jsx("input", { type: "radio", name: "issueResolved", value: "no", checked: issueResolved === 'no', onChange: () => setIssueResolved('no') }), _jsx("span", { className: "employee-resolution-icon employee-resolution-icon--no", "aria-hidden": "true", children: "\u00D7" }), _jsx("strong", { children: "Not Resolved" }), _jsx("small", { children: "Save as pending for admin or secretary assignment" })] })] })] })] })), submitError && (_jsx("p", { className: "employee-report-error", role: "alert", children: submitError })), _jsxs("div", { className: "employee-ai-actions", children: [_jsx("button", { className: "employee-ai-back", type: "button", onClick: closeReport, children: "Close" }), _jsx("button", { className: "employee-ai-edit", type: "button", onClick: editReport, children: "Edit Report" }), _jsxs("button", { className: "incident-new", type: "button", onClick: submit, disabled: submitting, children: [_jsx(Icon, { name: "check" }), submitting
                                                                 ? _jsx(LoadingState, { label: "Submitting...", variant: "inline" })
